@@ -30,6 +30,15 @@
   #bg-a { opacity: 1; }
   #bg-b { opacity: 0; }
 
+  /* ── Sky canvas (sun/moon/clouds/stars — driven by world_time) ── */
+  #sky {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 42vh;
+    pointer-events: none;
+    z-index: 0;
+  }
+
   /* ── Particle canvas ── */
   #particles {
     position: fixed; inset: 0;
@@ -102,13 +111,15 @@
     position: fixed; inset: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 72px 18vw 80px;
+    padding: 72px 18vw 80px 230px;  /* left: sidebar width + gap */
     z-index: 4;
     scroll-behavior: smooth;
+    transition: padding-left 0.4s ease;
     /* Hide scrollbar but keep scroll */
     scrollbar-width: none;
   }
   #text-scroll::-webkit-scrollbar { display: none; }
+  #text-scroll.sidebar-hidden { padding-left: 60px; }
 
   /* ── Text content ── */
   #text-content {
@@ -157,6 +168,31 @@
     color: #94b8cc;
     font-style: italic;
     font-size: 0.92em;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+  }
+
+  /* ── NPC dialogue blocks ── */
+  .npc-block {
+    margin-bottom: 2em;
+    opacity: 0;
+    animation: fadeIn 0.5s ease forwards;
+    border-left: 2px solid rgba(200, 160, 64, 0.35);
+    padding-left: 1.2em;
+  }
+
+  .npc-name {
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(200, 160, 64, 0.8);
+    margin-bottom: 0.45em;
+  }
+
+  .npc-block p {
+    color: #c8a878;
+    font-style: italic;
+    font-size: 0.95em;
     text-shadow: 0 1px 6px rgba(0,0,0,0.8);
   }
 
@@ -225,23 +261,50 @@
      Ability scores shown only when there is exactly 1 player.
      ══════════════════════════════════════════════════════════ */
 
-  #sidebar {
+  /* ── Sidebar hide toggle ── */
+  #sidebar-toggle {
     position: fixed;
     left: 28px;
+    top: 32px;
+    z-index: 6;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(180,140,60,0.4);
+    padding: 2px 6px;
+    transition: color 0.3s ease;
+    display: none;  /* shown only when sidebar has data */
+  }
+  #sidebar-toggle:hover { color: rgba(180,140,60,0.8); }
+  #sidebar-toggle.visible { display: block; }
+
+  #sidebar {
+    position: fixed;
+    left: 0;
     top: 60px;
     bottom: 28px;
-    width: 175px;
+    width: 210px;
     z-index: 4;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: none;
-    background: linear-gradient(to right, rgba(0,0,0,0.45) 60%, transparent);
-    border-right: 1px solid rgba(180,140,60,0.1);
-    padding: 10px 12px 16px;
+    background: linear-gradient(to right, rgba(0,0,0,0.6) 70%, transparent);
+    border-right: 1px solid rgba(180,140,60,0.15);
+    padding: 10px 12px 16px 28px;
     opacity: 0;
-    transition: opacity 0.7s ease;
+    transition: opacity 0.7s ease, transform 0.4s ease;
+    transform: translateX(0);
   }
   #sidebar.has-data { opacity: 1; }
+  #sidebar.hidden {
+    transform: translateX(-210px);
+    opacity: 0;
+    pointer-events: none;
+  }
   #sidebar::-webkit-scrollbar { display: none; }
 
   /* ── Player card ── */
@@ -333,6 +396,53 @@
     margin-right: 8px;
   }
 
+  /* ── Conditions ── */
+  .sb-conditions {
+    margin-top: 5px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+  .sb-condition-pill {
+    font-family: 'Cinzel', serif;
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border-radius: 2px;
+    border: 1px solid;
+  }
+  .sb-condition-pill.danger {
+    color: rgba(220,80,80,0.9);
+    border-color: rgba(220,80,80,0.35);
+    background: rgba(220,80,80,0.08);
+  }
+  .sb-condition-pill.warn {
+    color: rgba(220,150,50,0.9);
+    border-color: rgba(220,150,50,0.35);
+    background: rgba(220,150,50,0.08);
+  }
+  .sb-condition-pill.info {
+    color: rgba(100,160,220,0.9);
+    border-color: rgba(100,160,220,0.35);
+    background: rgba(100,160,220,0.08);
+  }
+  .sb-condition-pill.buff {
+    color: rgba(80,200,130,0.9);
+    border-color: rgba(80,200,130,0.35);
+    background: rgba(80,200,130,0.08);
+  }
+  /* Concentration tag */
+  .sb-concentrate {
+    margin-top: 4px;
+    font-size: 8px;
+    color: rgba(160,120,220,0.75);
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* ── Features (Second Wind etc) ── */
   .sb-features {
     margin-top: 4px;
@@ -411,6 +521,125 @@
     color: rgba(180,140,60,0.8);
     top: 4px;
   }
+
+  /* ── CRIT / FUMBLE flash overlay ── */
+  #flash-overlay {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9;
+    opacity: 0;
+  }
+  @keyframes flashCrit {
+    0%   { opacity: 0; background: radial-gradient(ellipse at 50% 50%, rgba(210,170,40,0.55) 0%, transparent 65%); }
+    12%  { opacity: 1; }
+    100% { opacity: 0; background: radial-gradient(ellipse at 50% 50%, rgba(210,170,40,0) 0%, transparent 65%); }
+  }
+  @keyframes flashFumble {
+    0%   { opacity: 0; background: radial-gradient(ellipse at 50% 50%, rgba(180,30,30,0.65) 0%, transparent 65%); }
+    8%   { opacity: 1; }
+    100% { opacity: 0; background: radial-gradient(ellipse at 50% 50%, rgba(180,30,30,0) 0%, transparent 65%); }
+  }
+  .flash-crit   { animation: flashCrit   2.0s ease-out forwards; }
+  .flash-fumble { animation: flashFumble 1.6s ease-out forwards; }
+
+  /* ── HP number flash ── */
+  @keyframes hpDmg  { 0% { color:#d05050; } 100% { color:rgba(220,200,160,0.75); } }
+  @keyframes hpHeal { 0% { color:#55cc70; } 100% { color:rgba(220,200,160,0.75); } }
+  .hp-flash-dmg  { animation: hpDmg  1.4s ease-out forwards; }
+  .hp-flash-heal { animation: hpHeal 1.0s ease-out forwards; }
+
+  /* ── World clock ── */
+  #world-clock {
+    position: fixed;
+    top: 28px; right: 32px;
+    z-index: 5;
+    text-align: right;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1s ease;
+    user-select: none;
+  }
+  #world-clock.has-data { opacity: 1; }
+  #wc-icon {
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1;
+    margin-bottom: 5px;
+    opacity: 0.6;
+  }
+  #wc-date {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(180,140,60,0.65);
+    line-height: 1.5;
+  }
+  #wc-sub {
+    font-family: 'Cinzel', serif;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(180,140,60,0.38);
+    line-height: 1.5;
+    margin-top: 1px;
+  }
+
+  /* ── Audio toggle controls ── */
+  #audio-controls {
+    position: fixed;
+    top: 96px; right: 28px;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    opacity: 0.38;
+    transition: opacity 0.3s ease;
+    pointer-events: auto;
+  }
+  #audio-controls:hover { opacity: 0.85; }
+
+  .audio-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .audio-label {
+    font-family: 'Cinzel', serif;
+    font-size: 7.5px;
+    letter-spacing: 1.8px;
+    color: rgba(180,140,60,0.75);
+    text-transform: uppercase;
+    min-width: 42px;
+    text-align: right;
+  }
+  .toggle-track {
+    width: 28px; height: 14px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(180,140,60,0.25);
+    border-radius: 7px;
+    position: relative;
+    transition: background 0.3s, border-color 0.3s;
+    flex-shrink: 0;
+  }
+  .toggle-track.on {
+    background: rgba(180,140,60,0.28);
+    border-color: rgba(180,140,60,0.65);
+  }
+  .toggle-thumb {
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: rgba(180,140,60,0.45);
+    transition: transform 0.22s ease, background 0.3s;
+  }
+  .toggle-track.on .toggle-thumb {
+    transform: translateX(14px);
+    background: rgba(220,180,70,0.92);
+  }
 </style>
 </head>
 <body>
@@ -418,6 +647,9 @@
 <!-- Background layers -->
 <div id="bg-a" class="bg-layer"></div>
 <div id="bg-b" class="bg-layer"></div>
+
+<!-- Sky layer — sun/moon/clouds/stars, driven by world_time -->
+<canvas id="sky"></canvas>
 
 <!-- Particles -->
 <canvas id="particles"></canvas>
@@ -427,6 +659,27 @@
 <div id="frame"></div>
 <div id="scene-indicator">— The Inn —</div>
 <div id="bottom-fade"></div>
+
+<!-- Sidebar toggle button -->
+<button id="sidebar-toggle" title="Toggle character sidebar">◀ Hide</button>
+
+<!-- CRIT / FUMBLE full-screen flash -->
+<div id="flash-overlay"></div>
+
+<!-- World time clock (top-right) -->
+<div id="world-clock">
+  <div id="wc-icon">☀</div>
+  <div id="wc-date"></div>
+  <div id="wc-sub"></div>
+</div>
+
+<!-- Audio toggle controls — SFX triggered by narration text -->
+<div id="audio-controls">
+  <div class="audio-row" id="sfx-row" title="Sound effects (triggered by narration)">
+    <span class="audio-label">Sound Effects</span>
+    <div class="toggle-track" id="sfx-track"><div class="toggle-thumb"></div></div>
+  </div>
+</div>
 
 <!-- Character sidebar -->
 <div id="sidebar">
@@ -487,6 +740,7 @@ function applyScene(scene) {
 
   // Switch particle type
   particleSystem.switchType(activeScene.particles, activeScene.accent);
+  // no audio hook on scene change — ambient removed
 }
 
 // Initialise background to default scene
@@ -634,6 +888,32 @@ class Particle {
       this.size = rand(1.5, 3.5);
       this.maxLife = rand(80, 180);
       this._color = '#6090b0';
+    } else if (T === 'mist') {
+      this.x = rand(-120, W + 120);
+      this.y = rand(H * 0.05, H * 0.85);
+      this.vx = rand(0.04, 0.18);
+      this.vy = rand(-0.015, 0.015);
+      this.size = rand(70, 180);
+      this.maxLife = rand(700, 1400);
+      this._color = '#7888a0';
+    } else if (T === 'leaves') {
+      this.x = rand(0, W);
+      this.y = rand(-20, 0);
+      this.vx = rand(-0.7, 0.7);
+      this.vy = rand(0.5, 1.6);
+      this.size = rand(4, 9);
+      this.maxLife = rand(220, 520);
+      this._rot = rand(0, Math.PI * 2);
+      this._rotSpeed = rand(-0.045, 0.045);
+      const lc = ['#8B4513','#D2691E','#c8a020','#CD853F','#a06828'];
+      this._color = lc[randInt(0, lc.length - 1)];
+    } else if (T === 'ripples') {
+      this.x = rand(0, W);
+      this.y = rand(H * 0.55, H);
+      this.vx = 0; this.vy = 0;
+      this.size = rand(6, 22);
+      this.maxLife = rand(100, 220);
+      this._color = '#4888c0';
     } else {
       // fallback = dust
       this.vx = 0; this.vy = 0;
@@ -673,6 +953,12 @@ class Particle {
       this.alpha *= (0.85 + 0.15 * Math.sin(this._phase));
     } else if (T === 'sparks') {
       this.vy += 0.08; // gravity
+    } else if (T === 'leaves') {
+      this._rot += this._rotSpeed;
+      this.vx += rand(-0.025, 0.025);
+      this.vx = Math.max(-1.2, Math.min(1.2, this.vx));
+    } else if (T === 'ripples') {
+      this.size += 0.55;
     }
 
     return this.life < this.maxLife;
@@ -725,6 +1011,29 @@ class Particle {
       ctx.beginPath();
       ctx.ellipse(this.x, this.y, this.size * 0.4, this.size, 0, 0, Math.PI * 2);
       ctx.fill();
+    } else if (T === 'mist') {
+      const mg = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size);
+      mg.addColorStop(0, `rgba(${r},${g},${b},0.055)`);
+      mg.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = mg;
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y, this.size, this.size * 0.38, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (T === 'leaves') {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this._rot);
+      ctx.fillStyle = `rgba(${r},${g},${b},0.88)`;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, this.size * 0.42, this.size, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (T === 'ripples') {
+      ctx.strokeStyle = `rgba(${r},${g},${b},0.28)`;
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y, this.size, this.size * 0.28, 0, 0, Math.PI * 2);
+      ctx.stroke();
     } else {
       ctx.fillStyle = `rgba(${r},${g},${b},1)`;
       ctx.beginPath();
@@ -742,6 +1051,7 @@ const PARTICLE_COUNT = {
   embers: 80, fireflies: 45, smoke: 20, dust: 90,
   snow: 110, stars: 160, bubbles: 45, sparks: 50,
   sand: 80, rain: 130, drips: 35,
+  mist: 12, leaves: 55, ripples: 18,
 };
 
 const particleSystem = {
@@ -800,11 +1110,175 @@ const particleSystem = {
 
 particleSystem.init();
 
+// ── Sky Renderer ──────────────────────────────────────────────────
+
+const skyCanvas = document.getElementById('sky');
+const skyCtx    = skyCanvas.getContext('2d');
+let SW = 0, SH = 0;
+
+function resizeSky() {
+  const dpr = window.devicePixelRatio || 1;
+  SW = window.innerWidth;
+  SH = Math.round(window.innerHeight * 0.42);
+  skyCanvas.width  = SW * dpr;
+  skyCanvas.height = SH * dpr;
+  skyCanvas.style.width  = SW + 'px';
+  skyCanvas.style.height = SH + 'px';
+  skyCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resizeSky);
+resizeSky();
+
+const skyRenderer = (() => {
+  let _time = 'morning', _weather = '';
+
+  // Pre-computed star positions (twinkling dots, night only)
+  const STARS = Array.from({length: 130}, () => ({
+    x: Math.random(), y: Math.random(),
+    r: 0.4 + Math.random() * 1.6,
+    ph: Math.random() * Math.PI * 2,
+    spd: 0.008 + Math.random() * 0.022,
+  }));
+
+  // Cloud objects — drift left, wrap to right
+  const CLOUD_BLOBS = [[0,0,30],[-25,10,23],[23,8,25],[-9,-12,19],[13,-9,17],[36,14,17],[-36,14,15],[6,16,13]];
+  const CLOUDS = Array.from({length: 5}, (_, i) => ({
+    x: (i / 5) * (SW + 600) - 100,
+    y: 0, sc: 1, spd: 0.1,
+  }));
+  function resetCloud(c, offscreen) {
+    c.x   = offscreen ? SW + rand(100, 350) : rand(-200, SW + 200);
+    c.y   = rand(SH * 0.06, SH * 0.68);
+    c.sc  = rand(0.65, 1.75);
+    c.spd = rand(0.07, 0.22);
+  }
+  CLOUDS.forEach(c => resetCloud(c, false));
+
+  function drawCloud(c, opacity, color) {
+    skyCtx.globalAlpha = opacity;
+    skyCtx.fillStyle = color;
+    CLOUD_BLOBS.forEach(([dx, dy, r]) => {
+      skyCtx.beginPath();
+      skyCtx.arc(c.x + dx * c.sc, c.y + dy * c.sc, r * c.sc, 0, Math.PI * 2);
+      skyCtx.fill();
+    });
+    skyCtx.globalAlpha = 1;
+  }
+
+  function glow(x, y, r0, r1, c0, c1) {
+    const g = skyCtx.createRadialGradient(x, y, r0, x, y, r1);
+    g.addColorStop(0, c0); g.addColorStop(1, c1);
+    skyCtx.fillStyle = g;
+    skyCtx.beginPath();
+    skyCtx.arc(x, y, r1, 0, Math.PI * 2);
+    skyCtx.fill();
+  }
+
+  return {
+    setState(wt) {
+      if (!wt) return;
+      _time    = (wt.time    || 'morning').toLowerCase();
+      _weather = (wt.weather || '').toLowerCase();
+    },
+
+    draw() {
+      skyCtx.clearRect(0, 0, SW, SH);
+
+      const isNight  = /night|midnight|late/.test(_time);
+      const isDusk   = /evening|dusk/.test(_time);
+      const isDawn   = /dawn/.test(_time);
+      const isRain   = /rain|storm/.test(_weather);
+      const isCloudy = /cloud|overcast/.test(_weather) || isRain;
+      const isFog    = /fog|mist/.test(_weather);
+
+      // Stars (night / dusk)
+      if (isNight || isDusk) {
+        const mod = isNight ? 1 : 0.35;
+        STARS.forEach(s => {
+          s.ph += s.spd;
+          const a = (0.25 + 0.55 * Math.sin(s.ph)) * mod * (isRain ? 0.15 : 1);
+          if (a <= 0.01) return;
+          skyCtx.globalAlpha = a;
+          skyCtx.fillStyle = '#c8d4ff';
+          skyCtx.beginPath();
+          skyCtx.arc(s.x * SW, s.y * SH, s.r, 0, Math.PI * 2);
+          skyCtx.fill();
+        });
+        skyCtx.globalAlpha = 1;
+      }
+
+      // Moon (night / dusk)
+      if (isNight || isDusk) {
+        const mx = SW * 0.76, my = SH * 0.24;
+        const ma = isNight ? 0.82 : 0.32;
+        glow(mx, my, 10, 72, `rgba(190,200,230,${(ma * 0.18).toFixed(2)})`, 'rgba(190,200,230,0)');
+        skyCtx.globalAlpha = ma;
+        skyCtx.fillStyle = '#d8e0f4';
+        skyCtx.beginPath(); skyCtx.arc(mx, my, 15, 0, Math.PI * 2); skyCtx.fill();
+        // Crescent: paint shadow circle using clip
+        skyCtx.save();
+        skyCtx.beginPath(); skyCtx.arc(mx, my, 15, 0, Math.PI * 2); skyCtx.clip();
+        skyCtx.fillStyle = 'rgba(8,12,28,0.82)';
+        skyCtx.beginPath(); skyCtx.arc(mx + 9, my - 4, 13, 0, Math.PI * 2); skyCtx.fill();
+        skyCtx.restore();
+        skyCtx.globalAlpha = 1;
+      }
+
+      // Sun (day / dusk / dawn)
+      if (!isNight) {
+        let sx, sy, inner, outer;
+        if (isDawn) {
+          [sx, sy] = [SW * 0.12, SH * 0.90];
+          [inner, outer] = ['rgba(255,155,55,0.72)', 'rgba(255,100,20,0)'];
+        } else if (/morning/.test(_time)) {
+          [sx, sy] = [SW * 0.18, SH * 0.38];
+          [inner, outer] = ['rgba(255,225,130,0.62)', 'rgba(255,200,80,0)'];
+        } else if (/midday|noon/.test(_time)) {
+          [sx, sy] = [SW * 0.50, SH * 0.06];
+          [inner, outer] = ['rgba(255,248,190,0.44)', 'rgba(255,245,160,0)'];
+        } else if (/afternoon/.test(_time)) {
+          [sx, sy] = [SW * 0.80, SH * 0.32];
+          [inner, outer] = ['rgba(255,215,100,0.55)', 'rgba(255,185,60,0)'];
+        } else { // evening / dusk
+          [sx, sy] = [SW * 0.88, SH * 0.84];
+          [inner, outer] = ['rgba(245,110,28,0.75)', 'rgba(210,65,0,0)'];
+        }
+        glow(sx, sy, 4, 95, inner, outer);
+        glow(sx, sy, 0, 26, inner.replace(/[\d.]+\)$/, '1)'), inner.replace(/[\d.]+\)$/, '0)'));
+      }
+
+      // Clouds
+      const cloudAlpha = isRain ? 0.40 : isCloudy ? 0.22 : isFog ? 0.14 : 0.08;
+      const cloudCount = isRain ? 5  : isCloudy ? 4 : 2;
+      const cloudColor = isNight ? '#303248' : isDusk ? '#a05828' : isRain ? '#3a3c4c' : '#c4c8d8';
+      const windMult   = isRain ? 2.2 : 1;
+
+      CLOUDS.forEach((c, i) => {
+        if (i >= cloudCount) return;
+        c.x -= c.spd * windMult;
+        if (c.x < -300 * c.sc) resetCloud(c, true);
+        const ao = cloudAlpha * (0.7 + 0.06 * i);
+        drawCloud(c, ao, cloudColor);
+      });
+
+      // Bottom gradient fade — sky dissolves into scene background
+      skyCtx.globalCompositeOperation = 'destination-out';
+      const fade = skyCtx.createLinearGradient(0, SH * 0.52, 0, SH);
+      fade.addColorStop(0, 'rgba(0,0,0,0)');
+      fade.addColorStop(1, 'rgba(0,0,0,1)');
+      skyCtx.fillStyle = fade;
+      skyCtx.fillRect(0, SH * 0.52, SW, SH * 0.48);
+      skyCtx.globalCompositeOperation = 'source-over';
+    },
+  };
+})();
+
 // ── Animation loop ────────────────────────────────────────────────
 
 function loop() {
   particleSystem.update();
   particleSystem.draw();
+  skyRenderer.draw();
   requestAnimationFrame(loop);
 }
 loop();
@@ -894,15 +1368,32 @@ function flushNewBlock() {
   currentEl = null;
 }
 
-// ── Player action block ──────────────────────────────────────────────
-function renderPlayerBlock(name, text, isReplay) {
-  // Close any in-progress DM typewriter cursor
+// ── Shared: flush cursor and currentEl before inserting a non-DM block ──
+function _flushForBlock() {
   if (currentCursor && currentCursor.parentNode) {
     currentCursor.parentNode.removeChild(currentCursor);
     currentCursor = null;
   }
   currentEl = null;
   clearTimeout(idleTimer);
+}
+
+// ── Shared: after inserting a non-DM block, re-establish cursor below it ──
+// If typing is still in progress, immediately open the next DM block so the
+// cursor appears below the inserted block rather than going invisible.
+function _reanchorCursor() {
+  if ((isTyping || charQueue.length > 0) && !currentEl) {
+    const p = getOrCreateBlock();
+    currentCursor = document.createElement('span');
+    currentCursor.className = 'cursor';
+    p.appendChild(currentCursor);
+  }
+  scrollToBottom();
+}
+
+// ── Player action block ──────────────────────────────────────────────
+function renderPlayerBlock(name, text, isReplay) {
+  _flushForBlock();
 
   const block = document.createElement('div');
   block.className = 'player-block';
@@ -928,11 +1419,44 @@ function renderPlayerBlock(name, text, isReplay) {
   });
 
   textContent.appendChild(block);
-  scrollToBottom();
+  _reanchorCursor();
+}
+
+// ── NPC dialogue block ───────────────────────────────────────────────
+function renderNPCBlock(name, text, isReplay) {
+  _flushForBlock();
+
+  const block = document.createElement('div');
+  block.className = 'npc-block';
+  if (isReplay) block.style.opacity = '0.65';
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'npc-name';
+  nameEl.textContent = name;
+  block.appendChild(nameEl);
+
+  const cleaned = text
+    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
+    .replace(/\r/g, '')
+    .replace(/\t/g, '  ')
+    .trim();
+
+  cleaned.split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const p = document.createElement('p');
+    p.textContent = trimmed;
+    block.appendChild(p);
+  });
+
+  textContent.appendChild(block);
+  _reanchorCursor();
 }
 
 // ── Dice result block ─────────────────────────────────────────────────
 function renderDiceBlock(text, isReplay) {
+  _flushForBlock();
+
   const block = document.createElement('div');
   block.className = 'dice-block';
   if (isReplay) block.style.opacity = '0.65';
@@ -941,6 +1465,7 @@ function renderDiceBlock(text, isReplay) {
     .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
     .replace(/\r/g, '');
 
+  let hasCrit = false, hasFumble = false;
   cleaned.split('\n').forEach(line => {
     const trimmed = line.trim();
     if (!trimmed) return;
@@ -948,10 +1473,17 @@ function renderDiceBlock(text, isReplay) {
     el.className = 'dice-result';
     el.textContent = trimmed;
     block.appendChild(el);
+    if (/CRITICAL HIT/i.test(trimmed)) hasCrit = true;
+    if (/FUMBLE/i.test(trimmed))        hasFumble = true;
   });
 
+  if (!isReplay) {
+    if (hasCrit)   triggerFlash('crit');
+    else if (hasFumble) triggerFlash('fumble');
+  }
+
   textContent.appendChild(block);
-  scrollToBottom();
+  _reanchorCursor();
 }
 
 // ── Replay batch (reconnect / session resume) ─────────────────────────
@@ -961,6 +1493,8 @@ function renderReplayBatch(items) {
     if (!item || !item.text) return;
     if (item.player) {
       renderPlayerBlock(item.player, item.text, true);
+    } else if (item.npc) {
+      renderNPCBlock(item.npc, item.text, true);
     } else if (item.dice) {
       renderDiceBlock(item.text, true);
     } else {
@@ -1074,6 +1608,18 @@ function renderReplay(text) {
 // Keyed by player name so repeated calls merge cleanly.
 const _playerData = {};
 
+// ── CRIT / FUMBLE flash ─────────────────────────────────────────────
+const _flashOverlay = document.getElementById('flash-overlay');
+function triggerFlash(type) {
+  _flashOverlay.classList.remove('flash-crit', 'flash-fumble');
+  // Force reflow so the animation restarts cleanly
+  void _flashOverlay.offsetWidth;
+  _flashOverlay.classList.add(type === 'crit' ? 'flash-crit' : 'flash-fumble');
+}
+
+// ── HP change tracking (for colour flash on sidebar numerals) ───────
+const _prevHp = {}; // { playerName: currentHp }
+
 function _hpColor(pct) {
   if (pct > 60) return '#4a9a4a';
   if (pct > 30) return '#c0901a';
@@ -1163,6 +1709,43 @@ function _buildPlayerCard(p, solo) {
     card.appendChild(qs);
   }
 
+  // Conditions
+  const CONDITION_CLASS = {
+    unconscious: 'danger', paralyzed: 'danger', petrified: 'danger', stunned: 'danger',
+    incapacitated: 'warn', frightened: 'warn', poisoned: 'warn', charmed: 'warn', exhausted: 'warn',
+    grappled: 'info', restrained: 'info', prone: 'info', blinded: 'info', deafened: 'info',
+    invisible: 'buff',
+  };
+  const conditions = p.conditions || [];
+  if (conditions.length) {
+    const condEl = document.createElement('div');
+    condEl.className = 'sb-conditions';
+    condEl.dataset.role = 'conditions';
+    conditions.forEach(c => {
+      const pill = document.createElement('span');
+      const cls  = CONDITION_CLASS[c.toLowerCase()] || 'info';
+      pill.className   = `sb-condition-pill ${cls}`;
+      pill.textContent = c;
+      condEl.appendChild(pill);
+    });
+    card.appendChild(condEl);
+  } else {
+    // Placeholder so merges can clear it
+    const condEl = document.createElement('div');
+    condEl.className = 'sb-conditions';
+    condEl.dataset.role = 'conditions';
+    card.appendChild(condEl);
+  }
+
+  // Concentration
+  if (p.concentration) {
+    const concEl = document.createElement('div');
+    concEl.className = 'sb-concentrate';
+    concEl.dataset.role = 'concentration';
+    concEl.textContent = `◈ ${p.concentration}`;
+    card.appendChild(concEl);
+  }
+
   // Features (Second Wind etc)
   const feats = [];
   if (p.second_wind != null) {
@@ -1228,6 +1811,9 @@ function updateStats(stats) {
   const names = Object.keys(_playerData);
   names.forEach(name => {
     const p = _playerData[name];
+    const prevHp = _prevHp[name];
+    const newHp  = p.hp ? p.hp.current : undefined;
+
     const existing = sidebar.querySelector(`.sb-player[data-player-name="${CSS.escape(name)}"]`);
     const newCard = _buildPlayerCard(p, solo);
     if (existing) {
@@ -1236,6 +1822,17 @@ function updateStats(stats) {
     } else {
       sidebar.insertBefore(newCard, turnSection);
     }
+
+    // Flash HP numeral if HP changed
+    if (newHp !== undefined && prevHp !== undefined && newHp !== prevHp) {
+      const numsEl = newCard.querySelector('.sb-hp-nums');
+      if (numsEl) {
+        numsEl.classList.remove('hp-flash-dmg', 'hp-flash-heal');
+        void numsEl.offsetWidth;
+        numsEl.classList.add(newHp < prevHp ? 'hp-flash-dmg' : 'hp-flash-heal');
+      }
+    }
+    if (newHp !== undefined) _prevHp[name] = newHp;
   });
 
   sidebar.classList.add('has-data');
@@ -1268,6 +1865,133 @@ function updateStats(stats) {
 let _currentTurnOrder = null;
 
 // ═══════════════════════════════════════════════════════════════════
+// AUDIO — SFX only. Python detects triggers from narration text and
+// broadcasts {"sfx": name} via SSE. Browser fetches WAV from
+// /audio/sfx/<name> and plays via Web Audio API. Toggle click is the
+// user gesture that unlocks AudioContext.
+// ═══════════════════════════════════════════════════════════════════
+
+const _sfxTrack = document.getElementById('sfx-track');
+let _sfxOn  = false;
+let _actx   = null;
+let _sfxCache = {};
+
+function _setTrack(el, on) {
+  on ? el.classList.add('on') : el.classList.remove('on');
+}
+
+function _audioCtx() {
+  if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_actx.state === 'suspended') _actx.resume();
+  return _actx;
+}
+
+async function _playSfx(name) {
+  if (!_sfxOn) return;
+  try {
+    if (!_sfxCache[name]) {
+      const r = await fetch(`/audio/sfx/${name}`);
+      if (!r.ok) return;
+      const ab  = await r.arrayBuffer();
+      _sfxCache[name] = await _audioCtx().decodeAudioData(ab);
+    }
+    if (!_sfxOn) return;
+    const src = _audioCtx().createBufferSource();
+    src.buffer = _sfxCache[name];
+    src.connect(_audioCtx().destination);
+    src.start();
+  } catch (_) {}
+}
+
+document.getElementById('sfx-row').addEventListener('click', () => {
+  _sfxOn = !_sfxOn;
+  _setTrack(_sfxTrack, _sfxOn);
+  try {
+    fetch('/audio-toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sfx: _sfxOn }),
+    });
+  } catch (_) {}
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// WORLD CLOCK
+// ═══════════════════════════════════════════════════════════════════
+
+const _wcEl   = document.getElementById('world-clock');
+const _wcIcon = document.getElementById('wc-icon');
+const _wcDate = document.getElementById('wc-date');
+const _wcSub  = document.getElementById('wc-sub');
+
+const TIME_ICONS = {
+  dawn:    '🌅',
+  morning: '☀',
+  midday:  '☀',
+  noon:    '☀',
+  afternoon:'☀',
+  evening: '🌆',
+  dusk:    '🌆',
+  night:   '🌙',
+  midnight:'🌙',
+  late:    '🌙',
+};
+
+const WEATHER_ICONS = {
+  rain:    '🌧',
+  storm:   '⛈',
+  fog:     '🌫',
+  snow:    '❄',
+  cloudy:  '☁',
+  overcast:'☁',
+  windy:   '💨',
+  clear:   '',
+  calm:    '',
+};
+
+function updateWorldClock(wt) {
+  if (!wt) return;
+  const timeKey    = (wt.time || '').toLowerCase();
+  const weatherKey = Object.keys(WEATHER_ICONS).find(k => (wt.weather||'').toLowerCase().includes(k)) || '';
+
+  const timeIcon    = TIME_ICONS[timeKey]    || '☀';
+  const weatherIcon = WEATHER_ICONS[weatherKey] || '';
+
+  _wcIcon.textContent = (weatherIcon || timeIcon);
+  _wcDate.textContent = wt.date    || '';
+  _wcSub.textContent  = [wt.season, wt.day_name].filter(Boolean).join(' · ');
+
+  _wcEl.classList.add('has-data');
+  skyRenderer.setState(wt);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SIDEBAR TOGGLE
+// ═══════════════════════════════════════════════════════════════════
+
+const _sidebar      = document.getElementById('sidebar');
+const _sidebarBtn   = document.getElementById('sidebar-toggle');
+const _textScroll   = document.getElementById('text-scroll');
+let _sidebarVisible = true;
+
+function _setSidebarVisible(visible) {
+  _sidebarVisible = visible;
+  if (visible) {
+    _sidebar.classList.remove('hidden');
+    _textScroll.classList.remove('sidebar-hidden');
+    _sidebarBtn.textContent = '◀ Hide';
+  } else {
+    _sidebar.classList.add('hidden');
+    _textScroll.classList.add('sidebar-hidden');
+    _sidebarBtn.textContent = '▶ Stats';
+  }
+}
+
+_sidebarBtn.addEventListener('click', () => _setSidebarVisible(!_sidebarVisible));
+
+// Toggle button becomes visible once sidebar has data (called from SSE handler)
+
+// ═══════════════════════════════════════════════════════════════════
 // SSE CONNECTION
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1287,6 +2011,12 @@ function connect() {
 
     if (payload.stats) {
       updateStats(payload.stats);
+      if (payload.stats.players && payload.stats.players.length > 0) {
+        _sidebarBtn.classList.add('visible');
+      }
+      if (payload.stats.world_time) {
+        updateWorldClock(payload.stats.world_time);
+      }
     }
     if (payload.clear) {
       // Wipe sidebar player data and DOM
@@ -1296,6 +2026,8 @@ function connect() {
       if (sbEl) sbEl.classList.remove('has-data');
       const turnSectionEl = document.getElementById('sb-turn-section');
       if (turnSectionEl) turnSectionEl.style.display = 'none';
+      _sidebarBtn.classList.remove('visible');
+      _setSidebarVisible(true);   // reset to visible for next campaign
       clearDisplay();
     }
     if (payload.replay_batch) {
@@ -1307,9 +2039,14 @@ function connect() {
     if (payload.scene) {
       applyScene(payload.scene);
     }
+    if (payload.sfx) {
+      _playSfx(payload.sfx);
+    }
     if (payload.text) {
       if (payload.player) {
         renderPlayerBlock(payload.player, payload.text);
+      } else if (payload.npc) {
+        renderNPCBlock(payload.npc, payload.text);
       } else if (payload.dice) {
         renderDiceBlock(payload.text);
       } else {

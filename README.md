@@ -13,7 +13,7 @@ Built for groups who want a real DM experience without needing one at the table.
 
 ## What This Is
 
-You run `/dnd load my-campaign` in Claude Code. Claude becomes your DM — rolling dice, voicing NPCs, tracking HP and XP, and running combat. If you have a TV nearby, the **cinematic display companion** puts the narration on the big screen in real time with a typewriter effect, atmospheric backgrounds that shift with the scene, and a live party stat sidebar. Chromecast a browser tab and everyone on the couch can follow along.
+You run `/dnd load my-campaign` in Claude Code. Claude becomes your DM — rolling dice, voicing NPCs, tracking HP and XP, and running combat. If you have a TV nearby, the **cinematic display companion** puts the narration on the big screen in real time with a typewriter effect, atmospheric backgrounds that shift with the scene, a dynamic sky canvas showing weather and time of day, and a live party stat sidebar. Chromecast a browser tab and everyone on the couch can follow along.
 
 It is not an official Wizards of the Coast product. It uses Claude as the DM engine. It takes the rules seriously and the storytelling even more seriously.
 
@@ -25,6 +25,9 @@ It is not an official Wizards of the Coast product. It uses Claude as the DM eng
 - **Full D&D 5e mechanics** — initiative, attacks, saving throws, spell slots, XP, levelling up, short/long rests
 - **Atmospheric DM** — dark fantasy tone, distinct NPC voices, hidden rolls, a world that reacts to choices
 - **Cinematic display companion** — typewriter narration on your TV, scene-reactive backgrounds, live party sidebar, Chromecast-ready
+- **Dynamic sky canvas** — clouds, sun, moon, and stars rendered in real time from world_time data; transitions with time of day and weather
+- **Browser-side sound effects** — 12 SFX types synthesized on demand (numpy) and played via Web Audio API; works on any device with the browser tab open, including phones on LAN
+- **LAN mode** — serve the display to any device on your local network; token-authenticated write endpoints
 - **17 scene types** — auto-detected from narration keywords — tavern, dungeon, ocean, crypt, arcane, glacier, and more
 - **Couch co-op** — multiple characters, shared display, turn order visible to everyone in the room
 - **Combat tracker** — auto-rolled initiative, `▶` turn pointer, HP bars, inline dice math sent to display
@@ -43,9 +46,10 @@ Optional display pipeline:
   send.py / push_stats.py  ──→  Flask SSE server (localhost:5001)
                                       ↓
                               Browser tab  ──→  Chromecast  ──→  TV
+                              (or any LAN device: phone, tablet)
 ```
 
-The Flask server receives narration text, player actions, dice results, and character stats via HTTP POST. It broadcasts everything in real time to connected browsers via Server-Sent Events. The browser renders narration as a typewriter effect over a scene-reactive gradient background, with a live character sidebar.
+The Flask server receives narration text, player actions, dice results, and character stats via HTTP POST. It broadcasts everything in real time to connected browsers via Server-Sent Events. The browser renders narration as a typewriter effect over a scene-reactive gradient background, with a dynamic sky layer and a live character sidebar.
 
 ---
 
@@ -53,7 +57,7 @@ The Flask server receives narration text, player actions, dice results, and char
 
 - [Claude Code](https://claude.ai/code) CLI installed
 - Python 3.10+
-- `pip3 install flask flask-cors` (display companion only)
+- `pip3 install flask flask-cors numpy` (display companion only)
 
 ---
 
@@ -64,7 +68,7 @@ The Flask server receives narration text, player actions, dice results, and char
 git clone https://github.com/Bobby-Gray/claude-dnd-skill ~/.claude/skills/dnd
 
 # 2. Install display companion dependencies (optional)
-pip3 install flask flask-cors
+pip3 install flask flask-cors numpy
 
 # 3. That's it — no other setup required
 ```
@@ -179,7 +183,7 @@ An optional local web server (`display/app.py`) that renders DM narration on any
 ### Setup
 
 ```bash
-pip3 install flask flask-cors
+pip3 install flask flask-cors numpy
 ```
 
 ### Starting the Display
@@ -187,11 +191,21 @@ pip3 install flask flask-cors
 The display starts automatically when you answer **y** at the `/dnd load` prompt. Or start it manually:
 
 ```bash
-# Terminal 1 — Flask server
+# Standard (localhost only)
 python3 ~/.claude/skills/dnd/display/app.py
 
+# LAN mode — serve to phones, tablets, other devices on your network
+python3 ~/.claude/skills/dnd/display/app.py --lan
+```
+
+In LAN mode a token is generated and stored at `display/.token`. The `send.py` and `push_stats.py` scripts read this token automatically — no manual configuration needed.
+
+```bash
 # Browser — open and Chromecast before starting your session
 open http://localhost:5001
+
+# From another device on your LAN:
+open http://<your-machine-ip>:5001
 ```
 
 ### Two Operational Modes
@@ -233,17 +247,64 @@ The server scans narration text for keywords and crossfades the background gradi
 |-------|-----------------|-----------|
 | Tavern | inn, hearth, ale, tallow, barkeep | embers |
 | Dungeon | corridor, torch, portcullis, dank | dust |
-| Ocean / Docks | dock, harbour, wave, tide, ship | bubbles |
-| Forest | tree, canopy, moss, thicket, grove | fireflies |
+| Ocean / Docks | dock, harbour, wave, tide, ship | ripples |
+| Forest | tree, canopy, moss, thicket, grove | leaves |
 | Crypt | tomb, undead, skeleton, burial | smoke |
 | Arcane | ritual, rune, sigil, incantation | sparks |
 | Mountain | glacier, frost, blizzard, ridge | snow |
-| Cave | stalactite, grotto, echo, drip | drips |
+| Cave | stalactite, grotto, echo, drip | mist |
 | Night | midnight, moon, constellation | stars |
 | City / Town | market, cobble, district, crowd | rain |
-| + 7 more | mine, castle, ruins, swamp, desert, fire, temple | — |
+| Swamp | swamp, bog, marsh, mire | mist |
+| + 7 more | mine, castle, ruins, desert, fire, temple | — |
 
 Scene transitions crossfade over ~2.5 seconds. The server maintains a 20-chunk rolling window for detection so scenes don't flicker on single keyword matches.
+
+### Dynamic Sky Canvas
+
+A canvas layer rendered above the scene background shows a live sky that reacts to `world_time` data pushed via `push_stats.py`:
+
+- **Time of day** — sun arcs from dawn (lower-left) through midday (top-center) to dusk (lower-right); switches to crescent moon + twinkling stars at night; twilight shows an orange horizon
+- **Weather** — calm: 2 light clouds; overcast: 5 heavy dark clouds, dimmed sun; rainy: dense cloud cover, muted palette; stormy: near-black sky; clear night: full star field
+- **Clouds** — 5 cloud objects each built from 8 overlapping circles; drift slowly left and wrap
+
+Push world_time data after loading a campaign and after any rest or time advance:
+
+```bash
+python3 ~/.claude/skills/dnd/display/push_stats.py --world-time \
+  '{"date":"19 Ashveil 1312 AR","day_name":"Moonday","time":"morning","season":"Long Hollow","weather":"calm"}'
+```
+
+Valid `time` values: `dawn`, `morning`, `midday`, `afternoon`, `evening`, `dusk`, `night`
+Valid `weather` values: `calm`, `clear`, `overcast`, `rainy`, `stormy`
+
+### Sound Effects
+
+Narration text is scanned server-side for 12 SFX trigger categories. When a match is found, the browser fetches a synthesized WAV file and plays it via Web Audio API — no server audio output, works on any device with the tab open.
+
+```
+impact · sword · arrow · shout · thud · magic · coins · door · low_hum · fire · breath
+```
+
+SFX synthesis uses numpy — if numpy is not installed, the feature degrades silently. Enable via the **Sound Effects** toggle in the top-right of the display.
+
+**Trigger examples:**
+
+| Narration text | SFX |
+|----------------|-----|
+| "...strikes the shield..." | impact |
+| "...draws her blade..." | sword |
+| "...looses an arrow..." | arrow |
+| "...he roars across the dock..." | shout |
+| "...collapses to the floor..." | thud |
+| "...arcane energy crackles..." | magic |
+| "...coins spill across the table..." | coins |
+| "...the door creaks open..." | door |
+| "...the altar hums with energy..." | low_hum |
+| "...the torch flares..." | fire |
+| "...a sharp exhale..." | breath |
+
+The browser caches each WAV after first fetch. SFX trigger naturally alongside the typewriter animation since both are driven by the same narration chunks.
 
 ### Live Character Sidebar
 
@@ -278,6 +339,10 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --turn-current "Skeleton"
 
 # Combat ended
 python3 ~/.claude/skills/dnd/display/push_stats.py --turn-clear
+
+# World time clock
+python3 ~/.claude/skills/dnd/display/push_stats.py --world-time \
+  '{"date":"3 Duskfall 1312 AR","day_name":"Ironday","time":"evening","season":"Long Hollow","weather":"overcast"}'
 ```
 
 The sidebar:
@@ -365,14 +430,19 @@ python3 scripts/character.py xp --level 2 --gained 150
 │   ├── dice.py
 │   ├── ability-scores.py
 │   ├── combat.py
-│   └── character.py
+│   ├── character.py
+│   ├── tracker.py
+│   ├── calendar.py
+│   ├── data_pull.py
+│   └── lookup.py
 ├── display/
 │   ├── app.py                # Flask SSE server
+│   ├── audio.py              # SFX synthesis and browser trigger (numpy)
 │   ├── wrapper.py            # PTY wrapper — auto-captures Claude CLI output
 │   ├── send.py               # Direct send for narration/dice/player actions
-│   ├── push_stats.py         # Character and combat stat updates
+│   ├── push_stats.py         # Character stats, combat turn order, world_time
 │   ├── start-display.sh      # One-command display startup
-│   ├── requirements.txt
+│   ├── requirements.txt      # flask, flask-cors, numpy
 │   └── templates/
 │       └── index.html        # Browser frontend
 └── templates/

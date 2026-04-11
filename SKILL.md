@@ -53,6 +53,17 @@ The meta-skill beneath all of the above is knowing who is sitting across from yo
     ability-scores.py       ← roll arrays + point buy validation (see: Ability Scores Script)
     combat.py               ← initiative, attack resolution, tracker (see: Combat Script)
     character.py            ← stat derivation, level-up, XP (see: Character Script)
+    tracker.py              ← conditions, concentration, death saves (see: Tracker Script)
+    calendar.py             ← in-world date/time management (see: Calendar Script)
+    data_pull.py            ← fetch 5e SRD datasets from 5e-bits/5e-database (see: Data Commands)
+    lookup.py               ← query local SRD data: monsters, spells, items, conditions (see: Data Commands)
+  data/                     ← local SRD datasets (populated by /dnd data pull)
+    5e-SRD-Monsters.json
+    5e-SRD-Spells.json
+    5e-SRD-Magic-Items.json
+    5e-SRD-Conditions.json
+    5e-SRD-Equipment.json
+    meta.json               ← pull timestamps and source URLs
   templates/
     character-sheet.md      ← blank character sheet
     state.md                ← blank campaign state file
@@ -67,13 +78,51 @@ The meta-skill beneath all of the above is knowing who is sitting across from yo
 
 ~/.claude/dnd/campaigns/<name>/
   state.md                  ← live campaign state
-  world.md                  ← world lore and NPCs
+  world.md                  ← world lore, factions, quests
   npcs.md                   ← NPC index and entries
   session-log.md            ← session history
   characters/<name>.md      ← one file per PC
+
+~/.claude/dnd/characters/
+  <name>.md                 ← global roster: latest known state of every PC across all campaigns
+                              (mirrored from campaign folders on every save, level-up, or import)
 ```
 
 Resolve `~` to the user's home directory. All script paths are relative to the skill installation at `~/.claude/skills/dnd/`.
+
+---
+
+## Model Routing
+
+All tasks in this skill fall into one of four tiers. Use the lowest appropriate tier for every operation — this reduces cost and latency without sacrificing quality.
+
+| Tier | Model | When to use |
+|------|-------|-------------|
+| **Script** | Python only — no LLM | Dice rolling, HP math, XP calculation, level-up derivation, initiative order, condition tracking, date advancement, data lookup, stat display, spell slot bookkeeping |
+| **Haiku** | `claude-haiku-4-5-20251001` | Output formatting that needs natural language but no creativity: XP award summaries, NPC attitude change announcements, quest status one-liners, short session recap structuring, condition flavor lines |
+| **Sonnet** | `claude-sonnet-4-6` (session default) | All active DM work: scene narration, NPC portrayal and dialogue, skill check outcomes, plot decisions, mystery reveals, combat narration, response to player actions |
+| **Opus** | `claude-opus-4-6` | `/dnd new` world generation (Three Truths, factions, NPC web, threat arc), `/dnd character new` pillar derivation. Use Opus by starting those commands in an Opus session. |
+
+**Opus justification:** World generation and character pillar derivation are one-time foundational creative acts that define the entire campaign. The richness of the NPC relationship web, the tension in the threat arc, and the precision of the pillar derivation pay dividends across every session. The cost is worth it here and nowhere else.
+
+**Haiku usage pattern:** Spawn a Haiku subagent via the Agent tool for formatting tasks that need language generation but not creativity:
+```
+Agent({
+  subagent_type: "general-purpose",
+  model: "haiku",
+  prompt: "Format this XP award for display: [data]. Output a 2-line summary."
+})
+```
+Capture the output and pipe it to `send.py`. Never use Haiku for narration, NPC portrayal, or any player-facing creative output.
+
+**Script-first rule:** Before reaching for the LLM for any calculation or state operation, check whether a script already handles it. The full list of script-handled tasks:
+- Dice rolls → `dice.py`
+- HP/AC/initiative math → `combat.py`
+- Ability scores / level-up / XP → `ability-scores.py`, `character.py`
+- Conditions / concentration / death saves → `tracker.py`
+- In-world date / rest advancement → `calendar.py`
+- Monster/spell/item/condition lookup → `lookup.py`
+- Stats sidebar → `push_stats.py`
 
 ---
 
@@ -166,11 +215,16 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --turn-current "Goblin 1" --t
 
 # Combat ended:
 python3 ~/.claude/skills/dnd/display/push_stats.py --turn-clear
+
+# World time clock (push on /dnd load, after any rest or time advance):
+python3 ~/.claude/skills/dnd/display/push_stats.py --world-time \
+  '{"date":"19 Ashveil 1312 AR","day_name":"Moonday","time":"morning","season":"Long Hollow","weather":"calm"}'
 ```
 
 **When to push stats:**
 - `/dnd load` — push full stats for all party members **with `--replace-players`** to clear any stale characters from previous campaigns:
   `push_stats.py --replace-players --json '{"players":[...]}'`
+- Also push `--world-time` on `/dnd load` with date/time/season/weather from `state.md`
 - Damage or healing — `--player NAME --hp <current> <max>`
 - XP awarded — `--player NAME --xp <current> <next>`
 - Second Wind used — `--player NAME --second-wind false`; recovered — `true`
@@ -178,7 +232,123 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --turn-clear
 - Combat start — full `--turn-order` JSON
 - Each turn transition — `--turn-current NAME`
 - Level up — push updated full stats after updating character sheet
-- Long rest — push restored HP, Hit Dice, Second Wind
+- Long rest — push restored HP, Hit Dice, Second Wind; also push `--world-time` with updated time-of-day
+- After any rest or time advance via `calendar.py` — push `--world-time` with new date/time/season/weather
+
+### Data Commands — `scripts/data_pull.py` and `scripts/lookup.py`
+
+**Fetching data** (run once, or to refresh):
+```bash
+python3 ~/.claude/skills/dnd/scripts/data_pull.py           # download missing files
+python3 ~/.claude/skills/dnd/scripts/data_pull.py --force   # re-download all
+python3 ~/.claude/skills/dnd/scripts/data_pull.py --status  # show what's installed
+```
+
+**Looking up during play:**
+```bash
+# Monster stats (HP, AC, CR, attacks, abilities)
+python3 ~/.claude/skills/dnd/scripts/lookup.py monster "goblin"
+python3 ~/.claude/skills/dnd/scripts/lookup.py monster "adult red dragon"
+
+# Spell details (level, range, duration, description, higher-level effects)
+python3 ~/.claude/skills/dnd/scripts/lookup.py spell "fireball"
+python3 ~/.claude/skills/dnd/scripts/lookup.py spell "cure wounds"
+
+# Conditions (rule text)
+python3 ~/.claude/skills/dnd/scripts/lookup.py condition "poisoned"
+
+# Equipment (cost, weight, stats, properties)
+python3 ~/.claude/skills/dnd/scripts/lookup.py equipment "explorer's pack"
+python3 ~/.claude/skills/dnd/scripts/lookup.py equipment "chain mail"
+
+# Magic items (rarity, description)
+python3 ~/.claude/skills/dnd/scripts/lookup.py item "cloak of protection"
+
+# All fuzzy matches (when name is ambiguous)
+python3 ~/.claude/skills/dnd/scripts/lookup.py monster "dragon" --all
+```
+
+**When to use lookup during play:**
+- **Combat** — always look up any monster you didn't personally create before using its HP/AC/attacks; treat the SRD entry as ground truth for CR-appropriate stats
+- **Spellcasting** — look up spell details when a player asks about range, components, duration, or higher-level scaling
+- **Conditions** — look up rule text before applying a condition mid-combat
+- **Loot & equipment** — look up item cost, weight, and properties when awarding loot or handling starting gear
+- **NPC generation** — use a monster stat block as the mechanical base for a named NPC of appropriate CR
+
+---
+
+### Tracker Script — `scripts/tracker.py`
+Tracks conditions, concentration, and death saves per entity. Automatically pushes updates to the display sidebar and announces changes via the dice-block display channel. State persists at `~/.claude/dnd/campaigns/<name>/tracker.json`.
+
+```bash
+CAMP=my-campaign   # shorthand used in all examples below
+
+# Conditions (use condition names from 5e SRD)
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP condition add "Mira" poisoned
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP condition remove "Mira" poisoned
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP condition clear "Mira"
+
+# Concentration (auto-clears previous if switching spells)
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP concentrate "Aldric" "Bless"
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP concentrate "Aldric" break
+
+# Death saves
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP saves "Mira" success
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP saves "Mira" failure
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP saves "Mira" stable  # medically stabilised
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP saves "Mira" reset   # regained consciousness
+
+# Status check
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP status
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP status "Mira"
+
+# Clear at end of encounter
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP clear           # conditions + concentration
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP clear --all     # also clears death saves
+```
+
+**When to run tracker during play:**
+- Any time a condition is applied or removed (poisoned, frightened, etc.)
+- When a caster begins or loses concentration — run immediately, not at end of turn
+- When a PC drops to 0 HP → `saves reset` first, then track each roll
+- At end of each combat encounter → `clear`
+
+---
+
+### Calendar Script — `scripts/calendar.py`
+Manages the in-world date and time. Run `init` once after `/dnd new` using the calendar data from `world.md`. Every rest and time-advance then goes through this script — no LLM math needed, and the new date is announced on the display automatically.
+
+```bash
+# One-time setup (run during /dnd new, after defining the calendar in world.md):
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP init \
+    --date "15 Harvestmoon 1247" \
+    --time "morning" \
+    --months "Frostfall,Deepwinter,Thawmonth,Seedtime,Bloomtide,Highsun,Harvestmoon,Duskfall" \
+    --month-length 30 \
+    --day-names "Sunday,Moonday,Ironday,Windday,Earthday,Fireday,Starday"
+
+# Time advancement (outputs new date + pushes to display)
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP advance 8 hours
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP advance 2 days
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP advance 1 week
+
+# Rest shortcuts (also update tracker and push_stats separately for HP/resources)
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP rest short   # +1 hour
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP rest long    # +8 hours
+
+# Query / manual set
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP now
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP set "22 Harvestmoon 1247" evening
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP time night
+
+# Upcoming events
+python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP events
+```
+
+**When to run calendar during play:**
+- After every rest (short or long)
+- After any significant travel or time skip
+- After `state.md` date is manually updated — use `calendar.py set` to keep them in sync
 
 ---
 
@@ -234,6 +404,23 @@ buffers the last 60 text chunks and replays them to reconnecting browsers automa
 gradient + particle type to match the current scene (17 scenes: tavern, dungeon, forest,
 crypt, arcane, ocean, etc.). Scene changes crossfade over ~2.5 seconds.
 
+**Audio (Python-side, no browser required):**
+Audio synthesis runs on the DM machine via `pygame` + `numpy` — no browser gesture or
+autoplay policy involved. Plays directly from the server's speakers.
+
+- `audio.py` is auto-imported by `app.py` on startup. If `pygame`/`numpy` are missing it
+  degrades silently (all audio calls become no-ops).
+- Two toggle switches appear on the right side of the display below the world clock:
+  - **Ambient** — starts/stops a looping synthesized soundscape matched to the current scene
+    (ocean, tavern, dungeon, forest, rain, city, combat, temple, or a default rumble)
+  - **Effects** — enables one-shot SFX triggered by regex pattern matching of narration text
+    (impact, sword, arrow, shout, thud, magic, coins, door, fire, breath, etc.)
+- Both toggles default to **off**. Clicking either toggle POSTs to `/audio-toggle`.
+- Scene changes automatically crossfade the ambient loop (2 s fadeout → 2.5 s fade-in).
+- SFX fire at most once per text chunk, in a daemon thread, so they never block narration.
+- All synthesis is done with numpy FFT filtering and additive sine waves — no audio files
+  needed, no internet access, no LLM calls.
+
 **Skipping the display:** just run `claude` directly as normal — wrapper.py is optional.
 If the Flask server is not running, wrapper.py fails silently and the terminal is unaffected.
 
@@ -243,26 +430,60 @@ If the Flask server is not running, wrapper.py fails silently and the terminal i
 
 ### `/dnd new <campaign-name> [theme]`
 1. Ask: *"Start the cinematic display companion? (opens TV/browser display at http://localhost:5001) [y/n]"*
-   - **Yes** → run `bash ~/.claude/skills/dnd/display/start-display.sh`, print the URL, set `_display_running = true`, then clear any stale display log: `curl -s -X POST http://localhost:5001/clear`
+   - **Yes** → ask *"LAN mode — accessible from TV/phone on your network? [y/n]"*
+     - LAN → run `bash ~/.claude/skills/dnd/display/start-display.sh --lan`, print both URLs (localhost + LAN IP), set `_display_running = true`
+     - Local only → run `bash ~/.claude/skills/dnd/display/start-display.sh`, print the URL, set `_display_running = true`
+     - Then clear any stale display log: `curl -s -X POST http://localhost:5001/clear`
    - **No** → continue without display
 2. Create campaign directory: `mkdir -p ~/.claude/dnd/campaigns/<name>/characters`
 3. Copy and populate templates from `~/.claude/skills/dnd/templates/` — `state.md`, `world.md`, `npcs.md`, `session-log.md` — filling in campaign name and creation date
-4. Ask: party size, tone (default: dark fantasy), starting level
-5. Generate a world seed using the **Three Truths method**: for each element — one settlement, one nearby threat, one mystery, one faction, three named NPCs — establish three true things. Write lore to `world.md`, NPC entries to `npcs.md`.
-6. Write `state.md` with session count 0 and the party's starting location
-7. Confirm campaign creation and offer `/dnd character new`
+4. Ask: **party size** and **starting level**
+5. **Tone/Genre Wizard** — present all four questions in a single message:
+   > - Tone: `grimdark / dark fantasy / heroic / horror / political / swashbuckling / cosmic`
+   > - Magic level: `none / low / medium / high`
+   > - Setting type: `medieval / renaissance / ancient / nautical / underground`
+   > - Danger level: `lethal / gritty / standard / heroic`
+   > *(Answer "surprise me" or leave any blank to randomise it)*
+
+   If `[theme]` was supplied on the command line, pre-fill **Tone** with it and only ask the remaining three. For any element the player randomises: roll `dice.py` with the appropriate die, map result to the option list, and record `"d6=N → [result]"` in the **Generation note** field of `world.md`.
+
+6. **Generate World Foundations** using tone as the seed — produce geography/biome/climate, magic system constraints, pantheon (type + 2–3 active deities), and a calendar (year length, seasons, moons, current in-world date). For each element left unspecified by the player, roll and document. Write to `## World Foundations` in `world.md`. Seed `state.md` → `## World State` → `In-world date` with the same starting date.
+
+7. **Three Truths generation** — now informed by tone and world foundations. Generate: one settlement (with detail variables: scale, wealth, law index, notable districts), one nearby threat, one mystery (with clue trail). Write to their respective sections in `world.md`.
+
+8. **Threat Escalation Arc** — immediately after generating the threat, fill the five-stage table in `world.md`. Set current stage to 1. Write `Threat arc stage: 1 — Now` to `state.md` → `## World State`.
+
+9. **Generate 2 Factions** — assign each an archetype, fill all faction fields including current activity, write to `## Factions` in `world.md`. Write one-line faction states to `state.md` → `## World State`.
+
+10. **Generate 3 NPCs with a relationship web** — write full entries to `npcs.md` (all fields: role, stats, demeanor, motivation, secret, speech quirk, faction, current goal, schedule, personality axes). Then define relationships: **generate all three NPCs first**, then fill each one's Relationships block. Every NPC must have at least 2 defined relationships linking to the others (knows/owes/hates/fears/allied with). Update the index table.
+
+11. **Generate 3–5 Quest Seeds** drawn from the threat, factions, mystery, and NPC motivations. Write to `## Quest Seed Bank` in `world.md`.
+
+12. Write `state.md` with session count 0 and the party's starting location
+13. Confirm campaign creation and offer `/dnd character new`
+
+### `/dnd data [pull|status]`
+Manage the local 5e SRD dataset. Data is sourced from the open 5e-bits/5e-database repo (MIT + OGL licensed, updated regularly).
+- `pull` → run `python3 ~/.claude/skills/dnd/scripts/data_pull.py` — downloads any missing files; skips files that already exist
+- `pull --force` → re-download all files regardless of whether they exist
+- `status` → run `python3 ~/.claude/skills/dnd/scripts/data_pull.py --status` — shows what's installed and when it was last pulled
+- No argument → print status and quick-start instructions
+
+Files stored in `~/.claude/skills/dnd/data/`. Safe to run at any time; partial downloads are resumable. Run once after initial skill setup, then again whenever you want to update the dataset (the upstream repo releases regularly).
 
 ### `/dnd display [start|stop|status]`
 Manage the cinematic TV display companion independently of a campaign session.
-- `start` → run `bash ~/.claude/skills/dnd/display/start-display.sh` and print the URL
+- `start` → ask LAN mode [y/n]; run `bash ~/.claude/skills/dnd/display/start-display.sh [--lan]` and print the URL(s)
 - `stop` → `kill $(cat ~/.claude/skills/dnd/display/app.pid) 2>/dev/null && rm -f ~/.claude/skills/dnd/display/app.pid`
 - `status` → `curl -s http://localhost:5001/ping` — report reachable or unreachable
 - No argument → print quick-start instructions
 
 ### `/dnd load <campaign-name>`
 1. Ask: *"Start the cinematic display companion? (opens TV/browser display at http://localhost:5001) [y/n]"*
-   - **Yes** → run `bash ~/.claude/skills/dnd/display/start-display.sh`, print the URL, set `_display_running = true`
-   - **Do NOT clear the display** — the persisted log from the previous session loads automatically on browser connect, so players can scroll back through prior narration
+   - **Yes** → ask *"LAN mode — accessible from TV/phone on your network? [y/n]"*
+     - LAN → run `bash ~/.claude/skills/dnd/display/start-display.sh --lan`, print both URLs, set `_display_running = true`
+     - Local only → run `bash ~/.claude/skills/dnd/display/start-display.sh`, print the URL, set `_display_running = true`
+     - Then clear any previous transcript: `curl -s -X POST http://localhost:5001/clear`
    - **No** → continue without display
 2. Read `state.md`, `world.md`, `npcs.md`, and all `characters/*.md`
 3. Push full party stats to the display sidebar with `--replace-players` (clears any stale characters from a previous campaign)
@@ -273,10 +494,13 @@ Manage the cinematic TV display companion independently of a campaign session.
 Read `~/.claude/dnd/campaigns/*/state.md` and print a summary table: campaign name | last session date | session count.
 
 ### `/dnd save`
-Write the session's events to `session-log.md`, update `state.md` (current location, active quests, party HP and resources, recent events), and update any `characters/*.md` that changed during the session. Confirm what was written.
+Write the session's events to `session-log.md`, update `state.md` (current location, active quests, party HP and resources, recent events), and update any `characters/*.md` that changed during the session. Mirror each updated character to the global roster (`~/.claude/dnd/characters/<name>.md`). Confirm what was written.
 
 ### `/dnd end`
-1. Run `/dnd save`, then append a **Session Recap** block to `session-log.md` noting key events and open threads going into the next session.
+1. Run `/dnd save`, then:
+   a. Append a **Session Recap** block to `session-log.md` with key events and open threads.
+   b. Ask: *"Quick calibration — what worked this session, and what would you adjust next time?"* Write answers to `### DM Calibration` in the session entry. If skipped, leave blank.
+   c. Update `## World State` in `state.md`: check whether in-session events have advanced the threat arc stage, shifted faction states, or changed the in-world date — update all three fields accordingly.
 2. If `_display_running = true`, stop the display companion and confirm:
    ```bash
    kill $(cat ~/.claude/skills/dnd/display/app.pid 2>/dev/null) 2>/dev/null
@@ -287,30 +511,56 @@ Write the session's events to `session-log.md`, update `state.md` (current locat
 
 ### `/dnd character new [campaign-name]`
 1. Ask: name, race, class, background
-2. Ask: roll or point buy
+2. Ask: *"In a sentence, what should the DM know about [Name]?"*
+   - If answered: derive ONE character pillar — select whichever fits best: **Bond** (a connection that drives them), **Flaw** (a weakness that creates trouble), **Ideal** (a principle they live by), or **Goal** (a concrete thing they are trying to achieve). Store both the raw sentence and the derived pillar in `## Character Pillar` on the sheet.
+   - If skipped ("nothing" / "skip" / blank): leave `## Character Pillar` blank. Do not invent one. Do not re-prompt.
+3. Ask: roll or point buy
    - Roll → run `ability-scores.py roll`, present 3 arrays, player assigns
    - Point buy → run `ability-scores.py pointbuy --check <scores>` to validate
-3. Apply racial bonuses
-4. Run `character.py calc` to derive all secondary stats
-5. Ask: Fighting Style (if Fighter/Paladin/Ranger), spells (if caster)
-6. Assign starting equipment per class + background
-7. Write completed sheet to `characters/<name>.md` using `templates/character-sheet.md`
-8. Add character to `state.md` party line
+4. Apply racial bonuses
+5. Run `character.py calc` to derive all secondary stats
+6. Ask: Fighting Style (if Fighter/Paladin/Ranger), spells (if caster)
+7. Assign starting equipment per class + background
+8. Write completed sheet to `characters/<name>.md` using `templates/character-sheet.md`; set `## Campaign History → Origin campaign` to the current campaign name
+9. Add character to `state.md` party line
+10. Mirror the completed sheet to the **global roster**: `cp characters/<name>.md ~/.claude/dnd/characters/<name>.md` (create `~/.claude/dnd/characters/` if it doesn't exist). The global roster always holds the latest known state of every character across all campaigns.
 
 ### `/dnd character sheet [name]`
 Read `characters/<name>.md`, display cleanly. If name omitted and one character exists, show that one.
 
+### `/dnd character import <name> [from:<campaign>]`
+Bring a character from a previous campaign (or the global roster) into the current one — carrying over their full current state: XP, level, inventory, HP, features, character pillar, and campaign history.
+
+1. **Find the character sheet:**
+   - If `from:<campaign>` is specified → read `~/.claude/dnd/campaigns/<campaign>/characters/<name>.md`
+   - Otherwise → check `~/.claude/dnd/characters/<name>.md` (global roster, always the latest state)
+   - If neither exists → search all campaigns: `~/.claude/dnd/campaigns/*/characters/<name>.md`, list matches, ask which to use
+2. **Show a summary** of the character's current state (level, XP, HP, key inventory items) and ask: *"Import [Name] at current level [X], or level up before starting?"*
+   - **Import as-is** → copy the sheet directly, skip to step 5
+   - **Level up first** → run `/dnd level up <name>` on the source sheet before copying
+3. **Copy the sheet** to the current campaign's `characters/<name>.md`. Update:
+   - `Campaign:` → new campaign name
+   - `Last Updated:` → today
+   - `Previous campaigns:` → append the source campaign to the list
+   - `Death Saves:` → reset to 0/0 (new campaign, fresh start)
+4. Optionally ask: *"Does [Name] arrive with all their current equipment, or should we adjust inventory for the new setting?"* Apply any agreed changes.
+5. Add the character to `state.md` party line. Update the global roster: `cp characters/<name>.md ~/.claude/dnd/characters/<name>.md`
+6. Deliver a one-paragraph in-character aside — how does it feel for this character to step into a new world? What do they carry with them?
+
 ### `/dnd level up [name]`
-Read sheet. Run `character.py levelup`. Apply class features for new level. Ask for HP roll or use average. Update `characters/<name>.md`. Narrate the growth.
+Read sheet. Run `character.py levelup`. Apply class features for new level. Ask for HP roll or use average. Update `characters/<name>.md`. Update global roster. Narrate the growth.
 
 ---
 
 ### `/dnd npc [name]`
 - If name exists in `npcs.md` → read entry, portray in character with their voice/quirk
-- If name is new → generate: role, CR-appropriate stats, personality (demeanor, motivation, secret, speech quirk), default attitude neutral → append to `npcs.md`
+- If name is new → generate the full entry: role, CR-appropriate stats, demeanor, motivation, secret, speech quirk, faction affiliation (or "independent"), current goal, schedule, all four personality axes, and at least 2 relationships to existing NPCs (or to abstract entities if none exist yet). Default attitude neutral. Append to `npcs.md` and add to the index table.
 
 ### `/dnd npc attitude <name> <shift>`
 Find NPC in `npcs.md`, shift attitude one step on scale (hostile → unfriendly → neutral → friendly → allied), log reason and date.
+
+### `/dnd characters`
+List all characters in the **global roster** (`~/.claude/dnd/characters/`). Display: name, race/class/level, origin campaign, previous campaigns, last updated date. Useful for finding characters available to import.
 
 ---
 
@@ -343,12 +593,22 @@ Run `scripts/dice.py <notation>`. Display output verbatim. Examples: `d20`, `2d6
 a. send.py --player  ← player action (or describe NPC intent inline)
 b. roll all dice for this turn (combat.py attack / dice.py)
 c. echo "..." | send.py --dice  ← send ALL roll results with context
-d. WRITE the full narration for this turn (the dramatic description of what happened)
-e. send.py << DNDEND ... DNDEND  ← send that complete narration — NEVER skip this step
-f. push_stats.py --player NAME --hp  ← update any HP that changed
-g. push_stats.py --turn-current  ← advance turn pointer
+d. tracker.py (if applicable):
+     - condition applied/removed → tracker.py -c <camp> condition add/remove <entity> <cond>
+     - concentration broken      → tracker.py -c <camp> concentrate <entity> break
+     - PC dropped to 0 HP        → tracker.py -c <camp> saves <entity> reset
+     - death save rolled         → tracker.py -c <camp> saves <entity> success|failure
+e. WRITE the full narration for this turn (the dramatic description of what happened)
+f. send.py << DNDEND ... DNDEND  ← send that complete narration — NEVER skip this step
+g. push_stats.py --player NAME --hp  ← update any HP that changed
+h. push_stats.py --turn-current  ← advance turn pointer
 ```
-**Step (e) is the most commonly missed step.** Every narration block — damage outcomes, misses, standoffs, reaction moments — must be sent. The `--dice` send (step c) only covers the raw roll line; the narrative prose always needs its own separate send.
+**Step (f) is the most commonly missed step.** Every narration block — damage outcomes, misses, standoffs, reaction moments — must be sent. The `--dice` send (step c) only covers the raw roll line; the narrative prose always needs its own separate send.
+
+**On combat end:** After the aftermath narration and XP summary, run:
+```bash
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c <campaign> clear
+```
 
 **XP awards** must also be sent to the display, included at the end of the combat-end narration block:
 ```bash
@@ -364,8 +624,18 @@ DNDEND
 ```
 
 ### `/dnd rest <short|long>`
-**Short (1 hour):** Ask how many Hit Dice the player spends. Roll `d[hit-die] + CON mod` per die via `dice.py`. Update HP in character sheet. Note which class features recharge.
-**Long (8 hours):** Restore all HP, restore half max Hit Dice (round up), restore all spell slots, restore most class features. Update character sheet. Advance in-world clock by 8 hours in `state.md`.
+**Short (1 hour):**
+1. Ask how many Hit Dice the player spends. Roll `d[hit-die] + CON mod` per die via `dice.py`. Update HP in character sheet and push: `push_stats.py --player NAME --hp`
+2. Note which class features recharge (e.g. Second Wind → `push_stats.py --player NAME --second-wind true`)
+3. Advance time: `calendar.py -c <campaign> rest short`
+4. Clear encounter conditions from tracker (concentration may persist into rest — ask): `tracker.py -c <campaign> clear`
+
+**Long (8 hours):**
+1. Restore all HP, restore half max Hit Dice (round up), restore all spell slots, restore most class features. Update character sheet.
+2. Push restored stats: `push_stats.py --player NAME --hp <max> <max>` and `--second-wind true`
+3. Advance time: `calendar.py -c <campaign> rest long`
+4. Clear all tracker state: `tracker.py -c <campaign> clear --all`
+5. Update `state.md` in-world date to match calendar output.
 
 ---
 
@@ -412,24 +682,38 @@ DNDEND
 ```bash
 # Hidden roll (Perception, Insight, Stealth, etc.) — silent in terminal, visible on display:
 ROLL=$(python3 ~/.claude/skills/dnd/scripts/dice.py d20+5 --silent)
-echo "Jackson — Insight (reading Osk): d20+5 = $ROLL → [brief outcome]" | python3 ~/.claude/skills/dnd/display/send.py --dice
+echo "Torben — Insight (reading Osk): d20+5 = $ROLL → [brief outcome]" | python3 ~/.claude/skills/dnd/display/send.py --dice
 
 # Open roll (player-facing, e.g. attack or explicit skill check):
 python3 ~/.claude/skills/dnd/scripts/dice.py d20+4 | python3 ~/.claude/skills/dnd/display/send.py --dice
 ```
 Format for hidden rolls: `[Name] — [Skill] ([brief context]): d20+MOD = RESULT → [one-word or short outcome]`
 Examples:
-- `Jackson — Insight (Osk, first meeting): d20+5 = 7 → Hard to read`
-- `Kian — Arcana (pre-glacial entities): d20+3 = 22 → Deep knowledge`
-- `Jackson — Perception (entering inn): d20+5 = 20 → Sharp`
+- `Torben — Insight (Osk, first meeting): d20+5 = 7 → Hard to read`
+- `Serath — Arcana (pre-glacial entities): d20+3 = 22 → Deep knowledge`
+- `Torben — Perception (entering inn): d20+5 = 20 → Sharp`
 Send the roll line **immediately after rolling**, before writing the narration response.
+
+*NPC dialogue* — when an NPC speaks more than a line, send it as a distinct block with `--npc <name>` for amber styling, separate from DM narration:
+```bash
+python3 ~/.claude/skills/dnd/display/send.py --npc "Vesna" << 'DNDEND'
+"I've been waiting for you. Longer than you know."
+DNDEND
+```
+Brief NPC interjections within narration don't need a separate block — include them in the narration send.
 
 *DM narration* — **CRITICAL ORDERING RULE:** compose the complete narration response in full first, then call `send.py` as the very last action in the response. Never call `send.py` mid-response with partial text — any narration written after the bash call will not appear on the display. The `send.py` call must contain the **complete, unabridged narration text** exactly as delivered — do not summarize, condense, or paraphrase:
 ```bash
 python3 ~/.claude/skills/dnd/display/send.py << 'DNDEND'
 [full narration text, word for word as written above — includes every paragraph, no omissions]
+
+[closing prompt — e.g. "What do you do?"]
+
+[any action context the players need: inventory check results, hidden roll outcome summaries, etc.]
 DNDEND
 ```
-Send after each meaningful narration block. Skip only trivial one-liners like "What do you do?" The delimiter `DNDEND` is safe as long as the narration doesn't literally contain that string on its own line.
+**Everything goes to the display** — include the closing prompt ("What do you do?"), inventory checks, and roll outcome summaries in the same block. Nothing written after the bash call reaches the display. The delimiter `DNDEND` is safe as long as the narration doesn't literally contain that string on its own line.
+
+**Scripting and rolls:** Run scripts, rolls, and simple expansions immediately — no "Do you want to proceed?" prompts. These are routine DM actions. Only pause for genuinely consequential operations (e.g. deleting campaign data).
 
 **Proactive scripting:** As new mechanics arise in play (spells, conditions, rests, social encounters, travel), create the relevant helper script in `scripts/` and add a pointer here before using it.

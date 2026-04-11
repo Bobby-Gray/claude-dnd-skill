@@ -13,21 +13,74 @@ Endpoints:
     POST /clear     → wipe text log and broadcast clear event
 """
 
+import hmac
 import json
 import os
 import queue
 import re
+import secrets
+import sys
 import threading
 from collections import deque
 from typing import Optional
 from flask import Flask, Response, request, render_template
 from flask_cors import CORS
 
-LOG_FILE   = os.path.expanduser("~/.claude/skills/dnd/display/text_log.json")
-STATS_FILE = os.path.expanduser("~/.claude/skills/dnd/display/stats.json")
+# Audio module — degrades silently if numpy not installed
+_AUDIO_DIR = os.path.dirname(os.path.abspath(__file__))
+import sys as _sys
+if _AUDIO_DIR not in _sys.path:
+    _sys.path.insert(0, _AUDIO_DIR)
+try:
+    import audio as _audio
+    _audio.init()
+except Exception:
+    _audio = None   # type: ignore
+
+LOG_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/text_log.json")
+STATS_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/stats.json")
+TOKEN_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.token")
+
+# ─── LAN mode ─────────────────────────────────────────────────────────────────
+# Pass --lan to bind on 0.0.0.0 and protect write endpoints with a token.
+# Without --lan the server binds to localhost only; no token is required.
+
+_LAN_MODE: bool = "--lan" in sys.argv
+if _LAN_MODE:
+    sys.argv.remove("--lan")   # prevent Flask from seeing an unknown flag
+
+
+def _get_or_create_token() -> str:
+    """Load the existing LAN token or generate and persist a new one."""
+    try:
+        token = open(TOKEN_FILE).read().strip()
+        if token:
+            return token
+    except FileNotFoundError:
+        pass
+    token = secrets.token_hex(16)
+    with open(TOKEN_FILE, "w") as f:
+        f.write(token)
+    os.chmod(TOKEN_FILE, 0o600)   # owner-read only
+    return token
+
+
+_lan_token: Optional[str] = _get_or_create_token() if _LAN_MODE else None
+
+
+def _token_ok() -> bool:
+    """Return True if the request carries the correct LAN token (or we're in localhost mode)."""
+    if _lan_token is None:
+        return True   # localhost mode — no token required
+    provided = request.headers.get("X-DND-Token", "")
+    return hmac.compare_digest(provided, _lan_token)
+
 
 app = Flask(__name__)
 CORS(app)
+
+# Wire audio broadcast after _broadcast is defined (see bottom of file)
+# — done lazily via set_broadcast() called after app is created.
 
 # ─── Scene definitions ────────────────────────────────────────────────────────
 # Each scene: keywords (weighted — more = higher priority hit),
@@ -72,7 +125,7 @@ SCENES: dict[str, dict] = {
         ],
         "colors": ["#0a1520", "#0a1030"],
         "accent": "#2060a0",
-        "particles": "drips",
+        "particles": "mist",
         "label": "The Cavern",
     },
     "forest": {
@@ -83,7 +136,7 @@ SCENES: dict[str, dict] = {
         ],
         "colors": ["#041008", "#081a04"],
         "accent": "#40a040",
-        "particles": "fireflies",
+        "particles": "leaves",
         "label": "The Forest",
     },
     "castle": {
@@ -113,7 +166,7 @@ SCENES: dict[str, dict] = {
         ],
         "colors": ["#000d1a", "#001a33"],
         "accent": "#0060a0",
-        "particles": "bubbles",
+        "particles": "ripples",
         "label": "The Sea",
     },
     "desert": {
@@ -143,7 +196,7 @@ SCENES: dict[str, dict] = {
         ],
         "colors": ["#080e04", "#0e1808"],
         "accent": "#406020",
-        "particles": "fireflies",
+        "particles": "mist",
         "label": "The Swamp",
     },
     "crypt": {
@@ -536,17 +589,20 @@ def ping():
 
 @app.route("/chunk", methods=["POST"])
 def chunk():
+    if not _token_ok():
+        return "Forbidden", 403
     data = request.get_json(silent=True) or {}
     raw = data.get("text", "")
     if not raw:
         return "", 204
 
     is_player = bool(data.get("player"))
+    is_npc    = bool(data.get("npc"))
     is_dice   = bool(data.get("dice"))
 
-    # Player/dice text comes from send.py (no ANSI/chrome) — light clean only.
+    # Player/npc/dice text comes from send.py (no ANSI/chrome) — light clean only.
     # DM narration may come from wrapper.py — full clean.
-    cleaned = raw.strip() if (is_player or is_dice) else _clean(raw)
+    cleaned = raw.strip() if (is_player or is_npc or is_dice) else _clean(raw)
     if not cleaned.strip():
         return "", 204
 
@@ -554,6 +610,8 @@ def chunk():
 
     if is_player:
         payload["player"] = data["player"]
+    elif is_npc:
+        payload["npc"] = data["npc"]
     elif is_dice:
         payload["dice"] = True
     else:
@@ -561,11 +619,18 @@ def chunk():
         scene = _detect_scene(cleaned)
         if scene:
             payload["scene"] = scene
+            if _audio:
+                _audio.on_scene_change(scene["name"])
+        # SFX scan on all non-player text
+        if _audio:
+            _audio.on_text(cleaned)
 
-    # Store full typed payload so replay preserves player/dice context
+    # Store full typed payload so replay preserves player/npc/dice context
     log_entry: dict = {"text": cleaned}
     if is_player:
         log_entry["player"] = data["player"]
+    elif is_npc:
+        log_entry["npc"] = data["npc"]
     elif is_dice:
         log_entry["dice"] = True
 
@@ -584,6 +649,8 @@ def stats():
     Pass replace_players=true to replace the entire player list (use on /dnd load to
     prevent stale characters from a previous campaign persisting in the sidebar).
     """
+    if not _token_ok():
+        return "Forbidden", 403
     data = request.get_json(silent=True) or {}
     if not data:
         return "", 204
@@ -612,11 +679,45 @@ def stats():
         if "turn_order" in data:
             _current_stats["turn_order"] = data["turn_order"]
 
+        # world_time replaces entirely
+        if "world_time" in data:
+            _current_stats["world_time"] = data["world_time"]
+
         current = dict(_current_stats)
 
     _persist_stats()
     _broadcast({"stats": current})
     return "", 204
+
+
+@app.route("/audio-toggle", methods=["POST"])
+def audio_toggle():
+    """Enable/disable ambient or SFX from the browser toggle switches.
+
+    Body: {"ambient": true|false, "sfx": true|false}  (either or both keys)
+    Response: {"ambient": bool, "sfx": bool, "available": bool}
+    Broadcasts audio_state to all connected browsers so every device syncs.
+    """
+    data = request.get_json(silent=True) or {}
+    if _audio:
+        if "sfx" in data:
+            _audio.set_sfx(bool(data["sfx"]))
+        state = _audio.get_state()
+    else:
+        state = {"sfx": False, "available": False}
+    return state, 200
+
+
+@app.route("/audio/sfx/<name>")
+def audio_sfx(name):
+    """Serve a synthesized SFX WAV for the given effect name."""
+    if not _audio:
+        return "Audio not available", 503
+    wav = _audio.get_sfx_wav(name)
+    if wav is None:
+        return "Not found", 404
+    return Response(wav, mimetype="audio/wav",
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.route("/clear", methods=["POST"])
@@ -625,6 +726,8 @@ def clear():
 
     Called on /dnd new (fresh campaign). Ensures sidebar shows no stale characters.
     """
+    if not _token_ok():
+        return "Forbidden", 403
     global _scene_buffer, _current_stats
     with _text_log_lock:
         _text_log.clear()
@@ -692,7 +795,19 @@ def stream():
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("DnD DM Display — Flask server starting on http://localhost:5001")
-    print("Open http://localhost:5001 in your browser, then Chromecast the tab.")
-    print()
-    app.run(host="localhost", port=5001, threaded=True, debug=False)
+    # Wire audio SFX broadcast now that _broadcast is defined
+    if _audio:
+        _audio.set_broadcast(_broadcast)
+
+    host = "0.0.0.0" if _LAN_MODE else "localhost"
+    if _LAN_MODE:
+        print("DnD DM Display — LAN mode (0.0.0.0:5001)")
+        print("  Local:  http://localhost:5001")
+        print("  Token stored at:", TOKEN_FILE)
+        print("  POST endpoints require X-DND-Token header (send.py/push_stats.py handle this automatically)")
+        print()
+    else:
+        print("DnD DM Display — Flask server starting on http://localhost:5001")
+        print("Open http://localhost:5001 in your browser, then Chromecast the tab.")
+        print()
+    app.run(host=host, port=5001, threaded=True, debug=False)
