@@ -77,6 +77,7 @@ def _token_ok() -> bool:
 
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 CORS(app)
 
 # Wire audio broadcast after _broadcast is defined (see bottom of file)
@@ -599,10 +600,11 @@ def chunk():
     is_player = bool(data.get("player"))
     is_npc    = bool(data.get("npc"))
     is_dice   = bool(data.get("dice"))
+    is_tutor  = bool(data.get("tutor"))
 
-    # Player/npc/dice text comes from send.py (no ANSI/chrome) — light clean only.
+    # Player/npc/dice/tutor text comes from send.py (no ANSI/chrome) — light clean only.
     # DM narration may come from wrapper.py — full clean.
-    cleaned = raw.strip() if (is_player or is_npc or is_dice) else _clean(raw)
+    cleaned = raw.strip() if (is_player or is_npc or is_dice or is_tutor) else _clean(raw)
     if not cleaned.strip():
         return "", 204
 
@@ -614,6 +616,8 @@ def chunk():
         payload["npc"] = data["npc"]
     elif is_dice:
         payload["dice"] = True
+    elif is_tutor:
+        payload["tutor"] = True
     else:
         # Scene detection only on DM narration
         scene = _detect_scene(cleaned)
@@ -625,7 +629,7 @@ def chunk():
         if _audio:
             _audio.on_text(cleaned)
 
-    # Store full typed payload so replay preserves player/npc/dice context
+    # Store full typed payload so replay preserves player/npc/dice/tutor context
     log_entry: dict = {"text": cleaned}
     if is_player:
         log_entry["player"] = data["player"]
@@ -633,6 +637,8 @@ def chunk():
         log_entry["npc"] = data["npc"]
     elif is_dice:
         log_entry["dice"] = True
+    elif is_tutor:
+        log_entry["tutor"] = True
 
     with _text_log_lock:
         _text_log.append(log_entry)

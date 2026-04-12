@@ -5,6 +5,17 @@
 - **Race:** | **Class:** | **Level:** | **Background:**
 - **Alignment:** | **XP:** / <next level threshold>
 
+## Character Pillar
+- **Player's sentence:** *"<the raw one-sentence answer to "what should the DM know about you?">"*
+- **Derived pillar:** <Bond / Flaw / Ideal / Goal> — <one-statement distillation>
+- **Active hooks:** <how the DM is currently using this pillar in play — update each session>
+
+*(Leave blank if player skipped — do not invent one.)*
+
+## Campaign History
+- **Origin campaign:** <campaign name this character was created in>
+- **Previous campaigns:** <list any prior campaigns, in order>
+
 ## Ability Scores
 | STR | DEX | CON | INT | WIS | CHA |
 |-----|-----|-----|-----|-----|-----|
@@ -62,13 +73,13 @@
 ## Features & Traits
 
 ### <Class>
-- 
+-
 
 ### <Race> Racial
-- 
+-
 
 ### <Background> Background
-- 
+-
 
 ## Equipment & Inventory
 **Weapons:**

@@ -684,6 +684,9 @@ Read and display `world.md`.
 ### `/dnd quests`
 Read `state.md` → display Active Quests and Open Threads sections.
 
+### `/dnd tutor on` / `/dnd tutor off`
+Toggle tutor/learning mode for the current session. Write `tutor_mode: true/false` to `state.md` under `## Session Flags`. When active, append a `--tutor` block to the display after each scene, decision point, combat round, or significant roll. Tutor mode is **session-scoped** — it does not persist to the next `/dnd load` unless explicitly set again.
+
 ---
 
 ## Active DM Mode
@@ -784,10 +787,52 @@ DNDEND
 2. `--dice` — each roll result, immediately after rolling (before narration)
 3. plain — DM narration (full prose, closing prompt included)
 4. `--npc NAME` — any NPC dialogue longer than one interjected line
+5. `--tutor` — hint block (only when tutor mode is active; see Tutor Mode below)
 
 Brief NPC lines that are already embedded in the narration prose don't need a separate `--npc` block. Use `--npc` when the NPC is delivering a full speech or important statement that warrants its own amber box.
 
 This keeps the player's terminal clean (one `⏺ Bash(...)` block) while the display receives every block in the correct order with full styling.
+
+---
+
+## Tutor Mode
+
+Enabled via `/dnd tutor on`. Stored as `tutor_mode: true` in `state.md` under `## Session Flags`. Check this flag on every `/dnd load`.
+
+When active, append a `--tutor` send at the end of each Bash block for:
+
+| Trigger | What to include |
+|---------|----------------|
+| **Scene intro / new location** | Skills worth attempting (Perception, Investigation, etc.), what they'd reveal |
+| **Decision point** | Brief sketch of 2–3 visible options; note which close doors permanently |
+| **Before irreversible choice** | Prefix with `⚠ WARNING:` — the block renders in amber as a consequence warning |
+| **After a failed roll** | Explain the mechanical reason: what stat, what DC, what the gap was |
+| **Combat round end** | Remind player of any unused bonus actions, reactions, or features that were available |
+| **Spell / feature use** | Clarify range, duration, concentration conflicts if not obvious |
+
+**Content rules:**
+- Write from inside the fiction — *"The shadows here are deep enough to hide in — a Stealth check could let you slip past undetected"* not *"Your Stealth bonus is +7"*
+- Keep it to 2–4 sentences. Not a lecture.
+- Never spoil what the player hasn't discovered. Hint at possibility, not certainty.
+- Omit the tutor block entirely if the situation is clear and nothing is at stake — don't force one every turn.
+
+**Warning variant:** prefix the text with `⚠ WARNING:` and the display renders the block in amber instead of green:
+```bash
+python3 ~/.claude/skills/dnd/display/send.py --tutor << 'DNDEND'
+⚠ WARNING: Moving the stone off the ship cannot be undone. Han-Ulish warned this would be read as invitation. This path escalates immediately.
+DNDEND
+```
+
+**Standard hint:**
+```bash
+python3 ~/.claude/skills/dnd/display/send.py --tutor << 'DNDEND'
+There are at least two ways in — the front gate (visible, guarded) and the loading dock you passed on the way here (dark, unguarded). A Perception check might reveal a third option you haven't noticed yet.
+DNDEND
+```
+
+The tutor block always goes **last** in the Bash send sequence, after narration and NPC dialogue.
+
+---
 
 **Scripting and rolls:** Run scripts, rolls, and simple expansions immediately — no "Do you want to proceed?" prompts. These are routine DM actions. Only pause for genuinely consequential operations (e.g. deleting campaign data).
 

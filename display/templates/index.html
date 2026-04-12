@@ -216,6 +216,81 @@
     border-radius: 1px;
   }
 
+  /* ── Tutor / learning mode hint blocks ── */
+  .tutor-block {
+    margin-bottom: 2em;
+    opacity: 0;
+    animation: fadeIn 0.5s ease forwards;
+    border: 1px solid rgba(160, 200, 160, 0.22);
+    border-left: 2px solid rgba(130, 190, 130, 0.5);
+    border-radius: 2px;
+    background: rgba(20, 40, 20, 0.45);
+    padding: 0.7em 1.1em 0.75em;
+  }
+
+  .tutor-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 0;
+  }
+
+  .tutor-icon {
+    font-size: 10px;
+    color: rgba(130, 190, 130, 0.75);
+    flex-shrink: 0;
+  }
+
+  .tutor-label {
+    font-family: 'Cinzel', serif;
+    font-size: 8.5px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(130, 190, 130, 0.65);
+    flex: 1;
+  }
+
+  .tutor-chevron {
+    font-size: 9px;
+    color: rgba(130, 190, 130, 0.45);
+    transition: transform 0.2s ease;
+  }
+  .tutor-block.expanded .tutor-chevron { transform: rotate(180deg); }
+
+  .tutor-body {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.28s ease, opacity 0.2s ease, margin-top 0.2s ease;
+    opacity: 0;
+    margin-top: 0;
+  }
+  .tutor-block.expanded .tutor-body {
+    max-height: 600px;
+    opacity: 1;
+    margin-top: 0.55em;
+  }
+
+  .tutor-body p {
+    font-size: 0.88em;
+    color: rgba(180, 220, 180, 0.82);
+    font-style: italic;
+    line-height: 1.7;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+  }
+
+  /* Consequence / warning variant */
+  .tutor-block.tutor-warning {
+    border-color: rgba(200, 140, 60, 0.25);
+    border-left-color: rgba(200, 140, 60, 0.6);
+    background: rgba(40, 24, 8, 0.5);
+  }
+  .tutor-block.tutor-warning .tutor-icon,
+  .tutor-block.tutor-warning .tutor-label,
+  .tutor-block.tutor-warning .tutor-chevron { color: rgba(200, 150, 70, 0.7); }
+  .tutor-block.tutor-warning .tutor-body p  { color: rgba(230, 190, 130, 0.82); }
+
   /* Session divider */
   .divider {
     text-align: center;
@@ -288,7 +363,7 @@
     top: 60px;
     bottom: 28px;
     width: 210px;
-    z-index: 4;
+    z-index: 6;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: none;
@@ -487,6 +562,7 @@
   /* ── Player card — clickable ── */
   .sb-player {
     cursor: pointer;
+    pointer-events: auto;
     transition: background 0.18s ease;
     border-radius: 3px;
     margin-left: -4px;
@@ -1652,6 +1728,48 @@ function renderDiceBlock(text, isReplay) {
   _reanchorCursor();
 }
 
+// ── Tutor / learning hint block ──────────────────────────────────────
+function renderTutorBlock(text, isReplay) {
+  _flushForBlock();
+
+  // Detect warning prefix (lines starting with ⚠ or WARNING:)
+  const isWarning = /^(⚠|WARNING[:\s])/i.test(text.trim());
+
+  const block = document.createElement('div');
+  block.className = 'tutor-block' + (isWarning ? ' tutor-warning' : '');
+  if (isReplay) block.style.opacity = '0.65';
+
+  // Clickable header row
+  const header = document.createElement('div');
+  header.className = 'tutor-header';
+  header.innerHTML = `<span class="tutor-icon">${isWarning ? '⚠' : '◈'}</span>` +
+                     `<span class="tutor-label">${isWarning ? 'Warning' : 'DM Hint'}</span>` +
+                     `<span class="tutor-chevron">▼</span>`;
+  block.appendChild(header);
+
+  // Collapsible body
+  const body = document.createElement('div');
+  body.className = 'tutor-body';
+
+  const cleaned = text.replace(/^(⚠|WARNING[:\s]+)/i, '').trim()
+    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')
+    .replace(/\r/g, '');
+
+  cleaned.split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const p = document.createElement('p');
+    p.textContent = trimmed;
+    body.appendChild(p);
+  });
+  block.appendChild(body);
+
+  header.addEventListener('click', () => block.classList.toggle('expanded'));
+
+  textContent.appendChild(block);
+  _reanchorCursor();
+}
+
 // ── Replay batch (reconnect / session resume) ─────────────────────────
 function renderReplayBatch(items) {
   flushNewBlock();
@@ -1663,6 +1781,8 @@ function renderReplayBatch(items) {
       renderNPCBlock(item.npc, item.text, true);
     } else if (item.dice) {
       renderDiceBlock(item.text, true);
+    } else if (item.tutor) {
+      renderTutorBlock(item.text, true);
     } else {
       const block = document.createElement('div');
       block.className = 'dm-block';
@@ -1948,6 +2068,12 @@ function _buildPlayerCard(p, solo) {
     abSection.appendChild(grid);
     card.appendChild(abSection);
   }
+
+  // Direct listener — belt-and-suspenders alongside the delegated sidebar listener
+  card.addEventListener('click', function(e) {
+    e.stopPropagation();
+    openSheet(p.name);
+  });
 
   return card;
 }
@@ -2435,6 +2561,8 @@ function connect() {
         renderNPCBlock(payload.npc, payload.text);
       } else if (payload.dice) {
         renderDiceBlock(payload.text);
+      } else if (payload.tutor) {
+        renderTutorBlock(payload.text);
       } else {
         handleIncomingText(payload.text);
       }

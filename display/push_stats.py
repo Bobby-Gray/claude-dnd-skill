@@ -17,6 +17,14 @@ Usage:
     # Feature flag (e.g. Second Wind used):
     python3 push_stats.py --player Flerb --second-wind false
 
+    # Conditions (comma-separated; empty string clears all):
+    python3 push_stats.py --player Flerb --conditions "Poisoned,Frightened"
+    python3 push_stats.py --player Flerb --conditions ""
+
+    # Concentration:
+    python3 push_stats.py --player Flerb --concentrate "Bless"
+    python3 push_stats.py --player Flerb --concentrate ""   # clear
+
     # Combat — set full turn order:
     python3 push_stats.py --turn-order '{"order":["Goblin 1","Flerb"],"current":"Goblin 1","round":1}'
 
@@ -33,10 +41,19 @@ Usage:
 import sys
 import json
 import argparse
+import os
 import urllib.request
 
-FLASK_URL = "http://localhost:5001/stats"
-TIMEOUT = 2.0
+FLASK_URL  = "http://localhost:5001/stats"
+TOKEN_FILE = os.path.expanduser("~/.claude/skills/dnd/display/.token")
+TIMEOUT    = 2.0
+
+
+def _read_token() -> str:
+    try:
+        return open(TOKEN_FILE).read().strip()
+    except FileNotFoundError:
+        return ""
 
 
 def main() -> None:
@@ -51,6 +68,10 @@ def main() -> None:
                         help="Update XP (requires --player)")
     parser.add_argument("--second-wind", metavar="BOOL",
                         help="Second Wind available: true or false (requires --player)")
+    parser.add_argument("--conditions", metavar="LIST",
+                        help="Comma-separated active conditions (requires --player); empty string clears all")
+    parser.add_argument("--concentrate", metavar="SPELL",
+                        help="Spell being concentrated on (requires --player); empty string clears")
     parser.add_argument("--turn-order", metavar="JSON",
                         help='Full turn order JSON: {"order":[...],"current":"Name","round":1}')
     parser.add_argument("--turn-current", metavar="NAME",
@@ -61,6 +82,8 @@ def main() -> None:
                         help="Clear the turn order (combat ended)")
     parser.add_argument("--replace-players", action="store_true",
                         help="Replace the entire player list (use on /dnd load to clear stale characters)")
+    parser.add_argument("--world-time", metavar="JSON",
+                        help='World time: {"date":"19 Ashveil 1312 AR","day_name":"Moonday","time":"morning","season":"Long Hollow","weather":"calm"}')
     args = parser.parse_args()
 
     payload: dict = {}
@@ -74,9 +97,11 @@ def main() -> None:
             sys.exit(1)
 
     # ── Per-player shorthands ──────────────────────────────────────────────────
-    if args.hp or args.xp or args.second_wind is not None:
+    if args.hp or args.xp or args.second_wind is not None \
+            or args.conditions is not None or args.concentrate is not None:
         if not args.player:
-            print("--hp / --xp / --second-wind require --player NAME", file=sys.stderr)
+            print("--hp / --xp / --second-wind / --conditions / --concentrate require --player NAME",
+                  file=sys.stderr)
             sys.exit(1)
         player_update: dict = {"name": args.player}
         if args.hp:
@@ -85,6 +110,14 @@ def main() -> None:
             player_update["xp"] = {"current": args.xp[0], "next": args.xp[1]}
         if args.second_wind is not None:
             player_update["second_wind"] = args.second_wind.lower() == "true"
+        if args.conditions is not None:
+            # Empty string → clear; otherwise split by comma
+            player_update["conditions"] = (
+                [c.strip() for c in args.conditions.split(",") if c.strip()]
+                if args.conditions.strip() else []
+            )
+        if args.concentrate is not None:
+            player_update["concentration"] = args.concentrate.strip() or None
         payload.setdefault("players", []).append(player_update)
 
     # ── Turn order ─────────────────────────────────────────────────────────────
@@ -111,15 +144,27 @@ def main() -> None:
     if args.replace_players:
         payload["replace_players"] = True
 
+    # ── World time ─────────────────────────────────────────────────────────────
+    if args.world_time:
+        try:
+            payload["world_time"] = json.loads(args.world_time)
+        except json.JSONDecodeError as e:
+            print(f"Invalid world-time JSON: {e}", file=sys.stderr)
+            sys.exit(1)
+
     if not payload:
         print("Nothing to push. Use --help for usage.", file=sys.stderr)
         return
 
     data = json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    token = _read_token()
+    if token:
+        headers["X-DND-Token"] = token
     req = urllib.request.Request(
         FLASK_URL,
         data=data,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
     try:

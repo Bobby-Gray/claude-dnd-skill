@@ -29,3 +29,7 @@
 
 ### Open Threads Heading into Next Session
 -
+
+### DM Calibration
+- **What worked:** <what landed — pacing, an NPC, a scene, a mechanic>
+- **Adjust next time:** <one or two things to do differently>

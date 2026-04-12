@@ -1,3 +1,4 @@
 flask
 flask-cors
+pygame
 numpy
