@@ -29,9 +29,11 @@ It is not an official Wizards of the Coast product. It uses Claude as the DM eng
 - **Browser-side sound effects** — 12 SFX types synthesized on demand (numpy) and played via Web Audio API; works on any device with the browser tab open, including phones on LAN
 - **LAN mode** — serve the display to any device on your local network; token-authenticated write endpoints
 - **17 scene types** — auto-detected from narration keywords — tavern, dungeon, ocean, crypt, arcane, glacier, and more
+- **Clickable character sheets** — tap any sidebar card to open a full character sheet modal (attacks, features, inventory); works on phones and tablets via LAN
+- **Tutor / learning mode** — collapsible hint blocks and consequence warnings on the display; collapsed by default, opt-in per session
 - **Couch co-op** — multiple characters, shared display, turn order visible to everyone in the room
 - **Combat tracker** — auto-rolled initiative, `▶` turn pointer, HP bars, inline dice math sent to display
-- **4 helper scripts** — dice rolling, ability scores (point buy + roll arrays), combat resolution, character stat derivation
+- **8 helper scripts** — dice, ability scores, combat, character stats, conditions/tracker, calendar, SRD data pull, SRD lookup
 
 ---
 
@@ -101,6 +103,8 @@ Once loaded, type naturally — no `/dnd` prefix needed. The DM interprets every
 | `/dnd recap` | In-character 3–5 sentence recap of the last session |
 | `/dnd world` | Display world lore |
 | `/dnd quests` | Show active quests and open threads |
+| `/dnd tutor on` | Enable tutor/learning mode for this session |
+| `/dnd tutor off` | Disable tutor/learning mode |
 
 ---
 
@@ -173,6 +177,28 @@ Every NPC gets: role, stat block, demeanor, motivation, secret, and a speech qui
 ```
 
 Long rests advance the in-world clock in `state.md`.
+
+---
+
+## Tutor / Learning Mode
+
+New players can enable an optional guided layer that runs alongside the normal DM narration:
+
+```
+/dnd tutor on    # enable for this session
+/dnd tutor off   # disable
+```
+
+When active, the display companion shows collapsible hint blocks after each scene, decision point, and significant roll:
+
+- **DM Hint** (green border) — skills worth attempting, visible options, what each path might cost
+- **Warning** (amber border) — flags irreversible choices before the player commits: *"This cannot be undone — Han-Ulish warned that moving the stone would be read as an invitation"*
+- **After failed rolls** — brief mechanical explanation of what happened and why
+- **Combat** — reminder of unused bonus actions, reactions, or features available that turn
+
+Hint blocks are **collapsed by default** — click or tap the header to expand. Experienced players can ignore them entirely; new players get the scaffolding without it cluttering the screen.
+
+Tutor mode is session-scoped. It does not persist to the next `/dnd load` unless set again.
 
 ---
 
@@ -352,6 +378,36 @@ The sidebar:
 - Fades in automatically on first stats push
 - Persists across Flask restarts (`stats.json`)
 - Cleared automatically on `/dnd new` (fresh campaign)
+
+![Character sidebar card](sidebar-card.png)
+
+### Clickable Character Sheet
+
+Click or tap any character card in the sidebar to open a full character sheet modal — attacks, features, and inventory at a glance. Works on desktop and on phones/tablets connected via LAN.
+
+![Character sheet modal](character-sheet-modal.png)
+
+Include the `sheet` field when pushing stats on `/dnd load` to populate the full sheet:
+
+```bash
+python3 ~/.claude/skills/dnd/display/push_stats.py --replace-players --json '{
+  "players": [{
+    "name": "Aldric",
+    ...
+    "sheet": {
+      "attacks": [
+        {"name": "Longsword", "bonus": "+5", "damage": "1d8+3", "type": "Slashing", "notes": "Versatile (1d10)"}
+      ],
+      "features": [
+        {"name": "Second Wind", "text": "Bonus action: regain 1d10+level HP. Short/long rest recharge."}
+      ],
+      "inventory": ["Longsword", "Chain Mail", "Shield", "Explorer'\''s Pack", "15 gp"]
+    }
+  }]
+}'
+```
+
+If `sheet` is omitted, the modal still opens but shows only the stats visible in the sidebar. Close with **Esc**, clicking outside the panel, or the ✕ button.
 
 ### Replay Buffer
 
