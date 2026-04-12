@@ -341,12 +341,13 @@
   }
 
   /* Cursor blink */
-  .cursor {
+  .typing-cursor::after {
+    content: '';
     display: inline-block;
     width: 2px;
-    height: 1.1em;
+    height: 0.85em;
     background: rgba(180, 140, 60, 0.8);
-    vertical-align: middle;
+    vertical-align: -0.05em;
     margin-left: 2px;
     animation: blink 1s step-end infinite;
   }
@@ -1600,24 +1601,22 @@ function typeNextChar() {
   const ch = charQueue.shift();
   const p  = getOrCreateBlock();
 
-  // Remove cursor from previous position
-  if (currentCursor && currentCursor.parentNode) {
-    currentCursor.parentNode.removeChild(currentCursor);
+  // Remove cursor class from previous paragraph
+  if (currentCursor) {
+    currentCursor.classList.remove('typing-cursor');
   }
 
   if (ch === '\n') {
-    // New paragraph inside same block — unless it's a blank line
+    // New paragraph inside same block
     const next = document.createElement('p');
     currentEl.appendChild(next);
   } else {
     p.appendChild(document.createTextNode(ch));
   }
 
-  // Re-add cursor
-  currentCursor = document.createElement('span');
-  currentCursor.className = 'cursor';
-  const lastP = currentEl.querySelector('p:last-child');
-  lastP.appendChild(currentCursor);
+  // Apply cursor class to current last paragraph via ::after pseudo-element
+  currentCursor = currentEl.querySelector('p:last-child');
+  if (currentCursor) currentCursor.classList.add('typing-cursor');
 
   scrollToBottom();
   setTimeout(typeNextChar, CHAR_DELAY);
@@ -1645,10 +1644,39 @@ function flushNewBlock() {
   currentEl = null;
 }
 
+// ── Instant flush: drain all pending chars synchronously ──────────────
+// Called before inserting a non-DM block so the typewriter never gets
+// interrupted mid-word. Renders all queued chars immediately, then
+// stops the typewriter loop cleanly.
+function instantFlush() {
+  if (charQueue.length === 0) return;
+  clearTimeout(idleTimer);
+  const pending = charQueue.splice(0);  // atomically drain
+  for (const ch of pending) {
+    if (ch === '\n') {
+      if (!currentEl) getOrCreateBlock();
+      const next = document.createElement('p');
+      currentEl.appendChild(next);
+    } else {
+      const p = getOrCreateBlock();
+      p.appendChild(document.createTextNode(ch));
+    }
+  }
+  // The in-flight setTimeout(typeNextChar) will fire into an empty queue
+  // and set isTyping=false itself — force it false now so startTyping()
+  // can restart cleanly if new DM text arrives.
+  isTyping = false;
+  if (currentCursor) {
+    currentCursor.classList.remove('typing-cursor');
+  }
+  currentCursor = currentEl ? currentEl.querySelector('p:last-child') : null;
+}
+
 // ── Shared: flush cursor and currentEl before inserting a non-DM block ──
 function _flushForBlock() {
-  if (currentCursor && currentCursor.parentNode) {
-    currentCursor.parentNode.removeChild(currentCursor);
+  instantFlush();  // finish any in-progress typewriter before inserting
+  if (currentCursor) {
+    currentCursor.classList.remove('typing-cursor');
     currentCursor = null;
   }
   currentEl = null;
@@ -1661,9 +1689,8 @@ function _flushForBlock() {
 function _reanchorCursor() {
   if ((isTyping || charQueue.length > 0) && !currentEl) {
     const p = getOrCreateBlock();
-    currentCursor = document.createElement('span');
-    currentCursor.className = 'cursor';
-    p.appendChild(currentCursor);
+    currentCursor = p;
+    currentCursor.classList.add('typing-cursor');
   }
   scrollToBottom();
 }
