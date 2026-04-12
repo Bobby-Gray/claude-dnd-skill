@@ -194,9 +194,30 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --json '{
       "str": {"score": 15, "mod": "+2"}, "dex": {"score": 10, "mod": "+0"},
       "con": {"score": 15, "mod": "+2"}, "int": {"score": 9, "mod": "-1"},
       "wis": {"score": 11, "mod": "+0"}, "cha": {"score": 14, "mod": "+2"}
+    },
+    "sheet": {
+      "attacks": [
+        {"name": "Longsword", "bonus": "+4", "damage": "1d8+2", "type": "Slashing", "notes": "Versatile (1d10)"},
+        {"name": "Handaxe",   "bonus": "+4", "damage": "1d6+2", "type": "Slashing", "notes": "Thrown 20/60 ft"}
+      ],
+      "spells": null,
+      "features": [
+        {"name": "Second Wind",  "text": "Bonus action: regain 1d10+level HP. Recharges on short/long rest."},
+        {"name": "Action Surge", "text": "Once per rest: take an additional action on your turn."}
+      ],
+      "inventory": ["Longsword", "Handaxe ×2", "Chain Mail", "Shield", "Explorer'\''s Pack", "15 gp"]
     }
   }]
 }'
+
+# sheet field is optional. If omitted, clicking the character card in the sidebar still
+# opens the modal, but only shows the stats already in the sidebar (HP, AC, ability scores).
+# Include sheet on /dnd load to give players a full reference during play.
+# sheet sub-keys:
+#   attacks  — array of {name, bonus, damage, type, notes}
+#   spells   — {slots, save_dc, attack_bonus, cantrips: [...], prepared: [...]} or null
+#   features — array of {name, text}
+#   inventory — array of strings
 
 # Partial updates (use these whenever values change mid-session):
 python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --hp 7 12

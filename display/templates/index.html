@@ -484,6 +484,165 @@
     font-family: 'IM Fell English', Georgia, serif;
   }
 
+  /* ── Player card — clickable ── */
+  .sb-player {
+    cursor: pointer;
+    transition: background 0.18s ease;
+    border-radius: 3px;
+    margin-left: -4px;
+    padding-left: 4px;
+  }
+  .sb-player:hover { background: rgba(180,140,60,0.06); }
+
+  /* ── Character sheet modal ── */
+  #sheet-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0,0,0,0.72);
+    backdrop-filter: blur(3px);
+    align-items: center;
+    justify-content: center;
+  }
+  #sheet-modal.open { display: flex; }
+  #sheet-panel {
+    background: rgba(8,6,4,0.97);
+    border: 1px solid rgba(180,140,60,0.3);
+    border-radius: 3px;
+    box-shadow: 0 0 80px rgba(0,0,0,0.85), inset 0 0 40px rgba(0,0,0,0.5);
+    width: min(680px, 90vw);
+    max-height: 84vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(180,140,60,0.2) transparent;
+    padding: 30px 34px 38px;
+    position: relative;
+    animation: sheetIn 0.18s ease;
+  }
+  @keyframes sheetIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  #sheet-close {
+    position: absolute; top: 14px; right: 18px;
+    background: none; border: none;
+    color: rgba(180,140,60,0.45); font-size: 18px;
+    cursor: pointer; padding: 4px; line-height: 1;
+    transition: color 0.15s;
+  }
+  #sheet-close:hover { color: rgba(180,140,60,0.9); }
+  .sm-name {
+    font-family: 'Cinzel', serif; font-size: 19px;
+    letter-spacing: 4px; text-transform: uppercase;
+    color: rgba(200,165,80,0.95); margin-bottom: 3px;
+  }
+  .sm-identity {
+    font-size: 12px; color: rgba(200,185,150,0.45);
+    margin-bottom: 16px; letter-spacing: 1px;
+  }
+  .sm-divider {
+    height: 1px; background: rgba(180,140,60,0.12); margin: 15px 0;
+  }
+  .sm-section-title {
+    font-family: 'Cinzel', serif; font-size: 8.5px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: rgba(180,140,60,0.5); margin-bottom: 10px;
+  }
+  .sm-combat-strip {
+    display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 2px;
+  }
+  .sm-stat-cell { text-align: center; }
+  .sm-stat-label {
+    font-family: 'Cinzel', serif; font-size: 7.5px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: rgba(180,140,60,0.4); display: block;
+  }
+  .sm-stat-val {
+    font-family: 'Cinzel', serif; font-size: 14px;
+    color: rgba(220,200,160,0.88);
+  }
+  .sm-xp {
+    font-size: 10px; color: rgba(180,140,60,0.45);
+    font-family: 'Cinzel', serif; letter-spacing: 1px;
+    margin-top: 4px;
+  }
+  .sm-ab-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+  }
+  .sm-ab-cell { text-align: center; }
+  .sm-ab-name {
+    font-family: 'Cinzel', serif; font-size: 7.5px;
+    letter-spacing: 1px; color: rgba(180,140,60,0.4);
+    text-transform: uppercase;
+  }
+  .sm-ab-score {
+    font-family: 'Cinzel', serif; font-size: 15px;
+    color: rgba(220,200,160,0.85); line-height: 1.1;
+  }
+  .sm-ab-mod { font-size: 11px; color: rgba(180,140,60,0.65); }
+  .sm-attacks-table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  .sm-attacks-table th {
+    font-family: 'Cinzel', serif; font-size: 7.5px; letter-spacing: 1px;
+    text-transform: uppercase; color: rgba(180,140,60,0.45);
+    text-align: left; padding: 0 10px 6px 0;
+    border-bottom: 1px solid rgba(180,140,60,0.1);
+  }
+  .sm-attacks-table td {
+    padding: 5px 10px 5px 0; color: rgba(210,195,160,0.75);
+    border-bottom: 1px solid rgba(180,140,60,0.05); vertical-align: top;
+  }
+  .sm-attacks-table td.atk-name { color: rgba(220,200,160,0.95); }
+  .sm-attacks-table td.atk-notes {
+    color: rgba(200,185,150,0.45); font-style: italic; font-size: 11px;
+  }
+  .sm-spell-meta {
+    font-size: 11px; color: rgba(200,185,150,0.45);
+    margin-bottom: 10px; font-style: italic;
+  }
+  .sm-sub-label {
+    font-family: 'Cinzel', serif; font-size: 8px; letter-spacing: 2px;
+    text-transform: uppercase; margin: 8px 0 5px;
+  }
+  .sm-sub-label.cantrip-label { color: rgba(160,120,220,0.4); }
+  .sm-sub-label.prepared-label { color: rgba(180,140,60,0.4); }
+  .sm-spell-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+  .sm-spell-tag {
+    font-size: 11px; color: rgba(200,185,150,0.8);
+    background: rgba(180,140,60,0.06);
+    border: 1px solid rgba(180,140,60,0.15);
+    border-radius: 2px; padding: 3px 8px;
+  }
+  .sm-spell-tag.cantrip {
+    color: rgba(160,120,220,0.8);
+    border-color: rgba(160,120,220,0.2);
+    background: rgba(160,120,220,0.05);
+  }
+  .sm-feature { margin-bottom: 10px; }
+  .sm-feature-name {
+    font-family: 'Cinzel', serif; font-size: 11px;
+    color: rgba(200,165,80,0.75); margin-bottom: 2px;
+  }
+  .sm-feature-text {
+    font-size: 12px; color: rgba(200,185,150,0.6); line-height: 1.55;
+  }
+  .sm-inventory-list {
+    list-style: none; column-count: 2; column-gap: 24px;
+  }
+  .sm-inventory-list li {
+    font-size: 12px; color: rgba(200,185,150,0.7);
+    padding: 2px 0; break-inside: avoid;
+  }
+  .sm-inventory-list li::before {
+    content: '·  '; color: rgba(180,140,60,0.35);
+  }
+  .sm-no-data {
+    font-size: 12px; color: rgba(200,185,150,0.25);
+    font-style: italic; text-align: center; padding: 22px 0;
+  }
+
   /* ── Turn order section ── */
   #sb-turn-section {
     margin-top: 14px;
@@ -678,6 +837,14 @@
   <div class="audio-row" id="sfx-row" title="Sound effects (triggered by narration)">
     <span class="audio-label">Sound Effects</span>
     <div class="toggle-track" id="sfx-track"><div class="toggle-thumb"></div></div>
+  </div>
+</div>
+
+<!-- Character sheet modal (click any player card in the sidebar to open) -->
+<div id="sheet-modal">
+  <div id="sheet-panel">
+    <button id="sheet-close" title="Close (Esc)">✕</button>
+    <div id="sheet-content"></div>
   </div>
 </div>
 
@@ -1762,6 +1929,9 @@ function _buildPlayerCard(p, solo) {
     card.appendChild(featEl);
   }
 
+  // Click → open character sheet modal
+  card.addEventListener('click', () => openSheet(p.name));
+
   // Ability scores — only for solo play
   if (solo && p.ability_scores) {
     const ab = p.ability_scores;
@@ -1785,6 +1955,220 @@ function _buildPlayerCard(p, solo) {
 
   return card;
 }
+
+// ── Character sheet modal ────────────────────────────────────────────────────
+
+function _smDivider() {
+  const d = document.createElement('div');
+  d.className = 'sm-divider';
+  return d;
+}
+
+function openSheet(name) {
+  const p = _playerData[name];
+  if (!p) return;
+  const content = document.getElementById('sheet-content');
+  content.innerHTML = '';
+
+  // Header
+  const nameEl = document.createElement('div');
+  nameEl.className = 'sm-name';
+  nameEl.textContent = p.name || '—';
+  content.appendChild(nameEl);
+
+  const identParts = [];
+  if (p.race)       identParts.push(p.race);
+  if (p.class)      identParts.push(p.class + (p.level ? ' ' + p.level : ''));
+  if (p.background) identParts.push(p.background);
+  const identEl = document.createElement('div');
+  identEl.className = 'sm-identity';
+  identEl.textContent = identParts.join('  ·  ') || '—';
+  content.appendChild(identEl);
+
+  // Combat stats strip
+  const hp = p.hp || {};
+  const hd = p.hit_dice || {};
+  const stripData = [
+    ['HP',       hp.current != null ? `${hp.current}/${hp.max}` : '—'],
+    ['AC',       p.ac       ?? '—'],
+    ['Init',     p.initiative ?? '—'],
+    ['Speed',    p.speed    != null ? p.speed + ' ft' : '—'],
+    ['Hit Dice', hd.die     ? `${hd.remaining ?? '?'}/${hd.max ?? '?'} ${hd.die}` : '—'],
+  ];
+  if (hp.temp) stripData.splice(1, 0, ['Temp HP', '+' + hp.temp]);
+  const strip = document.createElement('div');
+  strip.className = 'sm-combat-strip';
+  stripData.forEach(([label, val]) => {
+    const cell = document.createElement('div');
+    cell.className = 'sm-stat-cell';
+    cell.innerHTML = `<span class="sm-stat-label">${label}</span><span class="sm-stat-val">${val}</span>`;
+    strip.appendChild(cell);
+  });
+  content.appendChild(strip);
+
+  if (p.xp && p.xp.current != null) {
+    const xpEl = document.createElement('div');
+    xpEl.className = 'sm-xp';
+    xpEl.textContent = `XP  ${p.xp.current} / ${p.xp.next ?? '?'}`;
+    content.appendChild(xpEl);
+  }
+
+  // Ability scores (always shown in modal)
+  if (p.ability_scores) {
+    content.appendChild(_smDivider());
+    const title = document.createElement('div');
+    title.className = 'sm-section-title';
+    title.textContent = 'Ability Scores';
+    content.appendChild(title);
+    const grid = document.createElement('div');
+    grid.className = 'sm-ab-grid';
+    ['str','dex','con','int','wis','cha'].forEach(key => {
+      const d = p.ability_scores[key] || {};
+      const cell = document.createElement('div');
+      cell.className = 'sm-ab-cell';
+      cell.innerHTML = `<div class="sm-ab-name">${key.toUpperCase()}</div>
+        <div class="sm-ab-score">${d.score ?? '—'}</div>
+        <div class="sm-ab-mod">${d.mod ?? '—'}</div>`;
+      grid.appendChild(cell);
+    });
+    content.appendChild(grid);
+  }
+
+  const sheet = p.sheet || {};
+
+  // Attacks
+  if (sheet.attacks && sheet.attacks.length) {
+    content.appendChild(_smDivider());
+    const title = document.createElement('div');
+    title.className = 'sm-section-title';
+    title.textContent = 'Attacks';
+    content.appendChild(title);
+    const table = document.createElement('table');
+    table.className = 'sm-attacks-table';
+    table.innerHTML = `<thead><tr>
+      <th>Name</th><th>Bonus</th><th>Damage</th><th>Type</th><th>Notes</th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+    sheet.attacks.forEach(a => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="atk-name">${a.name||'—'}</td>
+        <td>${a.bonus||'—'}</td><td>${a.damage||'—'}</td>
+        <td>${a.type||'—'}</td><td class="atk-notes">${a.notes||''}</td>`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    content.appendChild(table);
+  }
+
+  // Spells
+  if (sheet.spells) {
+    const sp = sheet.spells;
+    content.appendChild(_smDivider());
+    const title = document.createElement('div');
+    title.className = 'sm-section-title';
+    title.textContent = 'Spellcasting';
+    content.appendChild(title);
+    if (sp.slots || sp.save_dc || sp.attack_bonus) {
+      const meta = document.createElement('div');
+      meta.className = 'sm-spell-meta';
+      const parts = [];
+      if (sp.slots)         parts.push('Slots: ' + sp.slots);
+      if (sp.save_dc)       parts.push('Save DC ' + sp.save_dc);
+      if (sp.attack_bonus)  parts.push('Atk ' + sp.attack_bonus);
+      meta.textContent = parts.join('  ·  ');
+      content.appendChild(meta);
+    }
+    if (sp.cantrips && sp.cantrips.length) {
+      const lbl = document.createElement('div');
+      lbl.className = 'sm-sub-label cantrip-label';
+      lbl.textContent = 'Cantrips';
+      content.appendChild(lbl);
+      const grid = document.createElement('div');
+      grid.className = 'sm-spell-grid';
+      sp.cantrips.forEach(s => {
+        const tag = document.createElement('span');
+        tag.className = 'sm-spell-tag cantrip';
+        tag.textContent = s;
+        grid.appendChild(tag);
+      });
+      content.appendChild(grid);
+    }
+    if (sp.prepared && sp.prepared.length) {
+      const lbl = document.createElement('div');
+      lbl.className = 'sm-sub-label prepared-label';
+      lbl.textContent = 'Prepared';
+      content.appendChild(lbl);
+      const grid = document.createElement('div');
+      grid.className = 'sm-spell-grid';
+      sp.prepared.forEach(s => {
+        const tag = document.createElement('span');
+        tag.className = 'sm-spell-tag';
+        tag.textContent = s;
+        grid.appendChild(tag);
+      });
+      content.appendChild(grid);
+    }
+  }
+
+  // Features & Passives
+  if (sheet.features && sheet.features.length) {
+    content.appendChild(_smDivider());
+    const title = document.createElement('div');
+    title.className = 'sm-section-title';
+    title.textContent = 'Features & Passives';
+    content.appendChild(title);
+    sheet.features.forEach(f => {
+      const el = document.createElement('div');
+      el.className = 'sm-feature';
+      el.innerHTML = `<div class="sm-feature-name">${f.name}</div>
+        <div class="sm-feature-text">${f.text}</div>`;
+      content.appendChild(el);
+    });
+  }
+
+  // Inventory
+  if (sheet.inventory && sheet.inventory.length) {
+    content.appendChild(_smDivider());
+    const title = document.createElement('div');
+    title.className = 'sm-section-title';
+    title.textContent = 'Inventory';
+    content.appendChild(title);
+    const list = document.createElement('ul');
+    list.className = 'sm-inventory-list';
+    sheet.inventory.forEach(item => {
+      const li = document.createElement('li');
+      li.textContent = item;
+      list.appendChild(li);
+    });
+    content.appendChild(list);
+  }
+
+  // No sheet data hint
+  if (!sheet.attacks && !sheet.spells && !sheet.features && !sheet.inventory) {
+    content.appendChild(_smDivider());
+    const noData = document.createElement('div');
+    noData.className = 'sm-no-data';
+    noData.textContent = 'Full sheet not loaded — include "sheet" in the player object when pushing stats on /dnd load';
+    content.appendChild(noData);
+  }
+
+  document.getElementById('sheet-modal').classList.add('open');
+  document.getElementById('sheet-panel').scrollTop = 0;
+}
+
+function closeSheet() {
+  document.getElementById('sheet-modal').classList.remove('open');
+}
+
+document.getElementById('sheet-close').addEventListener('click', closeSheet);
+document.getElementById('sheet-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('sheet-modal')) closeSheet();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSheet();
+});
+
+// ── Stats update ─────────────────────────────────────────────────────────────
 
 function updateStats(stats) {
   if (!stats || !stats.players) return;
