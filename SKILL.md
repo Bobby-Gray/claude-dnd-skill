@@ -714,6 +714,29 @@ DNDEND
 ```
 **Everything goes to the display** — include the closing prompt ("What do you do?"), inventory checks, and roll outcome summaries in the same block. Nothing written after the bash call reaches the display. The delimiter `DNDEND` is safe as long as the narration doesn't literally contain that string on its own line.
 
+**Batching rule — one Bash call per response:** Never fire a separate Bash tool call for each `send.py` invocation. Each individual Bash call appears as a visible `⏺ Bash(...)` block in the terminal, which fragments the transcript the player is reading. Instead:
+
+1. Write the **full response as text** (narration, NPC dialogue, dice results, closing prompt — everything). The player reads this in the terminal.
+2. At the very end, issue **one Bash call** that runs all `send.py` commands for that response in sequence within a single shell script:
+
+```bash
+# All sends for this response — one Bash call, not six
+python3 ~/.claude/skills/dnd/display/send.py --player Kat << 'DNDEND'
+[player action]
+DNDEND
+python3 ~/.claude/skills/dnd/display/send.py --dice << 'DNDEND'
+Kat — Stealth: d20 + 3 = 14  →  Clean.
+DNDEND
+python3 ~/.claude/skills/dnd/display/send.py << 'DNDEND'
+[full narration]
+DNDEND
+python3 ~/.claude/skills/dnd/display/send.py --npc Vesna << 'DNDEND'
+"I didn't see anything."
+DNDEND
+```
+
+This keeps the player's terminal clean while ensuring the display receives every block in the correct order.
+
 **Scripting and rolls:** Run scripts, rolls, and simple expansions immediately — no "Do you want to proceed?" prompts. These are routine DM actions. Only pause for genuinely consequential operations (e.g. deleting campaign data).
 
 **Proactive scripting:** As new mechanics arise in play (spells, conditions, rests, social encounters, travel), create the relevant helper script in `scripts/` and add a pointer here before using it.
