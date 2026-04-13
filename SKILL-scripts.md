@@ -192,6 +192,32 @@ python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP events
 
 ---
 
+## Campaign Search — `scripts/campaign_search.py`
+Keyword search across campaign files. Use this **before** loading full files into context when looking up a specific past event, NPC detail, or plot thread.
+
+```bash
+CAMP=mom-dad-campaign-0
+
+# Search all default files (state, log, archive, world, npcs):
+python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c $CAMP Lasswater
+
+# Narrow to specific files:
+python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c $CAMP "Vael letter" --files log,archive
+
+# Multi-keyword AND search:
+python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c $CAMP VARETH Kel
+
+# More context lines around each match:
+python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c $CAMP Harwick -C 6
+```
+
+File keys: `state`, `log`, `archive`, `world`, `seeds`, `npcs`, `npcsfull`
+Default files searched: state, log, archive, world, npcs
+
+**When to use:** Any time a player asks about a past event, NPC detail, location, or plot thread that may not be in active context. Run this first — only escalate to a full `Read` if the search returns insufficient context.
+
+---
+
 ## Data Commands — `scripts/data_pull.py` and `scripts/lookup.py`
 
 ```bash
