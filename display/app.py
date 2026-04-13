@@ -694,6 +694,10 @@ def stats():
         if "world_time" in data:
             _current_stats["world_time"] = data["world_time"]
 
+        # factions replaces entirely ([] clears)
+        if "factions" in data:
+            _current_stats["factions"] = data["factions"]
+
         current = dict(_current_stats)
 
     _persist_stats()
@@ -729,6 +733,53 @@ def audio_sfx(name):
         return "Not found", 404
     return Response(wav, mimetype="audio/wav",
                     headers={"Cache-Control": "public, max-age=3600"})
+
+
+# ─── Description lookup (Haiku) ──────────────────────────────────────────────
+# Server-side cache prevents duplicate Haiku calls across multiple LAN clients.
+# Browser-side cache (in index.html) prevents repeated server hits from the same viewer.
+
+_description_cache: dict = {}
+
+@app.route("/lookup", methods=["POST"])
+def lookup():
+    """Look up a D&D 5e term via Haiku. Cached server-side by context:term key."""
+    data = request.get_json(silent=True) or {}
+    term    = data.get("term", "").strip()
+    context = data.get("context", "item")   # spell | item | feature | attack
+
+    if not term:
+        return {"error": "no term"}, 400
+
+    cache_key = f"{context}:{term.lower()}"
+    if cache_key in _description_cache:
+        return _description_cache[cache_key]
+
+    context_map = {
+        "spell":   "spell",
+        "item":    "item, weapon, or piece of armor",
+        "feature": "class feature, racial trait, or ability",
+        "attack":  "attack or weapon",
+    }
+    thing = context_map.get(context, "game element")
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            messages=[{"role": "user", "content":
+                f"Describe the D&D 5e {thing} '{term}' in 2-3 sentences. "
+                f"Cover what it does and its key mechanics. Be concise and direct. No preamble."}],
+        )
+        description = response.content[0].text.strip()
+    except Exception:
+        description = "Description unavailable."
+
+    result = {"term": term, "description": description}
+    _description_cache[cache_key] = result
+    return result
 
 
 @app.route("/clear", methods=["POST"])

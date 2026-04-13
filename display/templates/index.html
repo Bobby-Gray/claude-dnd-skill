@@ -756,6 +756,83 @@
     font-style: italic; text-align: center; padding: 22px 0;
   }
 
+  /* ── Spell slots (sidebar) ── */
+  .sb-slots { margin-top: 5px; }
+  .sb-slot-row { display: flex; align-items: center; gap: 3px; margin-bottom: 2px; }
+  .sb-slot-level {
+    font-family: 'Cinzel', serif; font-size: 7px;
+    color: rgba(160,120,220,0.5); width: 14px; text-align: right; flex-shrink: 0;
+  }
+  .sb-slot-pip {
+    width: 6px; height: 6px; border-radius: 50%; border: 1px solid;
+    flex-shrink: 0;
+  }
+  .sb-slot-pip.avail { background: rgba(160,120,220,0.6); border-color: rgba(160,120,220,0.6); }
+  .sb-slot-pip.spent { background: transparent; border-color: rgba(160,120,220,0.18); }
+
+  /* ── Faction panel (sidebar) ── */
+  #sb-factions {
+    margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid rgba(180,140,60,0.08);
+  }
+  .sb-factions-header {
+    font-family: 'Cinzel', serif; font-size: 7.5px; letter-spacing: 2px;
+    text-transform: uppercase; color: rgba(180,140,60,0.35); margin-bottom: 6px;
+  }
+  .sb-faction-item {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 6px; padding: 2px 0;
+  }
+  .sb-faction-name {
+    font-size: 9px; color: rgba(200,185,150,0.6);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+  }
+  .sb-faction-standing {
+    font-family: 'Cinzel', serif; font-size: 7.5px;
+    letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap;
+  }
+  .sb-faction-standing.allied    { color: rgba(80,200,130,0.80); }
+  .sb-faction-standing.friendly  { color: rgba(80,200,130,0.60); }
+  .sb-faction-standing.neutral   { color: rgba(180,140,60,0.60); }
+  .sb-faction-standing.unfriendly,
+  .sb-faction-standing.suspicious{ color: rgba(220,120,50,0.70); }
+  .sb-faction-standing.hostile   { color: rgba(220,60,60,0.80); }
+  .sb-faction-standing.unknown   { color: rgba(200,185,150,0.25); }
+
+  /* ── Relationships (sheet modal) ── */
+  .sm-relationship { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; }
+  .sm-rel-name {
+    font-family: 'Cinzel', serif; font-size: 11px;
+    color: rgba(200,165,80,0.75); min-width: 90px; flex-shrink: 0;
+  }
+  .sm-rel-role {
+    font-size: 10px; font-style: italic;
+    color: rgba(160,120,220,0.6); min-width: 60px; flex-shrink: 0;
+  }
+  .sm-rel-note { font-size: 11px; color: rgba(200,185,150,0.5); line-height: 1.45; }
+
+  /* ── Clickable sheet items ── */
+  .sm-clickable { cursor: pointer; transition: color 0.15s, border-color 0.15s, opacity 0.15s; }
+  .sm-clickable:hover { opacity: 0.78; }
+
+  /* ── Description tooltip ── */
+  #desc-tooltip {
+    position: fixed; z-index: 99999; max-width: 300px;
+    background: rgba(6,5,3,0.97);
+    border: 1px solid rgba(180,140,60,0.3); border-radius: 3px;
+    padding: 10px 13px; box-shadow: 0 4px 24px rgba(0,0,0,0.7);
+    display: none; pointer-events: none;
+    animation: tooltipIn 0.12s ease;
+  }
+  @keyframes tooltipIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+  #desc-tooltip.visible { display: block; }
+  .desc-tt-term {
+    font-family: 'Cinzel', serif; font-size: 9.5px; letter-spacing: 1.5px;
+    text-transform: uppercase; color: rgba(200,165,80,0.9); margin-bottom: 6px;
+  }
+  .desc-tt-body { font-size: 11px; color: rgba(200,185,150,0.78); line-height: 1.55; }
+  .desc-tt-body.loading { color: rgba(200,185,150,0.35); font-style: italic; }
+
   /* ── Turn order section ── */
   #sb-turn-section {
     margin-top: 14px;
@@ -957,6 +1034,12 @@
   </div>
 </div>
 
+<!-- Description tooltip — populated by Haiku lookup on click -->
+<div id="desc-tooltip">
+  <div class="desc-tt-term"></div>
+  <div class="desc-tt-body"></div>
+</div>
+
 <!-- Character sheet modal (click any player card in the sidebar to open) -->
 <div id="sheet-modal">
   <div id="sheet-panel">
@@ -968,6 +1051,10 @@
 <!-- Character sidebar -->
 <div id="sidebar">
   <!-- Player cards are injected here by updateStats() -->
+  <!-- Faction standings — injected by updateStats() when factions data is present -->
+  <div id="sb-factions" style="display:none">
+    <div class="sb-factions-header">Factions</div>
+  </div>
   <!-- Turn order section (shown only during combat) -->
   <div id="sb-turn-section" style="display:none">
     <div class="sb-turn-header">Round <span id="sb-round">1</span></div>
@@ -2128,6 +2215,34 @@ function _buildPlayerCard(p, solo) {
     card.appendChild(concEl);
   }
 
+  // Spell slots
+  if (p.spell_slots && Object.keys(p.spell_slots).length) {
+    const ROMAN = ['','I','II','III','IV','V','VI','VII','VIII','IX'];
+    const slotsEl = document.createElement('div');
+    slotsEl.className = 'sb-slots';
+    slotsEl.dataset.role = 'spell_slots';
+    Object.entries(p.spell_slots)
+      .sort(([a],[b]) => +a - +b)
+      .forEach(([lvl, s]) => {
+        const max = s.max || 0;
+        if (!max) return;
+        const avail = max - (s.used || 0);
+        const row = document.createElement('div');
+        row.className = 'sb-slot-row';
+        const lbl = document.createElement('span');
+        lbl.className = 'sb-slot-level';
+        lbl.textContent = ROMAN[+lvl] || lvl;
+        row.appendChild(lbl);
+        for (let i = 0; i < max; i++) {
+          const pip = document.createElement('span');
+          pip.className = 'sb-slot-pip ' + (i < avail ? 'avail' : 'spent');
+          row.appendChild(pip);
+        }
+        slotsEl.appendChild(row);
+      });
+    if (slotsEl.children.length) card.appendChild(slotsEl);
+  }
+
   // Features (Second Wind etc)
   const feats = [];
   if (p.second_wind != null) {
@@ -2269,9 +2384,14 @@ function openSheet(name) {
     const tbody = document.createElement('tbody');
     sheet.attacks.forEach(a => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td class="atk-name">${a.name||'—'}</td>
-        <td>${a.bonus||'—'}</td><td>${a.damage||'—'}</td>
-        <td>${a.type||'—'}</td><td class="atk-notes">${a.notes||''}</td>`;
+      const nameCell = document.createElement('td');
+      nameCell.className = 'atk-name sm-clickable';
+      nameCell.textContent = a.name || '—';
+      nameCell.addEventListener('click', e => _showTooltip(a.name || '—', 'attack', e));
+      tr.appendChild(nameCell);
+      tr.insertAdjacentHTML('beforeend',
+        `<td>${a.bonus||'—'}</td><td>${a.damage||'—'}</td>
+         <td>${a.type||'—'}</td><td class="atk-notes">${a.notes||''}</td>`);
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
@@ -2305,8 +2425,9 @@ function openSheet(name) {
       grid.className = 'sm-spell-grid';
       sp.cantrips.forEach(s => {
         const tag = document.createElement('span');
-        tag.className = 'sm-spell-tag cantrip';
+        tag.className = 'sm-spell-tag cantrip sm-clickable';
         tag.textContent = s;
+        tag.addEventListener('click', e => _showTooltip(s, 'spell', e));
         grid.appendChild(tag);
       });
       content.appendChild(grid);
@@ -2320,8 +2441,9 @@ function openSheet(name) {
       grid.className = 'sm-spell-grid';
       sp.prepared.forEach(s => {
         const tag = document.createElement('span');
-        tag.className = 'sm-spell-tag';
+        tag.className = 'sm-spell-tag sm-clickable';
         tag.textContent = s;
+        tag.addEventListener('click', e => _showTooltip(s, 'spell', e));
         grid.appendChild(tag);
       });
       content.appendChild(grid);
@@ -2338,8 +2460,15 @@ function openSheet(name) {
     sheet.features.forEach(f => {
       const el = document.createElement('div');
       el.className = 'sm-feature';
-      el.innerHTML = `<div class="sm-feature-name">${f.name}</div>
-        <div class="sm-feature-text">${f.text}</div>`;
+      const nameEl = document.createElement('div');
+      nameEl.className = 'sm-feature-name sm-clickable';
+      nameEl.textContent = f.name;
+      nameEl.addEventListener('click', e => _showTooltip(f.name, 'feature', e));
+      const textEl = document.createElement('div');
+      textEl.className = 'sm-feature-text';
+      textEl.textContent = f.text;
+      el.appendChild(nameEl);
+      el.appendChild(textEl);
       content.appendChild(el);
     });
   }
@@ -2355,10 +2484,36 @@ function openSheet(name) {
     list.className = 'sm-inventory-list';
     sheet.inventory.forEach(item => {
       const li = document.createElement('li');
+      li.className = 'sm-clickable';
       li.textContent = item;
+      li.addEventListener('click', e => _showTooltip(item, 'item', e));
       list.appendChild(li);
     });
     content.appendChild(list);
+  }
+
+  // Relationships
+  if (sheet.relationships && sheet.relationships.length) {
+    content.appendChild(_smDivider());
+    const title = document.createElement('div');
+    title.className = 'sm-section-title';
+    title.textContent = 'Relationships';
+    content.appendChild(title);
+    sheet.relationships.forEach(r => {
+      const el = document.createElement('div');
+      el.className = 'sm-relationship';
+      const nm = document.createElement('span');
+      nm.className = 'sm-rel-name';
+      nm.textContent = r.name || '—';
+      const role = document.createElement('span');
+      role.className = 'sm-rel-role';
+      role.textContent = [r.role, r.standing].filter(Boolean).join(' · ');
+      const note = document.createElement('span');
+      note.className = 'sm-rel-note';
+      note.textContent = r.note || '';
+      el.appendChild(nm); el.appendChild(role); el.appendChild(note);
+      content.appendChild(el);
+    });
   }
 
   // No sheet data hint
@@ -2445,6 +2600,33 @@ function updateStats(stats) {
 
   sidebar.classList.add('has-data');
 
+  // Faction panel
+  if ('factions' in stats) {
+    const factPanel = document.getElementById('sb-factions');
+    const factions  = stats.factions || [];
+    factPanel.querySelectorAll('.sb-faction-item').forEach(el => el.remove());
+    if (factions.length) {
+      const SCLS = { allied:'allied', friendly:'friendly', neutral:'neutral',
+                     unfriendly:'unfriendly', suspicious:'suspicious', hostile:'hostile' };
+      factions.forEach(f => {
+        const item = document.createElement('div');
+        item.className = 'sb-faction-item';
+        const nm = document.createElement('span');
+        nm.className = 'sb-faction-name';
+        nm.textContent = f.name || '—';
+        const st = document.createElement('span');
+        st.className = 'sb-faction-standing ' + (SCLS[(f.standing||'').toLowerCase()] || 'unknown');
+        st.textContent = f.standing || '—';
+        item.appendChild(nm);
+        item.appendChild(st);
+        factPanel.appendChild(item);
+      });
+      factPanel.style.display = '';
+    } else {
+      factPanel.style.display = 'none';
+    }
+  }
+
   // Turn order
   if ('turn_order' in stats) {
     if (!stats.turn_order) {
@@ -2478,6 +2660,64 @@ let _currentTurnOrder = null;
 // /audio/sfx/<name> and plays via Web Audio API. Toggle click is the
 // user gesture that unlocks AudioContext.
 // ═══════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════
+// DESCRIPTION LOOKUP — Haiku via /lookup; double-cached (server + browser)
+// ═══════════════════════════════════════════════════════════════════
+
+const _descCache   = new Map();   // key: "context:term" → description string
+const _descTooltip = document.getElementById('desc-tooltip');
+const _descTerm    = _descTooltip.querySelector('.desc-tt-term');
+const _descBody    = _descTooltip.querySelector('.desc-tt-body');
+
+function _positionTooltip(e) {
+  const W = 300, H = 140;
+  let x = e.clientX + 16, y = e.clientY + 16;
+  if (x + W > window.innerWidth  - 8) x = e.clientX - W - 16;
+  if (y + H > window.innerHeight - 8) y = e.clientY - H - 16;
+  _descTooltip.style.left = x + 'px';
+  _descTooltip.style.top  = y + 'px';
+}
+
+function _hideTooltip() { _descTooltip.classList.remove('visible'); }
+
+async function _showTooltip(term, context, e) {
+  e.stopPropagation();
+  _descTerm.textContent = term;
+  _descBody.textContent = 'Looking up…';
+  _descBody.classList.add('loading');
+  _descTooltip.classList.add('visible');
+  _positionTooltip(e);
+
+  const key = `${context}:${term.toLowerCase()}`;
+  if (_descCache.has(key)) {
+    _descBody.textContent = _descCache.get(key);
+    _descBody.classList.remove('loading');
+    return;
+  }
+
+  try {
+    const r = await fetch('/lookup', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ term, context }),
+    });
+    const data = await r.json();
+    const desc = data.description || '—';
+    _descCache.set(key, desc);
+    _descBody.textContent = desc;
+  } catch (_) {
+    _descBody.textContent = 'Lookup unavailable.';
+  }
+  _descBody.classList.remove('loading');
+}
+
+// Hide tooltip when clicking outside clickable items
+document.addEventListener('click', e => {
+  if (!e.target.closest('.sm-clickable') && !e.target.closest('#desc-tooltip')) {
+    _hideTooltip();
+  }
+});
 
 const _sfxTrack   = document.getElementById('sfx-track');
 const _tutorTrack = document.getElementById('tutor-track');

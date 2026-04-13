@@ -25,6 +25,13 @@ Usage:
     python3 push_stats.py --player Flerb --concentrate "Bless"
     python3 push_stats.py --player Flerb --concentrate ""   # clear
 
+    # Spell slots (used/max per level):
+    python3 push_stats.py --player Flerb --spell-slots '{"1":{"used":1,"max":4},"2":{"used":0,"max":2}}'
+
+    # Faction standings (party-wide):
+    python3 push_stats.py --factions '[{"name":"Pale Court","standing":"Suspicious"},{"name":"Merchant Guild","standing":"Friendly"}]'
+    python3 push_stats.py --factions '[]'   # clear all
+
     # Combat — set full turn order:
     python3 push_stats.py --turn-order '{"order":["Goblin 1","Flerb"],"current":"Goblin 1","round":1}'
 
@@ -72,6 +79,10 @@ def main() -> None:
                         help="Comma-separated active conditions (requires --player); empty string clears all")
     parser.add_argument("--concentrate", metavar="SPELL",
                         help="Spell being concentrated on (requires --player); empty string clears")
+    parser.add_argument("--spell-slots", metavar="JSON",
+                        help='Spell slots per level: {"1":{"used":1,"max":4},...} (requires --player)')
+    parser.add_argument("--factions", metavar="JSON",
+                        help='Party faction standings: [{"name":"Pale Court","standing":"Suspicious"},...]; [] clears')
     parser.add_argument("--turn-order", metavar="JSON",
                         help='Full turn order JSON: {"order":[...],"current":"Name","round":1}')
     parser.add_argument("--turn-current", metavar="NAME",
@@ -98,7 +109,8 @@ def main() -> None:
 
     # ── Per-player shorthands ──────────────────────────────────────────────────
     if args.hp or args.xp or args.second_wind is not None \
-            or args.conditions is not None or args.concentrate is not None:
+            or args.conditions is not None or args.concentrate is not None \
+            or args.spell_slots is not None:
         if not args.player:
             print("--hp / --xp / --second-wind / --conditions / --concentrate require --player NAME",
                   file=sys.stderr)
@@ -118,7 +130,21 @@ def main() -> None:
             )
         if args.concentrate is not None:
             player_update["concentration"] = args.concentrate.strip() or None
+        if args.spell_slots is not None:
+            try:
+                player_update["spell_slots"] = json.loads(args.spell_slots)
+            except json.JSONDecodeError as e:
+                print(f"Invalid spell-slots JSON: {e}", file=sys.stderr)
+                sys.exit(1)
         payload.setdefault("players", []).append(player_update)
+
+    # ── Factions ───────────────────────────────────────────────────────────────
+    if args.factions is not None:
+        try:
+            payload["factions"] = json.loads(args.factions)
+        except json.JSONDecodeError as e:
+            print(f"Invalid factions JSON: {e}", file=sys.stderr)
+            sys.exit(1)
 
     # ── Turn order ─────────────────────────────────────────────────────────────
     if args.turn_order:
