@@ -15,6 +15,10 @@ Built for groups who want a real DM experience without needing one at the table.
 
 You run `/dnd load my-campaign` in Claude Code. Claude becomes your DM — rolling dice, voicing NPCs, tracking HP and XP, and running combat. If you have a TV or tablet nearby, the **cinematic display companion** puts the narration on screen in real time — typewriter effect, atmospheric backgrounds that shift with the scene, a dynamic sky canvas, and a live party stat sidebar. Open it on any device on your network and everyone at the table can follow along.
 
+What separates this from a chatbot improvising a story is a set of twelve applied behavioral standards enforced as hard constraints on every session. They cover the full range of what makes DM-ing genuinely difficult: pacing (knowing when to cut a scene before it dies, how to engineer the two-thirds escalation point that gives a session its shape), consequence (NPCs who remember what you said last session, factions that advance their agendas while the party sleeps, world changes that surface as visible evidence rather than exposition), real-time player calibration (reading engagement signals and pivoting the scene before momentum breaks), and world architecture (situations rather than plots, so player choices always find traction). The result is sessions that feel authored — where moments land, where the world has weight, and where your choices accumulate into a story that couldn't have happened to anyone else.
+
+The skill is also built around deliberate context efficiency. DM instructions are split across three files with staggered load timing — core rules always in the system prompt, script syntax and command procedures loaded once at session start. Campaign data follows the same principle: the NPC roster is indexed at load and expanded only when a character becomes relevant; quest hooks and worldbuilding text live in cold storage until called for. Archived sessions are distilled into continuity summaries rather than preserved as raw transcripts, making a campaign's full history available for reference without front-loading it as token weight. A campaign can run dozens of sessions deep — with coherent recall of past events, NPC attitudes, and long-tail consequences — without the context bloat that forces other implementations to summarize, forget, or reset.
+
 It is not an official Wizards of the Coast product. It uses Claude as the DM engine. It takes the rules seriously and the storytelling even more seriously.
 
 ---
@@ -22,6 +26,7 @@ It is not an official Wizards of the Coast product. It uses Claude as the DM eng
 ## Features
 
 - **Persistent campaigns** — state, NPCs, quests, and characters survive across sessions in plain markdown files
+- **Portable characters** — bring your character into any campaign; level up, grow your stat tree, and carry your inventory and loot from one adventure to the next — or start fresh each time
 - **Full D&D 5e mechanics** — initiative, attacks, saving throws, spell slots, XP, levelling up, short/long rests
 - **Atmospheric DM** — dark fantasy tone, distinct NPC voices, hidden rolls, a world that reacts to choices
 - **Cinematic display companion** — typewriter narration, scene-reactive backgrounds, live party sidebar; cast, mirror, or open on any screen on your network
