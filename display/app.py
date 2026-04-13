@@ -681,14 +681,62 @@ def stats():
                 if not name:
                     continue
                 match = next((p for p in existing_players if p.get("name") == name), None)
+                # Keys prefixed with _ are mutation ops, not stored fields
+                _MUTATION_KEYS = {
+                    "_inventory_add", "_inventory_remove",
+                    "_conditions_add", "_conditions_remove",
+                    "_slot_use", "_slot_restore",
+                    "_hd_use", "_hd_restore",
+                }
                 if match:
                     for key, val in incoming.items():
-                        if isinstance(val, dict) and isinstance(match.get(key), dict):
+                        if key == "_inventory_add":
+                            inv = match.setdefault("sheet", {}).setdefault("inventory", [])
+                            if val not in inv:
+                                inv.append(val)
+                        elif key == "_inventory_remove":
+                            sheet = match.get("sheet", {})
+                            sheet["inventory"] = [
+                                i for i in sheet.get("inventory", [])
+                                if i.lower() != str(val).lower()
+                            ]
+                        elif key == "_conditions_add":
+                            conds = match.setdefault("conditions", [])
+                            if val not in conds:
+                                conds.append(val)
+                        elif key == "_conditions_remove":
+                            match["conditions"] = [
+                                c for c in match.get("conditions", [])
+                                if c.lower() != str(val).lower()
+                            ]
+                        elif key == "_slot_use":
+                            slots = match.setdefault("spell_slots", {})
+                            lvl = str(val)
+                            slot = slots.setdefault(lvl, {"used": 0, "max": 0})
+                            slot["used"] = min(slot["used"] + 1, slot.get("max", 99))
+                        elif key == "_slot_restore":
+                            slots = match.setdefault("spell_slots", {})
+                            lvl = str(val)
+                            slot = slots.setdefault(lvl, {"used": 0, "max": 0})
+                            slot["used"] = max(slot["used"] - 1, 0)
+                        elif key == "_hd_use":
+                            hd = match.setdefault("hit_dice", {"remaining": 0, "max": 0})
+                            hd["remaining"] = max(hd.get("remaining", 0) - 1, 0)
+                        elif key == "_hd_restore":
+                            hd = match.setdefault("hit_dice", {"remaining": 0, "max": 0})
+                            hd["remaining"] = min(
+                                hd.get("remaining", 0) + int(val),
+                                hd.get("max", 99)
+                            )
+                        elif isinstance(val, dict) and isinstance(match.get(key), dict):
                             match[key].update(val)
                         else:
                             match[key] = val
                 else:
-                    existing_players.append(dict(incoming))
+                    # Strip mutation ops — they're meaningless for new players
+                    existing_players.append(
+                        {k: v for k, v in incoming.items() if k not in _MUTATION_KEYS}
+                    )
 
         # turn_order replaces entirely (None = clear)
         if "turn_order" in data:

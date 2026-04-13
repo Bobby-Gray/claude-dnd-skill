@@ -102,6 +102,43 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --hp 7 12
 python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --xp 220 300
 python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --second-wind false
 
+# Temp HP (Symbiotic Entity, Aid, etc.):
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --temp-hp 8   # set
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --temp-hp 0   # clear
+
+# Hit dice (short rest):
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --hit-dice-use          # spend one
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --hit-dice-restore 2    # restore N
+
+# Conditions — full replace:
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --conditions "Poisoned,Frightened"
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --conditions ""          # clear all
+
+# Conditions — granular (preferred mid-session):
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --conditions-add "Poisoned"
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --conditions-remove "Poisoned"
+
+# Concentration:
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --concentrate "Bless"
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --concentrate ""        # clear
+
+# Spell slots — full replace (on /dnd load):
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb \
+  --spell-slots '{"1":{"used":1,"max":4},"2":{"used":0,"max":2}}'
+
+# Spell slots — granular (preferred mid-session):
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --slot-use 1      # expend one 1st-level slot
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --slot-restore 2  # restore one 2nd-level slot
+
+# Inventory — granular (preferred to full --sheet rewrite):
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --inventory-add "Iron key"
+python3 ~/.claude/skills/dnd/display/push_stats.py --player Flerb --inventory-remove "Folded paper"
+
+# Faction standings (party-wide — REQUIRED at /dnd load to show faction panel):
+python3 ~/.claude/skills/dnd/display/push_stats.py \
+  --factions '[{"name":"Pale Court","standing":"Allied"},{"name":"Watch","standing":"Neutral"}]'
+python3 ~/.claude/skills/dnd/display/push_stats.py --factions '[]'   # clear all
+
 # Combat turn order (on /dnd combat start):
 python3 ~/.claude/skills/dnd/display/push_stats.py --turn-order \
   '{"order":["Goblin 1","Flerb","Goblin 2"],"current":"Goblin 1","round":1}'
@@ -118,17 +155,26 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --turn-clear
 # World time clock:
 python3 ~/.claude/skills/dnd/display/push_stats.py --world-time \
   '{"date":"19 Ashveil 1312 AR","day_name":"Moonday","time":"morning","season":"Long Hollow","weather":"calm"}'
+
+# Clear display (use push_stats.py, NOT curl — raw curl lacks the auth token in LAN mode):
+python3 ~/.claude/skills/dnd/display/push_stats.py --clear
 ```
 
 **When to push stats:**
-- `/dnd load` → `--replace-players --json` (full stats) + `--world-time`
+- `/dnd load` → `--replace-players --json` (full stats) + `--spell-slots` + `--world-time` + `--factions`
 - HP change → `--player NAME --hp <current> <max>`
+- Temp HP gained/lost → `--player NAME --temp-hp N` (0 to clear)
 - XP awarded → `--player NAME --xp <current> <next>`
 - Second Wind used/recovered → `--player NAME --second-wind false/true`
-- Hit Dice spent → full `--json` update with updated `hit_dice.remaining`
+- Hit die spent → `--player NAME --hit-dice-use`; restored → `--hit-dice-restore N`
+- Spell slot used → `--player NAME --slot-use <level>`; restored → `--slot-restore <level>`
+- Condition gained → `--player NAME --conditions-add "Name"`; removed → `--conditions-remove "Name"`
+- Concentration started → `--player NAME --concentrate "Spell"`; ended → `--concentrate ""`
+- Item picked up → `--player NAME --inventory-add "Item"`; dropped/used → `--inventory-remove "Item"`
+- Faction standing changes → `--factions '[...]'` (full replace)
 - Combat start → `--turn-order`; each turn → `--turn-current`; end → `--turn-clear`
 - Level up → push updated full stats
-- Long rest → restore HP, Hit Dice, Second Wind; push `--world-time` with updated time
+- Long rest → restore HP, hit dice, spell slots, second wind; push `--world-time` with updated time
 - Any rest or time advance → push `--world-time`
 
 ---

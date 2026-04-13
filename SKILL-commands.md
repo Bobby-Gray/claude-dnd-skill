@@ -9,7 +9,7 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
    - **Yes** → ask *"LAN mode? [y/n]"*
      - LAN → `bash ~/.claude/skills/dnd/display/start-display.sh --lan`, print both URLs, set `_display_running = true`
      - Local → `bash ~/.claude/skills/dnd/display/start-display.sh`, print URL, set `_display_running = true`
-     - Then: `curl -s -X POST http://localhost:5001/clear`
+     - Then: `python3 ~/.claude/skills/dnd/display/push_stats.py --clear`
    - **No** → continue without display
 2. `mkdir -p ~/.claude/dnd/campaigns/<name>/characters`
 3. Copy and populate templates from `~/.claude/skills/dnd/templates/` — state.md, world.md, npcs.md, session-log.md
@@ -34,11 +34,11 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 ## `/dnd load <campaign-name>`
 1. Ask: *"Start the cinematic display companion? [y/n]"*
    - Same display start/LAN flow as `/dnd new` step 1.
-   - Clear previous transcript: `curl -s -X POST http://localhost:5001/clear`
+   - Clear previous transcript: `python3 ~/.claude/skills/dnd/display/push_stats.py --clear`
    - Register active campaign for DM Help: `echo "<campaign-name>" > ~/.claude/skills/dnd/display/.campaign`
 2. Read SKILL-scripts.md (for script syntax this session)
 3. Read state.md, world.md, npcs.md (index only — **do NOT read npcs-full.md or world-seeds.md at load**), and all characters/*.md
-4. Push full party stats to display sidebar with `--replace-players` (clears stale characters from previous campaigns). For each character, include `--sheet <JSON>` built from the character file (attacks, spells, features, inventory). Also push `--world-time` with date/time/season/weather from state.md.
+4. Push full party stats to display sidebar with `--replace-players` (clears stale characters from previous campaigns). For each character, include `--sheet <JSON>` built from the character file (attacks, spells, features, inventory). Also push `--world-time` with date/time/season/weather from state.md. Also push `--factions` from active faction states in `state.md → ## World State` (use `[]` if no factions are active).
 
    Sheet JSON structure:
    ```json
@@ -50,6 +50,16 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
    }
    ```
    Omit `spells` for non-casters. `features`, `inventory` are plain string arrays. The display shows "Full sheet not loaded" when all four are absent.
+
+   Faction JSON structure (from `state.md → ## World State → Faction states`):
+   ```json
+   [{"name":"Pale Court","standing":"Allied"},{"name":"Watch","standing":"Neutral"}]
+   ```
+   Faction `standing` values: `Allied`, `Friendly`, `Neutral`, `Suspicious`, `Hostile`. Use `[]` to clear all factions. Push with:
+   ```bash
+   python3 ~/.claude/skills/dnd/display/push_stats.py --factions '[...]'
+   ```
+   The faction panel on the sidebar only appears when at least one faction is present — do not skip this push.
 5. Deliver one in-character paragraph recapping current situation — where the party is, what's at stake, what was last happening.
 6. Enter active DM mode — no `/dnd` prefix needed from this point.
 

@@ -2408,11 +2408,21 @@ function openSheet(name) {
     title.className = 'sm-section-title';
     title.textContent = 'Spellcasting';
     content.appendChild(title);
-    if (sp.slots || sp.save_dc || sp.attack_bonus) {
+    // Derive live slot string from spell_slots object if available; fall back to static string
+    let _slotsStr = sp.slots || '';
+    if (p.spell_slots && Object.keys(p.spell_slots).length) {
+      const _ROM = ['','I','II','III','IV','V','VI','VII','VIII','IX'];
+      _slotsStr = Object.entries(p.spell_slots)
+        .sort(([a],[b]) => +a - +b)
+        .filter(([,s]) => (s.max || 0) > 0)
+        .map(([lvl,s]) => `${_ROM[+lvl]||lvl}: ${(s.max||0)-(s.used||0)}/${s.max||0}`)
+        .join('  ');
+    }
+    if (_slotsStr || sp.save_dc || sp.attack_bonus) {
       const meta = document.createElement('div');
       meta.className = 'sm-spell-meta';
       const parts = [];
-      if (sp.slots)         parts.push('Slots: ' + sp.slots);
+      if (_slotsStr)        parts.push('Slots: ' + _slotsStr);
       if (sp.save_dc)       parts.push('Save DC ' + sp.save_dc);
       if (sp.attack_bonus)  parts.push('Atk ' + sp.attack_bonus);
       meta.textContent = parts.join('  ·  ');

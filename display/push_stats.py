@@ -11,22 +11,42 @@ Usage:
     # Quick HP update (damage / healing):
     python3 push_stats.py --player Flerb --hp 7 12         # current max
 
+    # Temp HP (e.g. Symbiotic Entity, Aid spell):
+    python3 push_stats.py --player Flerb --temp-hp 8       # set temp HP
+    python3 push_stats.py --player Flerb --temp-hp 0       # clear temp HP
+
     # Quick XP update:
     python3 push_stats.py --player Flerb --xp 220 300      # current next_level
+
+    # Hit dice (short rest):
+    python3 push_stats.py --player Flerb --hit-dice-use    # spend one hit die
+    python3 push_stats.py --player Flerb --hit-dice-restore 2  # restore N hit dice
 
     # Feature flag (e.g. Second Wind used):
     python3 push_stats.py --player Flerb --second-wind false
 
-    # Conditions (comma-separated; empty string clears all):
+    # Conditions — full replace:
     python3 push_stats.py --player Flerb --conditions "Poisoned,Frightened"
-    python3 push_stats.py --player Flerb --conditions ""
+    python3 push_stats.py --player Flerb --conditions ""   # clear all
+
+    # Conditions — granular add/remove (preferred mid-session):
+    python3 push_stats.py --player Flerb --conditions-add "Poisoned"
+    python3 push_stats.py --player Flerb --conditions-remove "Poisoned"
 
     # Concentration:
     python3 push_stats.py --player Flerb --concentrate "Bless"
     python3 push_stats.py --player Flerb --concentrate ""   # clear
 
-    # Spell slots (used/max per level):
+    # Spell slots — full replace:
     python3 push_stats.py --player Flerb --spell-slots '{"1":{"used":1,"max":4},"2":{"used":0,"max":2}}'
+
+    # Spell slots — granular use/restore (preferred mid-session):
+    python3 push_stats.py --player Flerb --slot-use 1      # expend one 1st-level slot
+    python3 push_stats.py --player Flerb --slot-restore 2  # restore one 2nd-level slot
+
+    # Inventory — granular add/remove (preferred to full --sheet rewrite):
+    python3 push_stats.py --player Flerb --inventory-add "Iron key"
+    python3 push_stats.py --player Flerb --inventory-remove "Folded paper"
 
     # Faction standings (party-wide):
     python3 push_stats.py --factions '[{"name":"Pale Court","standing":"Suspicious"},{"name":"Merchant Guild","standing":"Friendly"}]'
@@ -43,6 +63,9 @@ Usage:
 
     # Combat ended — clear turn order:
     python3 push_stats.py --turn-clear
+
+    # Clear all text + stats (use on /dnd load — token-aware, works in LAN mode):
+    python3 push_stats.py --clear
 """
 
 import sys
@@ -63,6 +86,17 @@ def _read_token() -> str:
         return ""
 
 
+def _send(url: str, data: bytes, token: str) -> None:
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["X-DND-Token"] = token
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        urllib.request.urlopen(req, timeout=TIMEOUT)
+    except Exception:
+        pass  # Display not running — fail silently
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Push stats to the DnD display server.")
     parser.add_argument("--json", metavar="JSON",
@@ -70,17 +104,35 @@ def main() -> None:
     parser.add_argument("--player", metavar="NAME",
                         help="Target player name for shorthand flags below")
     parser.add_argument("--hp", nargs=2, metavar=("CURRENT", "MAX"), type=int,
-                        help="Update HP (requires --player)")
+                        help="Update HP current and max (requires --player)")
+    parser.add_argument("--temp-hp", metavar="N", type=int,
+                        help="Set temp HP; use 0 to clear (requires --player)")
     parser.add_argument("--xp", nargs=2, metavar=("CURRENT", "NEXT"), type=int,
                         help="Update XP (requires --player)")
+    parser.add_argument("--hit-dice-use", action="store_true",
+                        help="Spend one hit die (requires --player)")
+    parser.add_argument("--hit-dice-restore", metavar="N", type=int,
+                        help="Restore N hit dice (requires --player)")
     parser.add_argument("--second-wind", metavar="BOOL",
                         help="Second Wind available: true or false (requires --player)")
     parser.add_argument("--conditions", metavar="LIST",
-                        help="Comma-separated active conditions (requires --player); empty string clears all")
+                        help="Comma-separated active conditions, full replace (requires --player); empty string clears all")
+    parser.add_argument("--conditions-add", metavar="CONDITION",
+                        help="Add one condition without replacing others (requires --player)")
+    parser.add_argument("--conditions-remove", metavar="CONDITION",
+                        help="Remove one condition by name, case-insensitive (requires --player)")
     parser.add_argument("--concentrate", metavar="SPELL",
                         help="Spell being concentrated on (requires --player); empty string clears")
     parser.add_argument("--spell-slots", metavar="JSON",
-                        help='Spell slots per level: {"1":{"used":1,"max":4},...} (requires --player)')
+                        help='Spell slots per level, full replace: {"1":{"used":1,"max":4},...} (requires --player)')
+    parser.add_argument("--slot-use", metavar="LEVEL", type=int,
+                        help="Expend one slot at the given level (requires --player)")
+    parser.add_argument("--slot-restore", metavar="LEVEL", type=int,
+                        help="Restore one slot at the given level (requires --player)")
+    parser.add_argument("--inventory-add", metavar="ITEM",
+                        help="Append one item to inventory (requires --player)")
+    parser.add_argument("--inventory-remove", metavar="ITEM",
+                        help="Remove one item from inventory by name, case-insensitive (requires --player)")
     parser.add_argument("--sheet", metavar="JSON",
                         help='Full character sheet data: {"attacks":[...],"spells":{...},"features":[...],"inventory":[...]} (requires --player)')
     parser.add_argument("--factions", metavar="JSON",
@@ -95,6 +147,8 @@ def main() -> None:
                         help="Clear the turn order (combat ended)")
     parser.add_argument("--replace-players", action="store_true",
                         help="Replace the entire player list (use on /dnd load to clear stale characters)")
+    parser.add_argument("--clear", action="store_true",
+                        help="Clear all text and stats on the display (token-aware; safe in LAN mode)")
     parser.add_argument("--world-time", metavar="JSON",
                         help='World time: {"date":"19 Ashveil 1312 AR","day_name":"Moonday","time":"morning","season":"Long Hollow","weather":"calm"}')
     args = parser.parse_args()
@@ -110,26 +164,38 @@ def main() -> None:
             sys.exit(1)
 
     # ── Per-player shorthands ──────────────────────────────────────────────────
-    if args.hp or args.xp or args.second_wind is not None \
-            or args.conditions is not None or args.concentrate is not None \
-            or args.spell_slots is not None or args.sheet is not None:
+    _player_flags = (
+        args.hp or args.temp_hp is not None or args.xp
+        or args.second_wind is not None
+        or args.conditions is not None or args.conditions_add or args.conditions_remove
+        or args.concentrate is not None
+        or args.spell_slots is not None or args.slot_use or args.slot_restore
+        or args.hit_dice_use or args.hit_dice_restore
+        or args.sheet is not None or args.inventory_add or args.inventory_remove
+    )
+    if _player_flags:
         if not args.player:
-            print("--hp / --xp / --second-wind / --conditions / --concentrate require --player NAME",
-                  file=sys.stderr)
+            print("Per-player flags require --player NAME", file=sys.stderr)
             sys.exit(1)
         player_update: dict = {"name": args.player}
         if args.hp:
             player_update["hp"] = {"current": args.hp[0], "max": args.hp[1]}
+        if args.temp_hp is not None:
+            player_update["hp"] = player_update.get("hp") or {}
+            player_update["hp"]["temp"] = args.temp_hp
         if args.xp:
             player_update["xp"] = {"current": args.xp[0], "next": args.xp[1]}
         if args.second_wind is not None:
             player_update["second_wind"] = args.second_wind.lower() == "true"
         if args.conditions is not None:
-            # Empty string → clear; otherwise split by comma
             player_update["conditions"] = (
                 [c.strip() for c in args.conditions.split(",") if c.strip()]
                 if args.conditions.strip() else []
             )
+        if args.conditions_add:
+            player_update["_conditions_add"] = args.conditions_add
+        if args.conditions_remove:
+            player_update["_conditions_remove"] = args.conditions_remove
         if args.concentrate is not None:
             player_update["concentration"] = args.concentrate.strip() or None
         if args.spell_slots is not None:
@@ -138,12 +204,24 @@ def main() -> None:
             except json.JSONDecodeError as e:
                 print(f"Invalid spell-slots JSON: {e}", file=sys.stderr)
                 sys.exit(1)
+        if args.slot_use:
+            player_update["_slot_use"] = args.slot_use
+        if args.slot_restore:
+            player_update["_slot_restore"] = args.slot_restore
         if args.sheet is not None:
             try:
                 player_update["sheet"] = json.loads(args.sheet)
             except json.JSONDecodeError as e:
                 print(f"Invalid sheet JSON: {e}", file=sys.stderr)
                 sys.exit(1)
+        if args.inventory_add:
+            player_update["_inventory_add"] = args.inventory_add
+        if args.inventory_remove:
+            player_update["_inventory_remove"] = args.inventory_remove
+        if args.hit_dice_use:
+            player_update["_hd_use"] = 1
+        if args.hit_dice_restore:
+            player_update["_hd_restore"] = args.hit_dice_restore
         payload.setdefault("players", []).append(player_update)
 
     # ── Factions ───────────────────────────────────────────────────────────────
@@ -186,25 +264,17 @@ def main() -> None:
             print(f"Invalid world-time JSON: {e}", file=sys.stderr)
             sys.exit(1)
 
+    # ── Clear display ─────────────────────────────────────────────────────────
+    if args.clear:
+        _send(FLASK_URL.replace("/stats", "/clear"), b"", _read_token())
+        if not payload:
+            return
+
     if not payload:
         print("Nothing to push. Use --help for usage.", file=sys.stderr)
         return
 
-    data = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    token = _read_token()
-    if token:
-        headers["X-DND-Token"] = token
-    req = urllib.request.Request(
-        FLASK_URL,
-        data=data,
-        headers=headers,
-        method="POST",
-    )
-    try:
-        urllib.request.urlopen(req, timeout=TIMEOUT)
-    except Exception:
-        pass  # Display not running — fail silently
+    _send(FLASK_URL, json.dumps(payload).encode("utf-8"), _read_token())
 
 
 if __name__ == "__main__":
