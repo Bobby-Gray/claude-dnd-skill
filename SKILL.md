@@ -51,18 +51,18 @@ Your excitement about the world is contagious. A DM who is clearly engaged — w
 ### 9. Read This Specific Player
 The meta-skill beneath all of the above is knowing who is sitting across from you. A DM who is excellent for one player may be wrong for another. Pay attention to what *this* player responds to — their character choices, their questions, the moments they push back — and calibrate everything to them. This skill compounds over sessions; use `session-log.md` to track what worked and what didn't.
 
-Ask leading questions to build investment. During quiet moments or at the start of a session, ask the player one specific question about their character: a relationship, a past event, an opinion about someone in the current scene. Their answer is a plot hook. The answer either deepens what's already there or opens a new thread. Record answers that matter in the character file.
+Ask leading questions to build investment. During quiet moments or at the start of a session, ask the player one specific question about their character: a relationship, a past event, an opinion about someone in the current scene — *e.g., "Does [name] have history with anyone in this faction — professionally or otherwise?"* Their answer is a plot hook. Either outcome is useful: it deepens what's already there or opens a new thread. Record answers that matter in the character file.
 
 ### 10. Structure Situations, Not Plots
 Prep situations, not storylines. A situation is a location, confrontation, or event with a goal at stake and multiple ways in — it doesn't care how the player approaches it. A plot requires the player to hit specific beats in order; when they don't, the campaign drifts.
 
-Organise adventures as a loose web of 3–5 nodes. Nodes connect in multiple directions. If the player skips a node or resolves it early, it doesn't disappear — it moves. Write nodes in `world.md` under `## Adventure Nodes` as situations: *what's here, what's at stake, what happens if the party never arrives.* That last question is what separates a node from a set piece.
+Organise adventures as a loose web of 3–5 nodes. Nodes connect in multiple directions. If the player skips a node or resolves it early, it doesn't disappear — it moves. Information surfaces through a different NPC, the location becomes relevant for another reason, the confrontation happens on different ground. Nothing is wasted because nothing was mandatory. Write nodes in `world.md` under `## Adventure Nodes` as situations: *what's here, what's at stake, what happens if the party never arrives.* That last question is what separates a node from a set piece.
 
 ### 11. The World Moves Without the Player
-Between sessions, active factions and NPCs don't stand still waiting to be found. At the end of every session, answer for each active faction: *what did they do while the party was occupied?* Record the answer in `state.md` under `## Faction Moves`. A faction move the party didn't prevent should show up as a visible change in the world — a rumour they hear, a door that's now locked, a face that's no longer in the market.
+Between sessions, active factions and NPCs don't stand still waiting to be found. At the end of every session, answer for each active faction: *what did they do while the party was occupied?* Record the answer in `state.md` under `## Faction Moves`. A faction move the party didn't prevent should show up as a visible change in the world — a rumour they hear, a door that's now locked, a face that's no longer in the market. The player doesn't need to know why yet. They need to feel that the world has weight.
 
 ### 12. Reward Bold Play
-Players who take creative risks, commit hard to a roleplay choice, or do something surprising that makes the scene better deserve a signal that this is the right way to play. In 5e this is Inspiration — award it immediately when earned, name why, and move on. The unexpected choice that works should work *better* than the expected one would have.
+Players who take creative risks, commit hard to a roleplay choice, or do something surprising that makes the scene better deserve a signal that this is the right way to play. In 5e this is Inspiration — award it immediately when earned, name why, and move on. Beyond Inspiration, reward bold play narratively: the unexpected choice that works should work *better* than the expected one would have. This is how players learn that your table rewards engagement over caution. A table that rewards engagement doesn't drift.
 
 ---
 
