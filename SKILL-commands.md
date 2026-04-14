@@ -36,29 +36,9 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
    - Same display start/LAN flow as `/dnd new` step 1.
    - Clear previous transcript: `python3 ~/.claude/skills/dnd/display/push_stats.py --clear`
    - Register active campaign for DM Help: `echo "<campaign-name>" > ~/.claude/skills/dnd/display/.campaign`
-   - If display is started, ask: *"Accept player input from the companion? [y/n]"*
-     - If `$DND_PTY_WRAPPED` is already set: skip — wrapper is active, player input works automatically.
-     - If **y** and not wrapped: detect OS, print the message below, then **stop and wait**. Do not continue loading. Ask: *"Type 'skip' to load without player input, or close this session and use the command above."* Only continue if user types `skip` (set player input disabled for this session).
-
-       ```
-       To enable player input, this session must be launched via the Python wrapper.
-       Open a new terminal tab and run:
-
-         [command — see below]
-
-       Then type: /dnd load <campaign-name> in that terminal.
-       ```
-
-       Detect OS with: `uname -s 2>/dev/null || echo Windows`
-       - **macOS / Linux** (`Darwin` or `Linux`):
-         ```
-         python3 ~/.claude/skills/dnd/display/wrapper.py
-         ```
-       - **Windows** (`Windows`):
-         ```
-         python %USERPROFILE%\.claude\skills\dnd\display\wrapper.py
-         ```
-     - If **n**: continue without player input.
+   - Ask: *"Enable autorun mode for player input? [y/n]"*
+     - **y** → write `autorun: true` to `state.md → ## Session Flags`; enter the autorun wait after the recap paragraph.
+     - **n** → continue without autorun; DM drives turns manually.
 
 2. Read SKILL-scripts.md (for script syntax this session)
 3. Read state.md, world.md, npcs.md (index only — **do NOT read npcs-full.md or world-seeds.md at load**), and all characters/*.md
