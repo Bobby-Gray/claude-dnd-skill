@@ -208,6 +208,11 @@ Step (f) is the most commonly missed. Every narration block must be sent.
 
 Enabled via `/dnd tutor on`. Stored as `tutor_mode: true` in `state.md → ## Session Flags`. Check this flag on every `/dnd load`. Session-scoped — does not persist unless explicitly set again.
 
+**DM Help button vs Tutor Mode — these are separate:**
+- The **◈ DM Help button** on the display fires a single one-shot hint via `dm_help.py`. It sends one `--tutor` block to the display, then stops. It does NOT set `tutor_mode: true` in state.md. It does NOT enable ongoing tutor sends from the DM.
+- **Tutor Mode** (ongoing) is only active when `tutor_mode: true` is present in state.md. Check this flag at load; do not infer it from the presence of a tutor block in the display log.
+- When a DM Help hint appears in context mid-session, do NOT start appending `--tutor` blocks to your own responses. Only do so if `tutor_mode: true` is set.
+
 When active, append a `--tutor` send at the end of each Bash block for:
 
 | Trigger | What to include |
