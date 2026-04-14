@@ -15,6 +15,16 @@ Built for groups who want a real DM experience without needing one at the table.
 
 You run `/dnd load my-campaign` in Claude Code. Claude becomes your DM — rolling dice, voicing NPCs, tracking HP and XP, and running combat. The **cinematic display companion** puts narration on the big screen in real time with a typewriter effect and atmospheric backgrounds. Players sit on the couch, open the companion on their phones, type their actions, and hit **Ready** — Claude picks up every submission automatically and runs the next turn without the DM pressing Enter.
 
+What separates this from a chatbot improvising a story is a set of [twelve applied behavioral standards](https://github.com/Bobby-Gray/claude-dnd-skill/blob/main/SKILL.md#what-makes-a-great-dm--applied-standards) enforced as hard constraints on every session. They cover the full range of what makes DM-ing genuinely difficult and the result is sessions that feel authored — where moments land, where the world has weight, and where your choices accumulate into a story that couldn't have happened to anyone else.
+
+It also manages a deep web of campaign data without overloading the LLM — coherent and complete, without burning tokens on context that isn't needed yet:
+
+- **DM instructions** — split across three files with staggered load timing; core rules always in the system prompt, script syntax and command procedures loaded once at session start
+- **Campaign data** — NPC roster indexed at load, full entries pulled only when a character becomes relevant; quest hooks and worldbuilding text in cold storage until called for
+- **Session history** — archived as continuity summaries, not raw transcripts; full campaign history available for reference without front-loading token weight
+
+A campaign can run dozens of sessions deep — with coherent recall of past events, NPC attitudes, and long-tail consequences — without the context bloat that forces other implementations to summarize, forget, or reset.
+
 It is not an official Wizards of the Coast product. It uses Claude as the DM engine. It takes the rules seriously and the storytelling even more seriously.
 
 ---
@@ -22,16 +32,23 @@ It is not an official Wizards of the Coast product. It uses Claude as the DM eng
 ## Features
 
 - **Persistent campaigns** — state, NPCs, quests, and characters survive across sessions in plain markdown files
+- **Portable characters** — bring your character into any campaign; level up, grow your stat tree, and carry your inventory and loot — or start fresh each time
 - **Full D&D 5e mechanics** — initiative, attacks, saving throws, spell slots, XP, levelling up, short/long rests
 - **Atmospheric DM** — dark fantasy tone, distinct NPC voices, hidden rolls, a world that reacts to choices
-- **Cinematic display companion** — typewriter narration on your TV, scene-reactive backgrounds, live party sidebar
+- **Cinematic display companion** — typewriter narration on your TV, scene-reactive backgrounds, dynamic sky canvas, live party sidebar; cast, mirror, or open on any screen on your network
+- **Dynamic sky canvas** — sun arc, moon, twinkling stars, and cloud density rendered in real time from world time data; transitions with time of day and weather
 - **Player input from the companion UI** — players submit actions from phone/tablet; Claude picks them up automatically in autorun mode
 - **Autorun / taxi mode** — Claude drives the turn loop without DM input; a pie countdown shows the next auto-fire window
 - **LAN party support** — serve the companion over your local network; every device in the room sees the same display
 - **TLS / HTTPS** — self-signed cert generation included; required for full browser feature support over LAN
 - **17 scene types** — auto-detected from narration keywords — tavern, dungeon, ocean, crypt, arcane, glacier, and more
+- **Clickable character sheets** — tap any sidebar card to open a full character sheet modal (attacks, features, inventory); works on phones and tablets via LAN
+- **DM Help button** — click the ◈ button on the display for an on-demand contextual hint or warning; generated from the current scene without per-turn token overhead
+- **Tutor / learning mode** — enable per-session for automatic hint blocks after every scene, decision point, and roll; ideal for players new to D&D
+- **Browser-side sound effects** — 12 SFX types synthesized on demand via numpy and played through Web Audio API; works on any device with the tab open, including phones over LAN
+- **Couch co-op** — multiple characters, shared display, turn order visible to everyone in the room
 - **Combat tracker** — auto-rolled initiative, `▶` turn pointer, HP bars, inline dice math sent to display
-- **6 helper scripts** — dice rolling, ability scores, combat, character stat derivation, calendar, data lookup
+- **8 helper scripts** — dice rolling, ability scores, combat, character stat derivation, conditions/tracker, calendar, SRD data pull, SRD lookup
 
 ---
 
@@ -60,7 +77,7 @@ The Flask server receives narration text, player actions, dice results, and char
 
 - [Claude Code](https://claude.ai/code) CLI installed
 - Python 3.10+
-- `pip3 install flask flask-cors` (display companion only)
+- `pip3 install flask flask-cors numpy` (display companion; numpy required for sound effects)
 - `pip3 install cryptography` (TLS cert generation — LAN mode only)
 
 ---
@@ -108,6 +125,8 @@ Once loaded, type naturally — no `/dnd` prefix needed. The DM interprets every
 | `/dnd quests` | Show active quests and open threads |
 | `/dnd autorun on [seconds]` | Enable autorun mode — Claude drives the turn loop automatically |
 | `/dnd autorun off` | Return to manual mode |
+| `/dnd tutor on` | Enable tutor / learning mode for this session |
+| `/dnd tutor off` | Disable tutor / learning mode |
 
 ---
 
@@ -250,6 +269,23 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --autorun-threshold 2  # fire
 python3 ~/.claude/skills/dnd/display/push_stats.py --autorun-threshold 0  # reset to player count
 ```
 
+### DM Help & Tutor Mode
+
+There are two ways to surface hints and warnings on the display — an on-demand button and a per-session automatic mode.
+
+**DM Help button (◈)** — click the button on the companion display at any time to request a one-shot contextual hint. Within seconds a hint or warning appears on screen, generated from the current scene, open threads, and the character's options. It does not interrupt the session or consume a turn. Use it when you're unsure what to do, or want a heads-up before making a big decision.
+
+**Tutor mode (per-session)** — enables automatic hint blocks after every scene introduction, decision point, roll outcome, and combat round. Hints appear on the display collapsed by default and never spoil undiscovered information. Ideal for players new to D&D 5e mechanics.
+
+```
+/dnd tutor on    # enable for this session
+/dnd tutor off   # disable
+```
+
+The two are independent — the ◈ button is always available regardless of whether tutor mode is on.
+
+---
+
 ### Scene Detection
 
 The server scans narration text for keywords and crossfades the background gradient and particle type to match the current environment. Scenes change automatically as the story moves.
@@ -303,6 +339,32 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --turn-current "Skeleton"
 # Combat ended
 python3 ~/.claude/skills/dnd/display/push_stats.py --turn-clear
 ```
+
+### Clickable Character Sheet
+
+Click or tap any character card in the sidebar to open a full character sheet modal — attacks, features, and inventory at a glance. Works on desktop and on phones/tablets connected via LAN.
+
+Include the `sheet` field when pushing stats on `/dnd load` to populate the full sheet:
+
+```bash
+python3 ~/.claude/skills/dnd/display/push_stats.py --replace-players --json '{
+  "players": [{
+    "name": "Aldric",
+    ...
+    "sheet": {
+      "attacks": [
+        {"name": "Longsword", "bonus": "+5", "damage": "1d8+3", "type": "Slashing", "notes": "Versatile (1d10)"}
+      ],
+      "features": [
+        {"name": "Second Wind", "text": "Bonus action: regain 1d10+level HP. Short/long rest recharge."}
+      ],
+      "inventory": ["Longsword", "Chain Mail", "Shield", "Explorer'\''s Pack", "15 gp"]
+    }
+  }]
+}'
+```
+
+If `sheet` is omitted, the modal still opens but shows only the stats visible in the sidebar. Close with **Esc**, clicking outside the panel, or the ✕ button.
 
 The sidebar:
 - Shows compact dual-column cards for parties of 2+ (full ability grid for solo play)
