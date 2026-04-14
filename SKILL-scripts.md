@@ -158,7 +158,30 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --world-time \
 
 # Clear display (use push_stats.py, NOT curl — raw curl lacks the auth token in LAN mode):
 python3 ~/.claude/skills/dnd/display/push_stats.py --clear
+
+# Autorun cycle countdown (shown in party input panel):
+python3 ~/.claude/skills/dnd/display/push_stats.py --autorun-waiting true --autorun-cycle 60
+python3 ~/.claude/skills/dnd/display/push_stats.py --autorun-waiting false   # hide after turn resolves
+
+# N-player threshold — auto-fire when N players (not all) are ready:
+python3 ~/.claude/skills/dnd/display/push_stats.py --autorun-threshold 2   # fire when 2 ready
+python3 ~/.claude/skills/dnd/display/push_stats.py --autorun-threshold 0   # reset to player count
 ```
+
+**Player input queue — `display/check_input.py`:**
+```bash
+# Called at the start of each turn BEFORE processing the player's message.
+# Drains any actions queued from the display companion (e.g. iPad) and prints them.
+# Output: "[Aldric]: I draw my rapier" — empty if nothing queued. Clears the display indicator.
+python3 ~/.claude/skills/dnd/display/check_input.py
+```
+
+If `check_input.py` returns output, prepend it to the player's terminal input when forming the turn:
+- Only queued input: treat as the full player action this turn
+- Queued input + terminal input: merge as `[Character]: <queued>\n[Character]: <terminal>`
+- Empty queue: proceed as normal (use only terminal input)
+
+---
 
 **When to push stats:**
 - `/dnd load` → `--replace-players --json` (full stats) + `--spell-slots` + `--world-time` + `--factions`

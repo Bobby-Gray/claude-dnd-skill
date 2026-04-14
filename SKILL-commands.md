@@ -36,20 +36,35 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
    - Same display start/LAN flow as `/dnd new` step 1.
    - Clear previous transcript: `python3 ~/.claude/skills/dnd/display/push_stats.py --clear`
    - Register active campaign for DM Help: `echo "<campaign-name>" > ~/.claude/skills/dnd/display/.campaign`
+   - If display is started, ask: *"Accept player input from the companion? [y/n]"*
+     - If `$DND_PTY_WRAPPED` is already set: skip — wrapper is active, player input works automatically.
+     - If **y** and not wrapped: detect OS, print the message below, then **stop and wait**. Do not continue loading. Ask: *"Type 'skip' to load without player input, or close this session and use the command above."* Only continue if user types `skip` (set player input disabled for this session).
+
+       ```
+       To enable player input, this session must be launched via the Python wrapper.
+       Open a new terminal tab and run:
+
+         [command — see below]
+
+       Then type: /dnd load <campaign-name> in that terminal.
+       ```
+
+       Detect OS with: `uname -s 2>/dev/null || echo Windows`
+       - **macOS / Linux** (`Darwin` or `Linux`):
+         ```
+         python3 ~/.claude/skills/dnd/display/wrapper.py
+         ```
+       - **Windows** (`Windows`):
+         ```
+         python %USERPROFILE%\.claude\skills\dnd\display\wrapper.py
+         ```
+     - If **n**: continue without player input.
+
 2. Read SKILL-scripts.md (for script syntax this session)
 3. Read state.md, world.md, npcs.md (index only — **do NOT read npcs-full.md or world-seeds.md at load**), and all characters/*.md
 4. Push full party stats to display sidebar with `--replace-players` (clears stale characters from previous campaigns). For each character, include `--sheet <JSON>` built from the character file (attacks, spells, features, inventory). Also push `--world-time` with date/time/season/weather from state.md. Also push `--factions` from active faction states in `state.md → ## World State` (use `[]` if no factions are active).
 
-   Sheet JSON structure:
-   ```json
-   {
-     "attacks": [{"name":"Rapier","bonus":"+5","damage":"1d8+3","type":"Piercing","notes":"Finesse"}],
-     "spells": {"slots":"3/3","save_dc":13,"attack_bonus":"+5","cantrips":["Shillelagh"],"prepared":["Entangle","Healing Word"]},
-     "features": [{"name":"Sneak Attack","desc":"1d6 when Adv or ally adjacent"}],
-     "inventory": ["Shortsword","Leather armor","Thieves' tools","15 gp"]
-   }
-   ```
-   Omit `spells` for non-casters. `features`, `inventory` are plain string arrays. The display shows "Full sheet not loaded" when all four are absent.
+   Sheet JSON structure — see `## push_stats.py → --sheet` in SKILL-scripts.md for full example. Keys: `attacks`, `spells` (omit for non-casters), `features`, `inventory`. Display shows "Full sheet not loaded" when all four are absent.
 
    Faction JSON structure (from `state.md → ## World State → Faction states`):
    ```json
@@ -95,6 +110,22 @@ The continuity summary is what stays hot in context. The full verbose log is in 
    kill $(cat ~/.claude/skills/dnd/display/app.pid 2>/dev/null) 2>/dev/null
    rm -f ~/.claude/skills/dnd/display/app.pid
    ```
+
+---
+
+## `/dnd abandon`
+
+Exit the current session **without saving any state changes**. Use this when an error occurred and you want to discard everything since the last `/dnd save` (or since load, if the session was never saved).
+
+1. Confirm: *"Abandon session? All unsaved state changes will be lost. Type 'yes' to confirm."* — do not proceed until confirmed.
+2. Do **NOT** write to state.md, world.md, npcs.md, session-log.md, or any character files.
+3. Clear the autorun flag in memory (`autorun: false`) so the wait loop does not restart.
+4. If `_display_running = true`, stop the display:
+   ```bash
+   kill $(cat ~/.claude/skills/dnd/display/app.pid 2>/dev/null) 2>/dev/null
+   rm -f ~/.claude/skills/dnd/display/app.pid
+   ```
+5. Confirm: *"Session abandoned. No files were written. Run `/dnd load <campaign>` to reload from the last saved state."*
 
 ---
 
@@ -257,3 +288,34 @@ Read `state.md` → display Active Quests and Open Threads sections.
 
 ## `/dnd tutor on` / `/dnd tutor off`
 Toggle tutor/learning mode. Write `tutor_mode: true/false` to `state.md` under `## Session Flags`. Session-scoped — does not persist to next `/dnd load` unless explicitly set again. (Full tutor mode behavior is in SKILL.md.)
+
+---
+
+## `/dnd autorun on` / `/dnd autorun off`
+
+Toggle autorun (taxi) mode — Claude drives the turn loop automatically when players submit via the display companion. No PTY wrapper required.
+
+**On:**
+1. Write `autorun: true` to `state.md → ## Session Flags`.
+2. **Check Bash permissions** — read `~/.claude/settings.json`. If `permissions.allow` does not include `"Bash"` (or `"Bash(*)"` or similar), add it automatically:
+   - Read the file, merge `"Bash"` into `permissions.allow`, write it back.
+   - Tell the DM: *"Added Bash to permissions.allow in ~/.claude/settings.json — autorun won't prompt for each wait. Restart this session for it to take effect if it doesn't immediately."*
+   - If it was already present, skip silently.
+3. Confirm to the DM: *"Autorun enabled. Players submit via the display; I'll pick up each action automatically. Send me a message at any time to take control of a turn."*
+4. If the user specified an interval (e.g. `/dnd autorun on 45`), write `autorun_interval: 45` to `state.md → ## Session Flags`. Default is 60 if omitted.
+5. Immediately enter the autorun wait (see SKILL.md for the Bash block). If there's already something in `.input_queue`, pick it up as the current turn's player action.
+
+The display shows a pie-clock countdown draining from full to empty over the interval. Green pulse = actively waiting. Configurable via `autorun_interval: N` in state.md (default 60 seconds).
+
+**Off:**
+1. Write `autorun: false` (or remove the line) to `state.md → ## Session Flags`.
+2. Confirm: *"Autorun disabled. Back to manual mode — press Enter or tell me to submit when players are ready."*
+3. Do NOT start the autorun wait after this response.
+
+**Check on `/dnd load`:** If `autorun: true` is present in state.md, tell the DM autorun is active and begin the wait loop after the recap paragraph.
+
+**When NOT to run the autorun wait (even if flag is set):**
+- Mid-combat, resolving a specific combatant's turn
+- Waiting on a player dice roll result
+- The DM just sent a message (they're driving this turn)
+- During `/dnd save`, `/dnd end`, or any command response

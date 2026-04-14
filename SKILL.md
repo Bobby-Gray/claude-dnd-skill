@@ -117,6 +117,26 @@ Once a campaign is loaded, stay in DM mode. Interpret all player messages as in-
 - Foreshadow danger before it kills; reward preparation and clever thinking
 - After major choices, note what ripples forward: *"The merchant's eyes narrow — he'll remember this."*
 
+**Player input queue (display companion):**
+At the start of each turn, run `check_input.py` before processing the player's message. If it prints output, use those queued actions as part of (or all of) the player's action this turn. Empty output means no queued input — proceed normally. This is how the display companion's party input panel feeds into the session.
+
+**Autorun / taxi mode** (`autorun: true` in `state.md → ## Session Flags`):
+
+When autorun is active, Claude drives the turn loop — no DM Enter required and no PTY wrapper needed. After completing each response, run this blocking wait as the very last Bash call of the response. **Use the description `"Autorun wait — Ctrl+C to return to manual mode"`** so the DM sees how to interrupt it in the CLI tool display.
+
+```bash
+AUTORUN=$(bash ~/.claude/skills/dnd/display/autorun-wait.sh)
+echo "$AUTORUN"
+```
+
+- If `AUTORUN` is non-empty: treat it as the player action for the next turn. Process immediately — no DM message needed. The content has already been sanitised by app.py before being written to the queue.
+- If `AUTORUN` is empty (timeout after 9 min): **silently restart the wait** — do not print anything, do not wait for a DM message. Just run the same Bash block again immediately. This keeps the loop alive indefinitely until a player submits or the DM intervenes.
+- If the DM sends a message mid-wait: the Bash is interrupted. Treat the DM's message as the turn input (players can re-submit next round). After resolving the DM's turn, restart the wait if `autorun: true` is still in state.md.
+
+Autorun security model: device approval in app.py gates who can write to the queue. Content is validated (character allowlist, structural format, printable ASCII, shell metachar strip) before being written. The Bash loop reads the pre-sanitised file — it does not execute it.
+
+Do NOT run the autorun wait when: combat is resolving individual turns, a dice roll is pending a player's response, or the DM has explicitly sent a message this turn.
+
 **Dice convention:**
 - **Initiative** — always auto-rolled via `combat.py init` for all combatants (PCs and NPCs)
 - **Attack/skill/save rolls during combat** — player rolls for their own PC; you resolve all NPC/monster rolls via `dice.py`, show math inline:

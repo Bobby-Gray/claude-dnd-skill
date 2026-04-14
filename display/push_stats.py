@@ -72,11 +72,18 @@ import sys
 import json
 import argparse
 import os
+import ssl
+import time
 import urllib.request
 
-FLASK_URL  = "http://localhost:5001/stats"
+FLASK_URL  = "https://localhost:5001/stats"
 TOKEN_FILE = os.path.expanduser("~/.claude/skills/dnd/display/.token")
 TIMEOUT    = 2.0
+
+# Self-signed cert — skip verification for localhost connections
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
 
 
 def _read_token() -> str:
@@ -92,7 +99,7 @@ def _send(url: str, data: bytes, token: str) -> None:
         headers["X-DND-Token"] = token
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
-        urllib.request.urlopen(req, timeout=TIMEOUT)
+        urllib.request.urlopen(req, timeout=TIMEOUT, context=_SSL_CTX)
     except Exception:
         pass  # Display not running — fail silently
 
@@ -151,6 +158,12 @@ def main() -> None:
                         help="Clear all text and stats on the display (token-aware; safe in LAN mode)")
     parser.add_argument("--world-time", metavar="JSON",
                         help='World time: {"date":"19 Ashveil 1312 AR","day_name":"Moonday","time":"morning","season":"Long Hollow","weather":"calm"}')
+    parser.add_argument("--autorun-waiting", metavar="BOOL",
+                        help="true = show autorun waiting indicator on display; false = hide it")
+    parser.add_argument("--autorun-cycle", metavar="SECONDS", type=int,
+                        help="Start autorun countdown: broadcast interval + current timestamp to display")
+    parser.add_argument("--autorun-threshold", metavar="N", type=int,
+                        help="Set min players needed to auto-fire (0 or omit to reset to player count)")
     args = parser.parse_args()
 
     payload: dict = {}
@@ -263,6 +276,16 @@ def main() -> None:
         except json.JSONDecodeError as e:
             print(f"Invalid world-time JSON: {e}", file=sys.stderr)
             sys.exit(1)
+
+    if args.autorun_waiting is not None:
+        payload["autorun_waiting"] = args.autorun_waiting.lower() == "true"
+
+    if args.autorun_cycle is not None:
+        payload["autorun_cycle"] = {"interval": args.autorun_cycle, "ts": time.time()}
+
+    if args.autorun_threshold is not None:
+        # 0 = reset to auto (use player count); positive int = explicit minimum
+        payload["autorun_threshold"] = args.autorun_threshold if args.autorun_threshold > 0 else None
 
     # ── Clear display ─────────────────────────────────────────────────────────
     if args.clear:

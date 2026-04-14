@@ -327,6 +327,32 @@
   .tutor-block.tutor-warning .tutor-chevron { color: rgba(200, 150, 70, 0.7); }
   .tutor-block.tutor-warning .tutor-body p  { color: rgba(230, 190, 130, 0.82); }
 
+  /* DM processing indicator — shown between queue consumed and first narration */
+  #dm-processing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 4px 10px 2px;
+    opacity: 0;
+    animation: proc-fadein 0.4s ease 0.15s forwards;
+  }
+  @keyframes proc-fadein {
+    to { opacity: 1; }
+  }
+  #dm-processing-indicator .proc-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(160, 120, 60, 0.55);
+    animation: proc-pulse 1.2s ease-in-out infinite;
+  }
+  #dm-processing-indicator .proc-dot:nth-child(2) { animation-delay: 0.2s; }
+  #dm-processing-indicator .proc-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes proc-pulse {
+    0%, 80%, 100% { transform: scale(0.7); opacity: 0.35; }
+    40%           { transform: scale(1.15); opacity: 0.85; }
+  }
+
   /* Session divider */
   .divider {
     text-align: center;
@@ -940,6 +966,168 @@
   }
   .speed-label:hover { color: rgba(220,185,100,1); }
 
+  /* ── Player input panel ── */
+  #input-panel {
+    position: fixed;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 6;
+    width: min(540px, 80vw);
+    background: rgba(10, 7, 3, 0.92);
+    border: 1px solid rgba(180,140,60,0.28);
+    border-radius: 6px;
+    backdrop-filter: blur(10px);
+    transition: border-color 0.2s ease;
+  }
+  #input-panel:focus-within { border-color: rgba(180,140,60,0.55); }
+  #input-panel-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; cursor: pointer; user-select: none;
+  }
+  #input-panel-label {
+    font-family: 'Cinzel', serif; font-size: 8px;
+    letter-spacing: 2px; color: rgba(180,140,60,0.65);
+    text-transform: uppercase; flex: 1;
+  }
+  #input-badge {
+    display: none; font-family: 'Cinzel', serif; font-size: 7px;
+    letter-spacing: 1px; color: rgba(220,185,100,1);
+    background: rgba(40,25,5,0.9); border: 1px solid rgba(180,140,60,0.55);
+    border-radius: 10px; padding: 1px 8px;
+  }
+  #input-toggle-arrow {
+    font-size: 9px; color: rgba(180,140,60,0.45);
+  }
+  #input-body {
+    padding: 0 14px 14px;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+  #input-panel.collapsed #input-body { display: none; }
+  #char-tabs { display: flex; gap: 5px; flex-wrap: wrap; }
+  .char-tab {
+    font-family: 'Cinzel', serif; font-size: 7.5px;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: rgba(180,140,60,0.5);
+    border: 1px solid rgba(180,140,60,0.22);
+    border-radius: 3px; padding: 4px 10px;
+    cursor: pointer; background: transparent;
+    transition: all 0.15s ease; user-select: none;
+  }
+  .char-tab:hover { color: rgba(220,185,100,0.85); border-color: rgba(180,140,60,0.5); }
+  .char-tab.active {
+    color: rgba(220,185,100,1); border-color: rgba(180,140,60,0.75);
+    background: rgba(30,20,5,0.55);
+  }
+  #player-input-text {
+    width: 100%; box-sizing: border-box;
+    background: rgba(8,5,2,0.85); border: 1px solid rgba(180,140,60,0.18);
+    border-radius: 3px; color: rgba(220,200,160,0.9);
+    font-family: 'IM Fell English', serif; font-size: 13px;
+    padding: 8px 10px; resize: none; outline: none;
+    transition: border-color 0.15s ease;
+  }
+  #player-input-text:focus { border-color: rgba(180,140,60,0.45); }
+  #player-input-text::placeholder { color: rgba(180,140,60,0.28); }
+  #input-footer { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+  #stage-btn {
+    font-family: 'Cinzel', serif; font-size: 8px;
+    letter-spacing: 1.8px; text-transform: uppercase;
+    color: rgba(200,165,80,0.85); background: rgba(20,14,6,0.6);
+    border: 1px solid rgba(180,140,60,0.48);
+    border-radius: 3px; padding: 6px 16px;
+    cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+  }
+  #stage-btn:hover {
+    color: rgba(220,185,100,1); border-color: rgba(180,140,60,0.8);
+    background: rgba(30,20,8,0.75);
+  }
+  #stage-btn:disabled { opacity: 0.4; pointer-events: none; }
+  #staged-queue { display: flex; flex-direction: column; gap: 5px; }
+  .staged-entry {
+    display: flex; align-items: flex-start; gap: 8px;
+    background: rgba(18,10,3,0.65);
+    border-left: 2px solid rgba(180,140,60,0.28);
+    border-radius: 0 2px 2px 0; padding: 6px 9px;
+    transition: border-color 0.2s ease;
+  }
+  .staged-entry.is-ready { border-left-color: rgba(120,190,80,0.65); }
+  .staged-entry-body { flex: 1; min-width: 0; }
+  .staged-char {
+    font-family: 'Cinzel', serif; font-size: 8.5px;
+    letter-spacing: 1px; color: rgba(180,140,60,0.82);
+    margin-bottom: 2px;
+  }
+  .staged-text {
+    font-family: 'IM Fell English', serif; font-size: 11.5px;
+    color: rgba(200,175,120,0.82); word-break: break-word;
+  }
+  .staged-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-top: 2px; }
+  .ready-btn {
+    font-family: 'Cinzel', serif; font-size: 7px;
+    letter-spacing: 1.2px; text-transform: uppercase;
+    color: rgba(180,140,60,0.55); background: transparent;
+    border: 1px solid rgba(180,140,60,0.25); border-radius: 3px;
+    padding: 3px 8px; cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+  }
+  .ready-btn:hover { color: rgba(200,230,140,0.9); border-color: rgba(120,190,80,0.55); }
+  .ready-btn.is-ready {
+    color: rgba(140,210,90,0.9); border-color: rgba(120,190,80,0.7);
+    background: rgba(20,35,10,0.6);
+  }
+  .unstage-btn {
+    font-size: 10px; color: rgba(180,140,60,0.3); background: transparent;
+    border: none; cursor: pointer; padding: 1px 3px; line-height: 1;
+    transition: color 0.15s ease;
+  }
+  .unstage-btn:hover { color: rgba(200,100,80,0.75); }
+  .skip-btn {
+    font-family: 'Cinzel', serif; font-size: 7px;
+    letter-spacing: 1.2px; text-transform: uppercase;
+    color: rgba(180,140,60,0.35); background: transparent;
+    border: 1px solid rgba(180,140,60,0.15); border-radius: 3px;
+    padding: 3px 8px; cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+  }
+  .skip-btn:hover { color: rgba(210,140,80,0.8); border-color: rgba(210,140,80,0.45); }
+  #waiting-indicator {
+    font-family: 'Cinzel', serif; font-size: 7.5px;
+    letter-spacing: 1.2px; color: rgba(180,140,60,0.45);
+    text-align: center; padding: 4px 0;
+    display: none; flex-direction: column; gap: 3px;
+  }
+  #waiting-indicator .queue-label {
+    color: rgba(180,140,60,0.5); font-size: 7px; letter-spacing: 1.5px;
+  }
+  #waiting-indicator .queue-check {
+    color: rgba(140,200,120,0.75); font-size: 8px; letter-spacing: 1px;
+  }
+
+  /* ── Autorun cycle indicator (lives inside party input panel header) ── */
+  #autorun-indicator {
+    display: none; align-items: center; gap: 5px;
+    font-family: 'Cinzel', serif; font-size: 7px;
+    letter-spacing: 1.4px; color: rgba(180,140,60,0.55);
+    text-transform: uppercase;
+  }
+  .autorun-pie { flex-shrink: 0; overflow: visible; }
+  .autorun-track {
+    fill: none; stroke: rgba(180,140,60,0.15); stroke-width: 2;
+  }
+  .autorun-fill {
+    fill: none; stroke: rgba(180,140,60,0.6); stroke-width: 2;
+    stroke-linecap: round;
+    transform-origin: 12px 12px; transform: rotate(-90deg);
+    transition: stroke 0.4s ease;
+  }
+  .autorun-fill.waiting {
+    stroke: rgba(140,200,120,0.75);
+    animation: autorun-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes autorun-pulse {
+    0%, 100% { opacity: 0.45; }
+    50%       { opacity: 1; }
+  }
+
   /* ── DM Help button ── */
   #dm-help-btn {
     position: fixed;
@@ -965,6 +1153,49 @@
   #dm-help-btn.pending { color: rgba(180,140,60,0.7); border-color: rgba(180,140,60,0.4); cursor: default; box-shadow: none; }
   #dm-help-btn.locked { color: rgba(180,90,60,0.85); border-color: rgba(180,90,60,0.5); }
   #dm-help-btn:disabled { pointer-events: none; }
+
+  /* ── Device approval cards ── */
+  #device-approvals {
+    position: fixed;
+    top: 18px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex; flex-direction: column; gap: 6px;
+    pointer-events: none;
+  }
+  .device-card {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(10,6,2,0.94);
+    border: 1px solid rgba(180,90,60,0.6);
+    border-radius: 5px; padding: 8px 14px;
+    pointer-events: auto;
+    backdrop-filter: blur(10px);
+  }
+  .device-card-label {
+    font-family: 'Cinzel', serif; font-size: 7.5px;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: rgba(220,150,100,0.9); flex: 1;
+  }
+  .device-card-ip {
+    font-family: 'IM Fell English', serif; font-size: 11px;
+    color: rgba(200,160,120,0.7); margin-right: 4px;
+  }
+  .device-approve-btn, .device-deny-btn {
+    font-family: 'Cinzel', serif; font-size: 7px;
+    letter-spacing: 1.2px; text-transform: uppercase;
+    border-radius: 3px; padding: 4px 10px; cursor: pointer;
+    transition: all 0.15s ease; white-space: nowrap;
+  }
+  .device-approve-btn {
+    color: rgba(140,210,90,0.9); background: rgba(20,35,10,0.6);
+    border: 1px solid rgba(120,190,80,0.55);
+  }
+  .device-approve-btn:hover { background: rgba(30,50,15,0.8); border-color: rgba(140,210,90,0.8); }
+  .device-deny-btn {
+    color: rgba(200,90,70,0.85); background: rgba(30,10,8,0.6);
+    border: 1px solid rgba(180,70,50,0.45);
+  }
+  .device-deny-btn:hover { background: rgba(45,15,10,0.8); border-color: rgba(200,90,70,0.75); }
 
   .audio-row {
     display: flex;
@@ -1054,6 +1285,37 @@
 
 <!-- DM Help — on-demand hint button -->
 <button id="dm-help-btn" title="Request a DM hint for the current scene">◈ DM Help</button>
+
+<!-- Device approval cards — shown when a new LAN device requests input access -->
+<div id="device-approvals"></div>
+
+<!-- Player input panel — submit actions from the display companion -->
+<div id="input-panel" class="collapsed">
+  <div id="input-panel-header">
+    <span id="input-panel-label">Party Input</span>
+    <span id="input-badge"></span>
+    <div id="autorun-indicator">
+      <svg class="autorun-pie" viewBox="0 0 24 24" width="13" height="13">
+        <circle class="autorun-track" cx="12" cy="12" r="9"/>
+        <circle class="autorun-fill" cx="12" cy="12" r="9"
+                stroke-dasharray="56.55" stroke-dashoffset="0"/>
+      </svg>
+      <span class="autorun-label">Next Turn</span>
+    </div>
+    <span id="input-toggle-arrow">▲</span>
+  </div>
+  <div id="input-body">
+    <div id="staged-queue"></div>
+    <div id="waiting-indicator"></div>
+    <div id="char-tabs">
+      <button class="char-tab active" data-char="Everybody">Everybody</button>
+    </div>
+    <textarea id="player-input-text" rows="2" placeholder="Enter action or dialogue…" maxlength="500"></textarea>
+    <div id="input-footer">
+      <button id="stage-btn">Stage</button>
+    </div>
+  </div>
+</div>
 
 <!-- Character sheet modal (click any player card in the sidebar to open) -->
 <div id="sheet-modal">
@@ -2031,12 +2293,32 @@ function clearDisplay(then) {
     textScroll.scrollTop  = 0;
     userScrolledUp = false;
     textContent.style.opacity = '1';
+    _hideProcessingIndicator();
 
     if (then) then();
   }, 370); // matches the CSS transition duration
 }
 
+function _showProcessingIndicator() {
+  _hideProcessingIndicator(); // clear any existing one first
+  const el = document.createElement('div');
+  el.id = 'dm-processing-indicator';
+  for (let i = 0; i < 3; i++) {
+    const dot = document.createElement('span');
+    dot.className = 'proc-dot';
+    el.appendChild(dot);
+  }
+  textContent.appendChild(el);
+  scrollToBottom();
+}
+
+function _hideProcessingIndicator() {
+  const el = document.getElementById('dm-processing-indicator');
+  if (el) el.remove();
+}
+
 function handleIncomingText(text) {
+  _hideProcessingIndicator();
   // Debounce block separation: if there was a gap > IDLE_GAP, new block
   const now = Date.now();
   if (now - lastChunkTime > IDLE_GAP && charQueue.length === 0 && !isTyping) {
@@ -2748,6 +3030,28 @@ _dmHelpBtn.addEventListener('click', async () => {
 const _dndTokenMeta = document.querySelector('meta[name="dnd-token"]');
 const _dndToken = _dndTokenMeta ? _dndTokenMeta.getAttribute('content') : null;
 
+// Persistent device ID — survives page refreshes, identifies this browser for DM approval
+// crypto.randomUUID() requires a secure context (HTTPS/localhost); fall back to
+// getRandomValues() which works over plain HTTP on LAN.
+function _makeUUID() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+}
+let _deviceId = localStorage.getItem('dnd_device_id');
+if (!_deviceId) {
+  _deviceId = _makeUUID();
+  localStorage.setItem('dnd_device_id', _deviceId);
+}
+
+function _authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    ...(_dndToken    ? { 'X-DND-Token':   _dndToken  } : {}),
+    ...(_deviceId    ? { 'X-DND-Device':  _deviceId  } : {}),
+  };
+}
+
 let _actx   = null;
 let _sfxCache = {};
 
@@ -2804,6 +3108,348 @@ document.getElementById('speed-row').addEventListener('click', () => {
   charDelay = step.ms;
   _speedLabel.textContent = step.label;
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// PLAYER INPUT PANEL
+// ═══════════════════════════════════════════════════════════════════
+
+const _inputPanel      = document.getElementById('input-panel');
+const _inputPanelHdr   = document.getElementById('input-panel-header');
+const _inputBadge      = document.getElementById('input-badge');
+const _inputArrow      = document.getElementById('input-toggle-arrow');
+const _charTabs        = document.getElementById('char-tabs');
+const _inputText       = document.getElementById('player-input-text');
+const _stageBtn        = document.getElementById('stage-btn');
+const _stagedQueueEl   = document.getElementById('staged-queue');
+const _waitingEl       = document.getElementById('waiting-indicator');
+
+let _selectedChar     = 'Everybody';
+let _stagedData       = {};   // {char: {text, ready, timestamp}} — mirror of server state
+let _autorunThreshold = null; // null = use player count; int = explicit threshold
+
+// ── Toggle open/closed ────────────────────────────────────────────
+_inputPanelHdr.addEventListener('click', () => {
+  _inputPanel.classList.toggle('collapsed');
+  _inputArrow.textContent = _inputPanel.classList.contains('collapsed') ? '▲' : '▼';
+});
+
+// ── Build character tabs from stats players array ─────────────────
+function _buildCharTabs(players) {
+  const names = ['Everybody', ...(players || []).map(p => p.name).filter(Boolean)];
+  _charTabs.innerHTML = '';
+  names.forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'char-tab' + (name === _selectedChar ? ' active' : '');
+    btn.dataset.char = name;
+    btn.textContent = name;
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      _selectedChar = name;
+      _charTabs.querySelectorAll('.char-tab').forEach(b =>
+        b.classList.toggle('active', b.dataset.char === name)
+      );
+    });
+    _charTabs.appendChild(btn);
+  });
+}
+
+// ── Render staged queue ───────────────────────────────────────────
+function _renderStagedQueue(data) {
+  _stagedData = data || {};
+  _stagedQueueEl.innerHTML = '';
+
+  const entries = Object.entries(_stagedData);
+  entries.forEach(([char, info]) => {
+    const entry = document.createElement('div');
+    entry.className = 'staged-entry' + (info.ready ? ' is-ready' : '');
+
+    const body = document.createElement('div');
+    body.className = 'staged-entry-body';
+
+    const charEl = document.createElement('div');
+    charEl.className = 'staged-char';
+    charEl.textContent = char;
+
+    const textEl = document.createElement('div');
+    textEl.className = 'staged-text';
+    textEl.textContent = info.text;
+
+    body.appendChild(charEl);
+    body.appendChild(textEl);
+
+    const acts = document.createElement('div');
+    acts.className = 'staged-actions';
+
+    const readyBtn = document.createElement('button');
+    readyBtn.className = 'ready-btn' + (info.ready ? ' is-ready' : '');
+    readyBtn.textContent = info.ready ? '✓ Ready' : 'Ready';
+    readyBtn.addEventListener('click', () => _toggleReady(char));
+
+    acts.appendChild(readyBtn);
+
+    if (!info.ready) {
+      const skipBtn = document.createElement('button');
+      skipBtn.className = 'skip-btn';
+      skipBtn.textContent = 'Skip';
+      skipBtn.title = 'Skip this character\'s turn';
+      skipBtn.addEventListener('click', () => _skipTurn(char));
+      acts.appendChild(skipBtn);
+    }
+
+    const unstageBtn = document.createElement('button');
+    unstageBtn.className = 'unstage-btn';
+    unstageBtn.title = 'Remove';
+    unstageBtn.textContent = '✕';
+    unstageBtn.addEventListener('click', () => _unstageAction(char));
+
+    acts.appendChild(unstageBtn);
+
+    entry.appendChild(body);
+    entry.appendChild(acts);
+    _stagedQueueEl.appendChild(entry);
+  });
+
+  // Badge + auto-open
+  if (entries.length > 0) {
+    _inputBadge.style.display = 'inline';
+    const readyCount = entries.filter(([, v]) => v.ready).length;
+    _inputBadge.textContent = readyCount === entries.length
+      ? `${entries.length} ready` : `${entries.length} staged`;
+    if (_inputPanel.classList.contains('collapsed')) {
+      _inputPanel.classList.remove('collapsed');
+      _inputArrow.textContent = '▼';
+    }
+  } else {
+    _inputBadge.style.display = 'none';
+  }
+
+  // Waiting / threshold indicator
+  const readyCount = entries.filter(([, v]) => v.ready).length;
+  const notReady   = entries.filter(([, v]) => !v.ready).map(([c]) => c);
+  const anyReady   = readyCount > 0;
+  // Derive display threshold: explicit override, or infer from total known players
+  const knownCount = (_charTabs ? _charTabs.querySelectorAll('.char-tab').length - 1 : 1); // excl. Everybody
+  const threshold  = _autorunThreshold !== null ? _autorunThreshold : Math.max(1, knownCount);
+  const needMore   = readyCount < threshold && !entries.some(([c, v]) => c === 'Everybody' && v.ready);
+
+  if (anyReady && notReady.length > 0) {
+    _waitingEl.style.display = 'flex';
+    const label = needMore
+      ? `${readyCount}/${threshold} ready`
+      : `Queued \u2014 fires on DM Enter`;
+    const checks = notReady.map(c => `<span class="queue-check" style="opacity:0.5">${c}</span>`).join('');
+    _waitingEl.innerHTML = `<span class="queue-label">${label}</span>${checks}`;
+  } else {
+    _waitingEl.style.display = 'none';
+  }
+}
+
+// ── Autorun cycle countdown ───────────────────────────────────────
+const _AUTORUN_CIRC = 56.55; // 2π × r=9
+let _autorunRaf = null;
+let _autorunCycleData = null;
+
+function _startAutorunCountdown(interval, ts) {
+  _autorunCycleData = { interval, ts };
+  const fill = document.querySelector('.autorun-fill');
+  const label = document.querySelector('.autorun-label');
+  cancelAnimationFrame(_autorunRaf);
+
+  // Auto-expand the panel so the countdown is visible
+  if (_inputPanel && _inputPanel.classList.contains('collapsed')) {
+    _inputPanel.classList.remove('collapsed');
+    if (_inputArrow) _inputArrow.textContent = '▼';
+  }
+
+  function tick() {
+    if (!_autorunCycleData) return;
+    const elapsed = (Date.now() / 1000) - _autorunCycleData.ts;
+    const remaining = Math.max(0, _autorunCycleData.interval - elapsed);
+    const progress = Math.min(1, elapsed / _autorunCycleData.interval);
+    if (fill) fill.setAttribute('stroke-dashoffset', (_AUTORUN_CIRC * progress).toFixed(2));
+    if (label) {
+      label.textContent = remaining > 1
+        ? `Next Turn \u2014 ${Math.ceil(remaining)}s`
+        : 'Next Turn \u2014 checking\u2026';
+    }
+    if (remaining > 0) {
+      _autorunRaf = requestAnimationFrame(tick);
+    } else {
+      // Loop: restart the countdown after a brief pause so the display stays live
+      setTimeout(() => {
+        if (_autorunCycleData) {
+          _autorunCycleData.ts = Date.now() / 1000;
+          _autorunRaf = requestAnimationFrame(tick);
+        }
+      }, 800);
+    }
+  }
+  tick();
+}
+
+function _stopAutorunCountdown() {
+  cancelAnimationFrame(_autorunRaf);
+  _autorunRaf = null;
+  _autorunCycleData = null;
+  const fill = document.querySelector('.autorun-fill');
+  if (fill) { fill.setAttribute('stroke-dashoffset', '0'); fill.classList.remove('waiting'); }
+  const label = document.querySelector('.autorun-label');
+  if (label) label.textContent = 'Next Turn';
+}
+
+// ── Queue status panel (persists until wrapper injects) ──────────
+function _renderQueueStatus(chars) {
+  if (!chars || chars.length === 0) {
+    _waitingEl.style.display = 'none';
+    _waitingEl.innerHTML = '';
+    return;
+  }
+  const checks = chars.map(c => `<span class="queue-check">✓ ${c}</span>`).join('');
+  _waitingEl.innerHTML = `<span class="queue-label">⏳ Queued — fires on DM Enter</span>${checks}`;
+  _waitingEl.style.display = 'block';
+}
+
+// ── Handle staged_inputs SSE event ───────────────────────────────
+function _handleStagedInputs(data) {
+  _renderStagedQueue(data);
+}
+
+// ── Stage an action ───────────────────────────────────────────────
+async function _stageAction() {
+  const text = _inputText.value.trim();
+  if (!text) return;
+  _stageBtn.disabled = true;
+  _stageBtn.textContent = '…';
+  try {
+    const res = await fetch('/player-input/stage', {
+      method: 'POST',
+      headers: _authHeaders(),
+      body: JSON.stringify({ character: _selectedChar, text }),
+    });
+    if (res.status === 202) {
+      _stageBtn.disabled = false;
+      _stageBtn.textContent = 'Awaiting approval…';
+      return;  // leave text in box; retry once approved
+    }
+    _inputText.value = '';
+  } catch (_) { /* silently ignore */ }
+  _stageBtn.disabled = false;
+  _stageBtn.textContent = 'Stage';
+}
+
+// ── Toggle ready for a staged char ───────────────────────────────
+async function _toggleReady(char) {
+  try {
+    await fetch('/player-input/ready', {
+      method: 'POST',
+      headers: _authHeaders(),
+      body: JSON.stringify({ character: char }),
+    });
+  } catch (_) { /* silently ignore */ }
+}
+
+// ── Remove a staged entry ────────────────────────────────────────
+async function _unstageAction(char) {
+  try {
+    await fetch('/player-input/unstage', {
+      method: 'POST',
+      headers: _authHeaders(),
+      body: JSON.stringify({ character: char }),
+    });
+  } catch (_) { /* silently ignore */ }
+}
+
+// ── Skip a character's turn ───────────────────────────────────────
+async function _skipTurn(char) {
+  try {
+    await fetch('/player-input/skip', {
+      method: 'POST',
+      headers: _authHeaders(),
+      body: JSON.stringify({ character: char }),
+    });
+  } catch (_) { /* silently ignore */ }
+}
+
+_stageBtn.addEventListener('click', _stageAction);
+
+// Ctrl/Cmd+Enter stages from textarea
+_inputText.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    _stageAction();
+  }
+});
+
+// Initialise with no extra chars (populated when stats arrive)
+_buildCharTabs([]);
+
+// ═══════════════════════════════════════════════════════════════════
+// DEVICE APPROVAL
+// ═══════════════════════════════════════════════════════════════════
+
+const _deviceApprovalsEl = document.getElementById('device-approvals');
+
+function _showDeviceRequest(dev) {
+  // Don't duplicate
+  if (document.querySelector(`[data-device-id="${dev.id}"]`)) return;
+
+  const card = document.createElement('div');
+  card.className = 'device-card';
+  card.dataset.deviceId = dev.id;
+
+  const label = document.createElement('span');
+  label.className = 'device-card-label';
+  label.textContent = 'New device requesting input access';
+
+  const ip = document.createElement('span');
+  ip.className = 'device-card-ip';
+  ip.textContent = dev.ip;
+
+  const approveBtn = document.createElement('button');
+  approveBtn.className = 'device-approve-btn';
+  approveBtn.textContent = 'Approve';
+  approveBtn.addEventListener('click', () => _respondDevice(dev.id, true));
+
+  const denyBtn = document.createElement('button');
+  denyBtn.className = 'device-deny-btn';
+  denyBtn.textContent = 'Deny';
+  denyBtn.addEventListener('click', () => _respondDevice(dev.id, false));
+
+  card.appendChild(label);
+  card.appendChild(ip);
+  card.appendChild(approveBtn);
+  card.appendChild(denyBtn);
+  _deviceApprovalsEl.appendChild(card);
+}
+
+async function _respondDevice(deviceId, approve) {
+  try {
+    await fetch(approve ? '/device/approve' : '/device/deny', {
+      method: 'POST',
+      headers: _authHeaders(),
+      body: JSON.stringify({ id: deviceId }),
+    });
+  } catch (_) { /* ignore */ }
+  document.querySelector(`[data-device-id="${deviceId}"]`)?.remove();
+}
+
+function _onDeviceApproved(deviceId) {
+  document.querySelector(`[data-device-id="${deviceId}"]`)?.remove();
+  // If it's our own device — reset stage button and retry
+  if (deviceId === _deviceId && _stageBtn.textContent === 'Awaiting approval…') {
+    _stageBtn.disabled = false;
+    _stageBtn.textContent = 'Stage';
+    _stageAction();  // auto-retry the staged action
+  }
+}
+
+function _onDeviceDenied(deviceId) {
+  document.querySelector(`[data-device-id="${deviceId}"]`)?.remove();
+  if (deviceId === _deviceId) {
+    _stageBtn.disabled = true;
+    _stageBtn.textContent = 'Access denied';
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // WORLD CLOCK
@@ -2903,10 +3549,50 @@ function connect() {
       updateStats(payload.stats);
       if (payload.stats.players && payload.stats.players.length > 0) {
         _sidebarBtn.classList.add('visible');
+        _buildCharTabs(payload.stats.players);
       }
       if (payload.stats.world_time) {
         updateWorldClock(payload.stats.world_time);
       }
+    }
+    if (payload.staged_inputs !== undefined) {
+      _handleStagedInputs(payload.staged_inputs);
+    }
+    if (payload.queue_status !== undefined) {
+      _renderQueueStatus(payload.queue_status);
+    }
+    if (payload.dm_processing) {
+      _showProcessingIndicator();
+    }
+    if (payload.autorun_threshold !== undefined) {
+      _autorunThreshold = payload.autorun_threshold;
+      // Re-render staged queue so threshold counter updates immediately
+      _renderStagedQueue(_stagedData);
+    }
+    if (payload.autorun_cycle) {
+      const el = document.getElementById('autorun-indicator');
+      if (el) el.style.display = 'flex';
+      _startAutorunCountdown(payload.autorun_cycle.interval, payload.autorun_cycle.ts);
+    }
+    if (payload.autorun_waiting !== undefined) {
+      const el = document.getElementById('autorun-indicator');
+      const fill = document.querySelector('.autorun-fill');
+      if (payload.autorun_waiting) {
+        if (el) el.style.display = 'flex';
+        if (fill) fill.classList.add('waiting');
+      } else {
+        if (el) el.style.display = 'none';
+        _stopAutorunCountdown();
+      }
+    }
+    if (payload.device_request) {
+      _showDeviceRequest(payload.device_request);
+    }
+    if (payload.device_approved) {
+      _onDeviceApproved(payload.device_approved);
+    }
+    if (payload.device_denied) {
+      _onDeviceDenied(payload.device_denied);
     }
     if (payload.clear) {
       // Wipe sidebar player data and DOM

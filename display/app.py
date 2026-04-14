@@ -5,12 +5,18 @@ Receives text chunks from wrapper.py, detects scene context from keywords,
 and pushes both to the browser via Server-Sent Events.
 
 Endpoints:
-    GET  /          → serves index.html
-    POST /chunk     → receives text chunk from wrapper.py
-    POST /stats     → receives character/combat stat updates (merged, persisted)
-    GET  /stream    → SSE stream to browser (text + scene + stats events)
-    GET  /ping      → health check
-    POST /clear     → wipe text log and broadcast clear event
+    GET  /                   → serves index.html
+    POST /chunk              → receives text chunk from wrapper.py
+    POST /stats              → receives character/combat stat updates (merged, persisted)
+    GET  /stream             → SSE stream to browser (text + scene + stats events)
+    GET  /ping               → health check
+    POST /clear              → wipe text log and broadcast clear event
+    POST /player-input         → legacy queue endpoint (check_input.py compat)
+    POST /player-input/drain   → drain legacy queue (check_input.py compat)
+    POST /player-input/stage   → stage an action for review before firing
+    POST /player-input/ready   → mark a staged action as ready
+    POST /player-input/unstage → remove a staged action
+    POST /player-input/skip    → skip a character's turn (stages + readies a skip entry)
 """
 
 import hmac
@@ -24,7 +30,7 @@ import sys
 import threading
 from collections import deque
 from typing import Optional
-from flask import Flask, Response, request, render_template
+from flask import Flask, Response, request, render_template, jsonify
 from flask_cors import CORS
 
 # Audio module — degrades silently if numpy not installed
@@ -38,11 +44,14 @@ try:
 except Exception:
     _audio = None   # type: ignore
 
-LOG_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/text_log.json")
-HELP_LOCK   = os.path.expanduser("~/.claude/skills/dnd/display/.help-lock")
-CAMP_FILE   = os.path.expanduser("~/.claude/skills/dnd/display/.campaign")
-STATS_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/stats.json")
-TOKEN_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.token")
+LOG_FILE      = os.path.expanduser("~/.claude/skills/dnd/display/text_log.json")
+HELP_LOCK     = os.path.expanduser("~/.claude/skills/dnd/display/.help-lock")
+CAMP_FILE     = os.path.expanduser("~/.claude/skills/dnd/display/.campaign")
+STATS_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/stats.json")
+TOKEN_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/.token")
+INPUT_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/player_input.json")
+TRIGGER_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.input_trigger")
+QUEUE_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/.input_queue")
 
 # ─── LAN mode ─────────────────────────────────────────────────────────────────
 # Pass --lan to bind on 0.0.0.0 and protect write endpoints with a token.
@@ -54,21 +63,166 @@ if _LAN_MODE:
 
 
 def _get_or_create_token() -> str:
-    """Load the existing LAN token or generate and persist a new one."""
+    """Load or generate the LAN token. Upgrades short legacy tokens to 64-char."""
     try:
         token = open(TOKEN_FILE).read().strip()
-        if token:
+        if len(token) >= 48:   # 48+ chars = already long enough
             return token
     except FileNotFoundError:
         pass
-    token = secrets.token_hex(16)
+    token = secrets.token_hex(32)   # 64-char hex — brute force infeasible
     with open(TOKEN_FILE, "w") as f:
         f.write(token)
-    os.chmod(TOKEN_FILE, 0o600)   # owner-read only
+    os.chmod(TOKEN_FILE, 0o600)
     return token
 
 
 _lan_token: Optional[str] = _get_or_create_token() if _LAN_MODE else None
+
+
+# ─── Rate limiting ────────────────────────────────────────────────────────────
+# Simple in-process sliding window: max 20 write requests per IP per minute.
+# Prevents spam injection and brute-force token guessing on write endpoints.
+
+import time as _time
+
+_rate_buckets: dict[str, list] = {}
+_rate_lock = threading.Lock()
+_RATE_WINDOW = 60    # seconds
+_RATE_MAX    = 20    # requests per window per IP
+
+
+def _rate_ok(ip: str) -> bool:
+    now = _time.time()
+    with _rate_lock:
+        bucket = [t for t in _rate_buckets.get(ip, []) if now - t < _RATE_WINDOW]
+        if len(bucket) >= _RATE_MAX:
+            return False
+        bucket.append(now)
+        _rate_buckets[ip] = bucket
+    return True
+
+
+# ─── Input validation helpers ─────────────────────────────────────────────────
+
+_PRINTABLE    = re.compile(r"[^\x20-\x7E]")
+_SHELL_CHARS  = re.compile(r'[$`\\;|&><()\[\]{}!]')
+_CHAR_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z '\-]{0,48}[A-Za-z]$|^[A-Za-z]$")
+
+
+def _sanitize_input(text: str) -> str:
+    """Strip control chars and shell metacharacters from player input text."""
+    text = _SHELL_CHARS.sub("", text)
+    text = _PRINTABLE.sub("", text)
+    return text[:500].strip()
+
+
+def _char_ok(name: str, known: set) -> bool:
+    """Return True if character name is syntactically valid and in the party."""
+    if not _CHAR_NAME_RE.match(name):
+        return False
+    if known and name not in known and name != "Everybody":
+        return False
+    return True
+
+
+# ─── Device approval system ───────────────────────────────────────────────────
+# Each browser generates a UUID device ID (localStorage). On first input attempt
+# from an unseen LAN device, the request is held and the DM sees an Approve/Deny
+# card on the display. Localhost is auto-approved. Denied devices are blocked for
+# the session.
+
+_approved_devices: set[str]       = set()
+_denied_devices:   set[str]       = set()
+_pending_devices:  dict[str, dict] = {}  # device_id -> {ip, first_seen}
+_devices_lock = threading.Lock()
+
+
+def _device_ok(device_id: str, ip: str) -> str:
+    """Return 'approved', 'pending', or 'denied' for a given device."""
+    if not device_id:
+        return "denied"
+    with _devices_lock:
+        if device_id in _approved_devices:
+            return "approved"
+        if device_id in _denied_devices:
+            return "denied"
+        # Localhost always auto-approved
+        if ip in ("127.0.0.1", "::1"):
+            _approved_devices.add(device_id)
+            return "approved"
+        # New LAN device — hold and notify DM
+        if device_id not in _pending_devices:
+            _pending_devices[device_id] = {
+                "id":         device_id,
+                "ip":         ip,
+                "first_seen": _time.time(),
+            }
+            _broadcast({"device_request": {"id": device_id, "ip": ip}})
+        return "pending"
+
+
+# ─── Staged input system ──────────────────────────────────────────────────────
+# Players stage their actions from the display companion UI. When all expected
+# players mark ready, the combined action is written to TRIGGER_FILE for
+# wrapper.py to inject into Claude's PTY stdin.
+
+_staged: dict[str, dict] = {}   # {char_name: {text, ready, timestamp}}
+_staged_lock = threading.Lock()
+_expected_count = 1             # updated when stats arrive; min 1
+_autorun_threshold: Optional[int] = None  # overrides _expected_count when set via push_stats --autorun-threshold
+
+# Tracks which character names are currently sitting in .input_queue waiting
+# for the DM to press Enter. Set when queue is written, cleared when wrapper
+# POSTs /queue/consumed after injection. Persists through page reloads via SSE
+# initial data and is broadcast to all connected clients on change.
+_queue_status: list = []
+_queue_status_lock = threading.Lock()
+
+# Last autorun cycle broadcast — replayed on SSE reconnect so late-joining
+# clients start the countdown from the correct elapsed position.
+# Cleared when autorun_waiting=false (turn resolved or autorun disabled).
+_autorun_cycle: Optional[dict] = None
+_autorun_cycle_lock = threading.Lock()
+
+
+def _staged_snapshot() -> dict:
+    """Return a serialisable copy of the staged dict (no IP field)."""
+    return {k: {"text": v["text"], "ready": v["ready"]} for k, v in _staged.items()}
+
+
+def _check_auto_trigger() -> None:
+    """Move staged-and-ready actions into the DM-gated queue file (.input_queue).
+
+    .input_queue is NOT injected immediately — wrapper.py picks it up the next
+    time the DM presses Enter (or Claude explicitly triggers via .input_trigger).
+    This gives the DM control over when player actions enter Claude's context.
+    """
+    with _staged_lock:
+        if not _staged:
+            return
+        everybody_ready = "Everybody" in _staged and _staged["Everybody"]["ready"]
+        all_ready       = all(v["ready"] for v in _staged.values())
+        threshold       = _autorun_threshold if _autorun_threshold is not None else _expected_count
+        enough          = len(_staged) >= threshold or everybody_ready
+        if not (all_ready and enough):
+            return
+        char_names = list(_staged.keys())
+        lines      = [f'[{c}]: {e["text"]}' for c, e in _staged.items()]
+        content    = "\n".join(lines)
+        _staged.clear()
+
+    try:
+        with open(QUEUE_FILE, "w") as f:
+            f.write(content)
+    except Exception:
+        char_names = []
+
+    if char_names:
+        with _queue_status_lock:
+            _queue_status.clear()
+            _queue_status.extend(char_names)
+    _broadcast({"staged_inputs": {}, "queue_status": list(char_names)})
 
 
 def _token_ok() -> bool:
@@ -425,7 +579,20 @@ def _is_chrome(line: str) -> bool:
         return True
 
     # Status-bar patterns: cost, token counts, rate-limit bars
-    if re.search(r"Tokens\s+\d|5hr:|7d:|Session:|Total:\s*\$", c):
+    # Note: "Tokens300/0" has no space — use \s* not \s+
+    if re.search(r"Tokens\s*\d|5hr:|7d:|Session:|Total:\s*\$", c):
+        return True
+
+    # Model/plan header lines ("Sonnet 4.6", "Claude Pro", "Professional", etc.)
+    if re.search(r"Sonnet|Haiku|Opus|Claude\s*(Pro|Max|Team|Code)\b|Professional\b|claude-\d", c, re.I):
+        return True
+
+    # Tool-use labels emitted by Claude CLI ("Bash command", "Read command", etc.)
+    if re.match(r"^(Bash|Read|Write|Edit|Glob|Grep|WebFetch|WebSearch|TaskCreate|TaskUpdate|TaskGet|TaskList|NotebookEdit|Agent|ToolSearch|ExitPlanMode|EnterPlanMode|ScheduleWakeup|Monitor|RemoteTrigger|CronCreate|CronDelete|CronList|AskUserQuestion)(\s+(command|tool|result|call))?$", c, re.I):
+        return True
+
+    # Timestamp-prefixed lines ("3ts ago …", "2m ago …") — UI timestamps concatenated with content
+    if re.match(r"^\d+\s*[smhdt]+s?\s*(ago\s*)?[A-Z]", c):
         return True
 
     # Bare numbers (token counts, cursor column positions, etc.)
@@ -565,6 +732,34 @@ def _load_stats() -> None:
 
 
 _load_stats()
+
+
+# ─── Player input queue ───────────────────────────────────────────────────────
+# Stores actions submitted from the display companion (iPad etc.) until the DM
+# triggers the next turn. Drained by check_input.py via /player-input/drain.
+
+_input_queue: list[dict] = []
+_input_lock = threading.Lock()
+
+
+def _load_input_queue() -> None:
+    global _input_queue
+    try:
+        with open(INPUT_FILE) as f:
+            _input_queue = json.load(f)
+    except Exception:
+        _input_queue = []
+
+
+def _persist_input_queue() -> None:
+    try:
+        with open(INPUT_FILE, "w") as f:
+            json.dump(_input_queue, f)
+    except Exception:
+        pass
+
+
+_load_input_queue()
 
 
 def _broadcast(payload: dict) -> None:
@@ -752,8 +947,44 @@ def stats():
 
         current = dict(_current_stats)
 
+    # autorun_waiting / autorun_cycle — display-only signals, not stored in stats
+    if "autorun_waiting" in data:
+        if not data["autorun_waiting"]:
+            # Turn resolved — clear stored cycle so reconnecting clients don't see stale pie
+            global _autorun_cycle
+            with _autorun_cycle_lock:
+                _autorun_cycle = None
+        _broadcast({"autorun_waiting": bool(data["autorun_waiting"])})
+        if not any(k in data for k in ("players", "turn_order", "world_time", "factions",
+                                        "replace_players", "sheet", "autorun_cycle")):
+            return "", 204
+
+    if "autorun_cycle" in data:
+        with _autorun_cycle_lock:
+            _autorun_cycle = data["autorun_cycle"]
+        _broadcast({"autorun_cycle": data["autorun_cycle"]})
+        if not any(k in data for k in ("players", "turn_order", "world_time", "factions",
+                                        "replace_players", "sheet", "autorun_threshold")):
+            return "", 204
+
+    if "autorun_threshold" in data:
+        global _autorun_threshold
+        val = data["autorun_threshold"]
+        _autorun_threshold = int(val) if val is not None else None
+        _broadcast({"autorun_threshold": _autorun_threshold})
+        if not any(k in data for k in ("players", "turn_order", "world_time", "factions",
+                                        "replace_players", "sheet")):
+            return "", 204
+
     _persist_stats()
     _broadcast({"stats": current})
+
+    # Update expected player count for staged-input auto-trigger
+    global _expected_count
+    with _stats_lock:
+        players = _current_stats.get("players", [])
+    _expected_count = max(1, len(players))
+
     return "", 204
 
 
@@ -848,6 +1079,270 @@ def help_request():
     return "", 202
 
 
+@app.route("/player-input", methods=["POST"])
+def player_input():
+    """Queue a player action submitted from the display companion.
+
+    Body: {"character": "Kat", "text": "I draw my rapier", "hold": false}
+    Broadcasts pending_input event to all connected browsers.
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+
+    import time
+    data = request.get_json(force=True, silent=True) or {}
+    character = str(data.get("character", "Party"))[:50]
+    text = str(data.get("text", ""))[:500]
+    hold = bool(data.get("hold", False))
+
+    # Strip shell metacharacters — input is player dialogue/action, not commands
+    text = re.sub(r"[`\\$]", "", text).strip()
+    if not text:
+        return "empty", 400
+
+    entry = {
+        "character": character,
+        "text": text,
+        "hold": hold,
+        "timestamp": time.time(),
+    }
+
+    with _input_lock:
+        _input_queue.append(entry)
+        current = list(_input_queue)
+
+    _persist_input_queue()
+    _broadcast({"pending_input": current})
+    return "", 204
+
+
+@app.route("/device/approve", methods=["POST"])
+def device_approve():
+    """DM approves a pending device. Body: {"id": "<device_id>"}"""
+    if not _token_ok():
+        return "Forbidden", 403
+    device_id = str((request.get_json(force=True, silent=True) or {}).get("id", ""))
+    with _devices_lock:
+        _pending_devices.pop(device_id, None)
+        _approved_devices.add(device_id)
+    _broadcast({"device_approved": device_id})
+    return "", 204
+
+
+@app.route("/device/deny", methods=["POST"])
+def device_deny():
+    """DM denies a pending device. Body: {"id": "<device_id>"}"""
+    if not _token_ok():
+        return "Forbidden", 403
+    device_id = str((request.get_json(force=True, silent=True) or {}).get("id", ""))
+    with _devices_lock:
+        _pending_devices.pop(device_id, None)
+        _denied_devices.add(device_id)
+    _broadcast({"device_denied": device_id})
+    return "", 204
+
+
+@app.route("/player-input/stage", methods=["POST"])
+def stage_input():
+    """Stage a player action for review. Broadcasts staged_inputs to all displays.
+
+    Body: {"character": "Kat", "text": "draws her rapier"}
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+    if not _rate_ok(request.remote_addr):
+        return "Too Many Requests", 429
+
+    device_id = request.headers.get("X-DND-Device", "")
+    status    = _device_ok(device_id, request.remote_addr)
+    if status == "denied":
+        return "Forbidden", 403
+    if status == "pending":
+        return jsonify({"status": "pending"}), 202
+
+    data      = request.get_json(force=True, silent=True) or {}
+    character = str(data.get("character", ""))[:50].strip()
+    text      = _sanitize_input(str(data.get("text", "")))
+
+    if not character or not text:
+        return "Bad Request", 400
+
+    with _stats_lock:
+        known = {p["name"] for p in _current_stats.get("players", [])}
+    if not _char_ok(character, known):
+        return "Forbidden", 403
+
+    with _staged_lock:
+        _staged[character] = {
+            "text":      text,
+            "ready":     False,
+            "timestamp": _time.time(),
+        }
+        snap = _staged_snapshot()
+
+    _broadcast({"staged_inputs": snap})
+    return "", 204
+
+
+@app.route("/player-input/ready", methods=["POST"])
+def ready_input():
+    """Toggle the ready flag for a staged character.
+
+    Body: {"character": "Kat", "ready": true}
+    Triggers auto-fire when all expected players are ready.
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+    if not _rate_ok(request.remote_addr):
+        return "Too Many Requests", 429
+
+    device_id = request.headers.get("X-DND-Device", "")
+    status    = _device_ok(device_id, request.remote_addr)
+    if status == "denied":
+        return "Forbidden", 403
+    if status == "pending":
+        return jsonify({"status": "pending"}), 202
+
+    data      = request.get_json(force=True, silent=True) or {}
+    character = str(data.get("character", ""))[:50].strip()
+    ready     = bool(data.get("ready", True))
+
+    with _staged_lock:
+        if character not in _staged:
+            return "Not Found", 404
+        _staged[character]["ready"] = ready
+        snap = _staged_snapshot()
+
+    _broadcast({"staged_inputs": snap})
+
+    if ready:
+        _check_auto_trigger()
+
+    return "", 204
+
+
+@app.route("/player-input/unstage", methods=["POST"])
+def unstage_input():
+    """Remove a character's staged action (e.g. player wants to edit it).
+
+    Body: {"character": "Kat"}
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+
+    device_id = request.headers.get("X-DND-Device", "")
+    if _device_ok(device_id, request.remote_addr) != "approved":
+        return "Forbidden", 403
+
+    data      = request.get_json(force=True, silent=True) or {}
+    character = str(data.get("character", ""))[:50].strip()
+
+    with _staged_lock:
+        _staged.pop(character, None)
+        snap = _staged_snapshot()
+
+    _broadcast({"staged_inputs": snap})
+    return "", 204
+
+
+@app.route("/player-input/skip", methods=["POST"])
+def skip_input():
+    """Skip a character's turn — stages a 'skips their turn' entry marked ready.
+
+    Counts toward the auto-trigger threshold and fires auto-trigger if threshold met.
+    Body: {"character": "Kat"}
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+
+    device_id = request.headers.get("X-DND-Device", "")
+    if _device_ok(device_id, request.remote_addr) != "approved":
+        return "Forbidden", 403
+
+    data      = request.get_json(force=True, silent=True) or {}
+    character = str(data.get("character", ""))[:50].strip()
+    if not character:
+        return "Bad Request", 400
+
+    with _stats_lock:
+        known = {p["name"] for p in _current_stats.get("players", [])}
+    if not _char_ok(character, known):
+        return "Forbidden", 403
+
+    with _staged_lock:
+        _staged[character] = {
+            "text":      "skips their turn",
+            "ready":     True,
+            "timestamp": _time.time(),
+        }
+        snap = _staged_snapshot()
+
+    _broadcast({"staged_inputs": snap})
+    _check_auto_trigger()
+    return "", 204
+
+
+@app.route("/queue/consumed", methods=["POST"])
+def queue_consumed():
+    """Called by wrapper.py after it injects .input_queue into the PTY.
+
+    Clears the server-side queue_status and broadcasts to all clients so
+    the 'Queued — fires on DM Enter' indicator disappears on every display.
+    Token required (called from localhost by the wrapper, but checked for
+    consistency).
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+    with _queue_status_lock:
+        _queue_status.clear()
+    _broadcast({"queue_status": [], "dm_processing": True})
+    return "", 204
+
+
+@app.route("/player-input/submit-now", methods=["POST"])
+def submit_now():
+    """Promote .input_queue → .input_trigger for immediate injection.
+
+    Called by the DM or Claude when they want to process queued player actions
+    right now rather than waiting for the DM's next CLI Enter press.
+    Token required (DM-only action).
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+    try:
+        content = open(QUEUE_FILE).read()
+        os.unlink(QUEUE_FILE)
+    except FileNotFoundError:
+        return "No queue", 204
+    except Exception:
+        return "Error", 500
+    try:
+        with open(TRIGGER_FILE, "w") as f:
+            f.write(content)
+    except Exception:
+        return "Error", 500
+    return "", 204
+
+
+@app.route("/player-input/drain", methods=["POST"])
+def drain_player_input():
+    """Read and clear the player input queue. Called by check_input.py at turn start.
+
+    Returns the drained entries as JSON, then broadcasts pending_input: [] to
+    clear the indicator on all connected displays.
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+
+    with _input_lock:
+        drained = list(_input_queue)
+        _input_queue.clear()
+
+    _persist_input_queue()
+    _broadcast({"pending_input": []})
+    return jsonify(drained), 200
+
+
 @app.route("/stream")
 def stream():
     q: queue.Queue = queue.Queue(maxsize=256)
@@ -871,11 +1366,40 @@ def stream():
         if _current_stats:
             q.put_nowait({"stats": dict(_current_stats)})
 
+    # Send current input queue so the pending indicator is accurate on reconnect.
+    with _input_lock:
+        if _input_queue:
+            q.put_nowait({"pending_input": list(_input_queue)})
+
+    # Send current staged inputs so the panel reflects live state on reconnect.
+    with _staged_lock:
+        if _staged:
+            q.put_nowait({"staged_inputs": _staged_snapshot()})
+
+    # Send current queue status so the 'Queued' indicator survives page reload.
+    with _queue_status_lock:
+        if _queue_status:
+            q.put_nowait({"queue_status": list(_queue_status)})
+
+    # Replay autorun cycle so reconnecting clients resume the countdown from correct elapsed position.
+    with _autorun_cycle_lock:
+        if _autorun_cycle:
+            q.put_nowait({"autorun_cycle": dict(_autorun_cycle)})
+
+    # Replay threshold so the ready counter reflects the correct target on reconnect.
+    if _autorun_threshold is not None:
+        q.put_nowait({"autorun_threshold": _autorun_threshold})
+
+    # Send any pending device approval requests so the DM sees them on reconnect.
+    with _devices_lock:
+        for dev in list(_pending_devices.values()):
+            q.put_nowait({"device_request": {"id": dev["id"], "ip": dev["ip"]}})
+
     def generate():
         try:
             while True:
                 try:
-                    payload = q.get(timeout=20)
+                    payload = q.get(timeout=5)
                     yield f"data: {json.dumps(payload)}\n\n"
                 except queue.Empty:
                     yield ": keepalive\n\n"   # prevent proxy timeout
@@ -886,15 +1410,20 @@ def stream():
                 except ValueError:
                     pass
 
-    return Response(
+    resp = Response(
         generate(),
         mimetype="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
+            "Transfer-Encoding": "chunked",
         },
     )
+    # Force a single authoritative Connection header — Werkzeug otherwise
+    # emits both keep-alive (ours) and close (its default), which confuses
+    # transparent proxies (e.g. eero mesh routing) into buffering the stream.
+    resp.headers["Connection"] = "keep-alive"
+    return resp
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -905,14 +1434,23 @@ if __name__ == "__main__":
         _audio.set_broadcast(_broadcast)
 
     host = "0.0.0.0" if _LAN_MODE else "localhost"
+    # TLS — use cert/key if present, otherwise plain HTTP
+    _display_dir = os.path.dirname(os.path.abspath(__file__))
+    _cert = os.path.join(_display_dir, "cert.pem")
+    _key  = os.path.join(_display_dir, "key.pem")
+    ssl_ctx = (_cert, _key) if os.path.exists(_cert) and os.path.exists(_key) else None
+    scheme  = "https" if ssl_ctx else "http"
+
     if _LAN_MODE:
-        print("DnD DM Display — LAN mode (0.0.0.0:5001)")
-        print("  Local:  http://localhost:5001")
+        print(f"DnD DM Display — LAN mode (0.0.0.0:5001) [{scheme.upper()}]")
+        print(f"  Local:  {scheme}://localhost:5001")
         print("  Token stored at:", TOKEN_FILE)
         print("  POST endpoints require X-DND-Token header (send.py/push_stats.py handle this automatically)")
+        if ssl_ctx:
+            print("  TLS: self-signed cert — browser will warn, click through once")
         print()
     else:
-        print("DnD DM Display — Flask server starting on http://localhost:5001")
-        print("Open http://localhost:5001 in your browser, then Chromecast the tab.")
+        print(f"DnD DM Display — Flask server starting on {scheme}://localhost:5001")
+        print(f"Open {scheme}://localhost:5001 in your browser, then Chromecast the tab.")
         print()
-    app.run(host=host, port=5001, threaded=True, debug=False)
+    app.run(host=host, port=5001, threaded=True, debug=False, ssl_context=ssl_ctx)
