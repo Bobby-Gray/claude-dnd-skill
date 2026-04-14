@@ -927,6 +927,18 @@
     pointer-events: auto;
   }
   #audio-controls:hover { opacity: 0.85; }
+  .speed-label {
+    font-family: 'Cinzel', serif;
+    font-size: 7.5px;
+    letter-spacing: 1.5px;
+    color: rgba(180,140,60,0.75);
+    text-transform: uppercase;
+    min-width: 42px;
+    text-align: right;
+    cursor: pointer;
+    user-select: none;
+  }
+  .speed-label:hover { color: rgba(220,185,100,1); }
 
   /* ── DM Help button ── */
   #dm-help-btn {
@@ -1033,6 +1045,10 @@
   <div class="audio-row" id="sfx-row" title="Sound effects (triggered by narration)">
     <span class="audio-label">Sound Effects</span>
     <div class="toggle-track" id="sfx-track"><div class="toggle-thumb"></div></div>
+  </div>
+  <div class="audio-row" id="speed-row" title="Typing speed — click to cycle">
+    <span class="audio-label">Type Speed</span>
+    <span id="speed-label" class="speed-label">Normal</span>
   </div>
 </div>
 
@@ -1668,7 +1684,14 @@ let currentCursor = null;
 let lastChunkTime = Date.now();
 let idleTimer     = null;
 
-const CHAR_DELAY = 18;   // ms per character while typing
+// Auto-scroll: only follow if the user hasn't scrolled up
+let userScrolledUp = false;
+textScroll.addEventListener('scroll', () => {
+  const distFromBottom = textScroll.scrollHeight - textScroll.scrollTop - textScroll.clientHeight;
+  userScrolledUp = distFromBottom > 80;
+});
+
+let charDelay = 18;      // ms per character while typing (mutable — see speed toggle)
 const IDLE_GAP   = 1800; // ms silence before starting a new block
 
 function getOrCreateBlock() {
@@ -1711,7 +1734,7 @@ function typeNextChar() {
   if (currentCursor) currentCursor.classList.add('typing-cursor');
 
   scrollToBottom();
-  setTimeout(typeNextChar, CHAR_DELAY);
+  setTimeout(typeNextChar, charDelay);
 }
 
 function startTyping() {
@@ -2006,6 +2029,7 @@ function clearDisplay(then) {
 
     textContent.innerHTML = '';
     textScroll.scrollTop  = 0;
+    userScrolledUp = false;
     textContent.style.opacity = '1';
 
     if (then) then();
@@ -2040,7 +2064,9 @@ function handleIncomingText(text) {
 }
 
 function scrollToBottom() {
-  textScroll.scrollTop = textScroll.scrollHeight;
+  if (!userScrolledUp) {
+    textScroll.scrollTop = textScroll.scrollHeight;
+  }
 }
 
 function renderReplay(text) {
@@ -2762,6 +2788,21 @@ document.getElementById('sfx-row').addEventListener('click', () => {
       body: JSON.stringify({ sfx: _sfxOn }),
     });
   } catch (_) {}
+});
+
+// ── Typing speed toggle ──────────────────────────────────────────────
+const _speedSteps = [
+  { label: 'Normal',  ms: 18 },
+  { label: 'Fast',    ms: 7  },
+  { label: 'Instant', ms: 1  },
+];
+let _speedIdx = 0;
+const _speedLabel = document.getElementById('speed-label');
+document.getElementById('speed-row').addEventListener('click', () => {
+  _speedIdx = (_speedIdx + 1) % _speedSteps.length;
+  const step = _speedSteps[_speedIdx];
+  charDelay = step.ms;
+  _speedLabel.textContent = step.label;
 });
 
 // ═══════════════════════════════════════════════════════════════════
