@@ -3,7 +3,7 @@
 
 > Claude runs the game. You play. The TV shows the story. Your phone is your controller.
 
-An unofficial D&D 5e Dungeon Master skill for [Claude Code](https://claude.ai/code) — persistent campaigns, full 5e mechanics, and an optional cinematic display companion that Chromecasts typewriter narration, dice rolls, and live character stats to your TV while players submit their actions from a phone or tablet.
+An unofficial D&D 5e Dungeon Master skill for [Claude Code](https://claude.ai/code) — persistent campaigns, full 5e mechanics, and an optional cinematic display companion that streams typewriter narration, dice rolls, and live character stats to any screen — TV via Chromecast, tablet, phone, or second monitor — while players submit their actions from a phone or tablet.
 
 Built for groups who want a real DM experience without needing one at the table.
 
@@ -204,7 +204,7 @@ Long rests advance the in-world clock in `state.md`.
 
 ## Cinematic Display Companion
 
-An optional local web server (`display/app.py`) that renders the session on any screen — designed to be Chromecasted to a TV during play, with players submitting actions from their phones.
+An optional local web server (`display/app.py`) that renders DM narration on any screen — TV, tablet, phone, or second monitor. Cast it, mirror it, or open it on any device on your local network.
 
 ### Setup
 
