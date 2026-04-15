@@ -1030,6 +1030,19 @@
   #player-input-text:focus { border-color: rgba(180,140,60,0.45); }
   #player-input-text::placeholder { color: rgba(180,140,60,0.28); }
   #input-footer { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+  #skip-turn-btn {
+    font-family: 'Cinzel', serif; font-size: 8px;
+    letter-spacing: 1.8px; text-transform: uppercase;
+    color: rgba(190,100,70,0.72); background: rgba(20,6,3,0.45);
+    border: 1px dashed rgba(170,85,55,0.38);
+    border-radius: 3px; padding: 6px 14px;
+    cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+    margin-right: auto;
+  }
+  #skip-turn-btn:hover {
+    color: rgba(215,120,80,0.95); border-color: rgba(195,100,65,0.65);
+    background: rgba(35,10,5,0.65);
+  }
   #stage-btn {
     font-family: 'Cinzel', serif; font-size: 8px;
     letter-spacing: 1.8px; text-transform: uppercase;
@@ -1312,6 +1325,7 @@
     </div>
     <textarea id="player-input-text" rows="2" placeholder="Enter action or dialogue…" maxlength="500"></textarea>
     <div id="input-footer">
+      <button id="skip-turn-btn" style="display:none" title="Skip this character's turn">Skip Turn</button>
       <button id="stage-btn">Stage</button>
     </div>
   </div>
@@ -3120,6 +3134,7 @@ const _inputArrow      = document.getElementById('input-toggle-arrow');
 const _charTabs        = document.getElementById('char-tabs');
 const _inputText       = document.getElementById('player-input-text');
 const _stageBtn        = document.getElementById('stage-btn');
+const _skipTurnBtn     = document.getElementById('skip-turn-btn');
 const _stagedQueueEl   = document.getElementById('staged-queue');
 const _waitingEl       = document.getElementById('waiting-indicator');
 
@@ -3148,6 +3163,7 @@ function _buildCharTabs(players) {
       _charTabs.querySelectorAll('.char-tab').forEach(b =>
         b.classList.toggle('active', b.dataset.char === name)
       );
+      _skipTurnBtn.style.display = name === 'Everybody' ? 'none' : '';
     });
     _charTabs.appendChild(btn);
   });
@@ -3371,6 +3387,7 @@ async function _skipTurn(char) {
 }
 
 _stageBtn.addEventListener('click', _stageAction);
+_skipTurnBtn.addEventListener('click', () => _skipTurn(_selectedChar));
 
 // Ctrl/Cmd+Enter stages from textarea
 _inputText.addEventListener('keydown', e => {
