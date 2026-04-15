@@ -74,7 +74,7 @@ Players who take creative risks, commit hard to a roleplay choice, or do somethi
   SKILL-scripts.md   ← all Python script syntax (load at session start)
   SKILL-commands.md  ← all /dnd command procedures (load at session start)
   scripts/           ← dice.py, combat.py, character.py, tracker.py, calendar.py, lookup.py
-  data/              ← local 5e SRD datasets (populated by /dnd data pull)
+  data/              ← bundled 5e SRD dataset (dnd5e_srd.json — no download needed; sync via /dnd data sync)
   templates/         ← blank character-sheet.md, state.md, world.md, npcs.md, session-log.md
   display/           ← Flask SSE display companion (app.py, send.py, push_stats.py, wrapper.py)
 

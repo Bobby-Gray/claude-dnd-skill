@@ -109,13 +109,13 @@ Exit the current session **without saving any state changes**. Use this when an 
 
 ---
 
-## `/dnd data [pull|status]`
-- `pull` → `python3 ~/.claude/skills/dnd/scripts/data_pull.py`
-- `pull --force` → re-download all files
-- `status` → `python3 ~/.claude/skills/dnd/scripts/data_pull.py --status`
-- No argument → print status and quick-start instructions
+## `/dnd data [sync|status]`
+- `sync` → `python3 ~/.claude/skills/dnd/scripts/sync_srd.py` — checks upstream SHAs (5e-bits + FoundryVTT) and rebuilds `dnd5e_srd.json` only if either source has new commits
+- `sync --force` → `python3 ~/.claude/skills/dnd/scripts/sync_srd.py --force` — rebuild regardless
+- `sync --check` → check upstream without rebuilding
+- `status` → `python3 ~/.claude/skills/dnd/scripts/build_srd.py --status` — show current dataset metadata
 
-Files stored in `~/.claude/skills/dnd/data/`. Safe to run at any time. Run once after initial skill setup, then when you want to update.
+Dataset is bundled at `~/.claude/skills/dnd/data/dnd5e_srd.json` (1453 records: spells, equipment, magic items, conditions, monsters, class features). No download required at runtime. Run `sync` only when you want to pull new upstream content.
 
 ---
 

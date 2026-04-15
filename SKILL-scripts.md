@@ -287,24 +287,32 @@ Default files searched: state, log, archive, world, npcs
 
 ---
 
-## Data Commands — `scripts/data_pull.py` and `scripts/lookup.py`
+## Data Commands — `scripts/sync_srd.py`, `scripts/build_srd.py`, and `scripts/lookup.py`
+
+Dataset is bundled at `~/.claude/skills/dnd/data/dnd5e_srd.json`. No runtime download required.
 
 ```bash
-# Fetch (run once after install, or to refresh):
-python3 ~/.claude/skills/dnd/scripts/data_pull.py           # download missing files
-python3 ~/.claude/skills/dnd/scripts/data_pull.py --force   # re-download all
-python3 ~/.claude/skills/dnd/scripts/data_pull.py --status
+# Check / rebuild dataset (only needed when upstream sources update):
+python3 ~/.claude/skills/dnd/scripts/sync_srd.py             # rebuild if 5e-bits or FoundryVTT has new commits
+python3 ~/.claude/skills/dnd/scripts/sync_srd.py --check     # check upstream SHAs, don't rebuild
+python3 ~/.claude/skills/dnd/scripts/sync_srd.py --force     # always rebuild
+python3 ~/.claude/skills/dnd/scripts/build_srd.py --status   # show current dataset metadata
 
-# Lookup during play:
-python3 ~/.claude/skills/dnd/scripts/lookup.py monster "goblin"
+# Lookup during play (CLI):
 python3 ~/.claude/skills/dnd/scripts/lookup.py spell "fireball"
-python3 ~/.claude/skills/dnd/scripts/lookup.py condition "poisoned"
-python3 ~/.claude/skills/dnd/scripts/lookup.py equipment "explorer's pack"
 python3 ~/.claude/skills/dnd/scripts/lookup.py item "cloak of protection"
+python3 ~/.claude/skills/dnd/scripts/lookup.py feature "sneak attack"
+python3 ~/.claude/skills/dnd/scripts/lookup.py condition "poisoned"
+python3 ~/.claude/skills/dnd/scripts/lookup.py monster "goblin"
 python3 ~/.claude/skills/dnd/scripts/lookup.py monster "dragon" --all   # all fuzzy matches
+
+# Programmatic (used by display companion /srd-lookup endpoint):
+from lookup import lookup, lookup_record, lookup_with_level
+lookup("fireball", category="spell")                  # → formatted string
+lookup_with_level("sneak attack", category="feature", level=3)  # → level-resolved string
 ```
 
-**When to use:** combat (look up any monster you didn't create before using its stats); spellcasting (range, components, duration, scaling); conditions (rule text before applying); loot and equipment; NPC generation (use monster stat block as mechanical base).
+**When to use:** combat (monster stat blocks before using them); spellcasting (range, components, duration, at-higher-levels); conditions (rule text before applying); loot and equipment; NPC generation (monster stat block as mechanical base). The display companion's character sheet modal handles lookups automatically during play — these CLI calls are for DM reference outside the UI.
 
 ---
 
