@@ -6,8 +6,9 @@ display/text_log.json
 display/.token
 display/tracker.json
 
-# SRD data — downloaded at runtime via scripts/data_pull.py, not committed
-data/
+# SRD data runtime cache (individual pulled files) — not committed
+data/*.json.bak
+data/*.tmp
 
 # Python
 __pycache__/

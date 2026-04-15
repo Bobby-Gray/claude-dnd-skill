@@ -17,6 +17,7 @@ Endpoints:
     POST /player-input/ready   → mark a staged action as ready
     POST /player-input/unstage → remove a staged action
     POST /player-input/skip    → skip a character's turn (stages + readies a skip entry)
+    GET  /srd-lookup           → look up a spell/item/feature/condition by name
 """
 
 import hmac
@@ -33,6 +34,19 @@ from typing import Optional
 from flask import Flask, Response, request, render_template, jsonify
 from flask_cors import CORS
 
+LOG_FILE      = os.path.expanduser("~/.claude/skills/dnd/display/text_log.json")
+SCRIPTS_DIR   = os.path.expanduser("~/.claude/skills/dnd/scripts")
+
+# SRD lookup module — degrades silently if dataset not built
+if SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, SCRIPTS_DIR)
+try:
+    import lookup as _lookup
+    _SRD_AVAILABLE = True
+except Exception:
+    _lookup = None          # type: ignore
+    _SRD_AVAILABLE = False
+
 # Audio module — degrades silently if numpy not installed
 _AUDIO_DIR = os.path.dirname(os.path.abspath(__file__))
 import sys as _sys
@@ -43,8 +57,6 @@ try:
     _audio.init()
 except Exception:
     _audio = None   # type: ignore
-
-LOG_FILE      = os.path.expanduser("~/.claude/skills/dnd/display/text_log.json")
 HELP_LOCK     = os.path.expanduser("~/.claude/skills/dnd/display/.help-lock")
 CAMP_FILE     = os.path.expanduser("~/.claude/skills/dnd/display/.campaign")
 STATS_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/stats.json")
@@ -780,6 +792,34 @@ def _broadcast(payload: dict) -> None:
 def index():
     # Pass LAN token to template so the browser can authenticate /help-request
     return render_template("index.html", lan_token=_lan_token or "")
+
+
+@app.route("/srd-lookup")
+def srd_lookup():
+    """Look up a spell, item, condition, feature, or monster by name.
+
+    Query params:
+        name      — the name to look up (required)
+        category  — spell | item | equipment | magic_item | condition | monster | feature (optional)
+        level     — character level (1–20); collapses scale progressions to the matching entry
+
+    Returns JSON: {"found": bool, "name": str, "category": str, "text": str}
+    """
+    name     = request.args.get("name", "").strip()[:120]
+    category = request.args.get("category", "").strip().lower() or None
+    level_s  = request.args.get("level", "").strip()
+    level    = int(level_s) if level_s.isdigit() and 1 <= int(level_s) <= 20 else None
+    if not name:
+        return jsonify({"found": False, "error": "name required"}), 400
+    if not _SRD_AVAILABLE or _lookup is None:
+        return jsonify({"found": False, "error": "SRD dataset not loaded"}), 503
+
+    text = _lookup.lookup_with_level(name, category=category, level=level)
+    if text:
+        rec = _lookup.lookup_record(name, category=category)
+        resolved_cat = (rec or {}).get("_cat", category or "")
+        return jsonify({"found": True, "name": name, "category": resolved_cat, "text": text})
+    return jsonify({"found": False, "name": name})
 
 
 @app.route("/ping")
