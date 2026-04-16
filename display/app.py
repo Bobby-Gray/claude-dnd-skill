@@ -819,7 +819,9 @@ def srd_lookup():
         rec = _lookup.lookup_record(name, category=category)
         resolved_cat = (rec or {}).get("_cat", category or "")
         return jsonify({"found": True, "name": name, "category": resolved_cat, "text": text})
-    return jsonify({"found": False, "name": name})
+    # Not found — return wikidot fallback URL so the frontend can offer a link
+    wurl = _lookup.wikidot_url(name, category=category)
+    return jsonify({"found": False, "name": name, "wikidot_url": wurl})
 
 
 @app.route("/ping")

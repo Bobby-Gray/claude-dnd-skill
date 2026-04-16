@@ -2982,7 +2982,10 @@ function openSrdModal(name, category, level) {
     .then(r => r.json())
     .then(data => {
       if (!data.found) {
-        body.innerHTML = `<div id="srd-not-found">"${_esc(name)}" is not in the 5e core SRD.<br><span style="font-size:10px;opacity:0.6">May be from a supplement (Xanathar's, Tasha's, etc.)</span></div>`;
+        const linkHtml = data.wikidot_url
+          ? `<br><a href="${data.wikidot_url}" target="_blank" rel="noopener" style="color:#c9a84c;font-size:11px;opacity:0.85;text-decoration:none;">View on D&D 5e Wiki ↗</a>`
+          : `<br><span style="font-size:10px;opacity:0.6">May be from a supplement (Xanathar's, Tasha's, etc.)</span>`;
+        body.innerHTML = `<div id="srd-not-found">"${_esc(name)}" is not in the local dataset.${linkHtml}</div>`;
         return;
       }
       badge.textContent = data.category || '';
@@ -3030,9 +3033,13 @@ document.getElementById('sheet-content').addEventListener('click', e => {
   const el = e.target.closest('[data-srd-name]');
   if (!el) return;
   e.stopPropagation();
-  const level = _openSheetName && _playerData[_openSheetName]
-    ? (_playerData[_openSheetName].level || null)
-    : null;
+  const pd = _openSheetName && _playerData[_openSheetName];
+  // Prefer explicit level field; fall back to trailing number in class string ("Rogue 3" → 3)
+  let level = pd ? (pd.level || null) : null;
+  if (!level && pd && pd.class) {
+    const m = pd.class.match(/\b(\d+)\s*$/);
+    if (m) level = parseInt(m[1]);
+  }
   openSrdModal(el.dataset.srdName, el.dataset.srdCategory || '', level);
 });
 

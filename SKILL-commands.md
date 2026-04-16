@@ -146,6 +146,11 @@ Read `~/.claude/dnd/campaigns/*/state.md`, print summary table: campaign name | 
 7. Write to `characters/<name>.md` using `templates/character-sheet.md`; set `## Campaign History → Origin campaign`
 8. Add to `state.md` party line
 9. Mirror to global roster: `cp characters/<name>.md ~/.claude/dnd/characters/<name>.md`
+10. Run supplemental builder to fetch any non-SRD spells/features the character uses:
+    ```bash
+    python3 ~/.claude/skills/dnd/scripts/build_supplemental.py --character ~/.claude/dnd/campaigns/<name>/characters/<charname>.md
+    ```
+    This scans the character file for spells and features not in the SRD and fetches descriptions from dnd5e.wikidot.com into `dnd5e_supplemental.json`. Skips any entries already present. Safe to re-run.
 
 ---
 
@@ -161,7 +166,11 @@ Read `characters/<name>.md`, display cleanly. If name omitted and one character 
 3. Copy to current campaign's `characters/<name>.md`. Update: Campaign, Last Updated, Previous campaigns, Death Saves (reset).
 4. Optionally ask about equipment adjustment for new setting.
 5. Add to `state.md` party line. Update global roster.
-6. Deliver one-paragraph in-character aside — how does it feel to step into a new world?
+6. Run supplemental builder for any non-SRD entries:
+    ```bash
+    python3 ~/.claude/skills/dnd/scripts/build_supplemental.py --character ~/.claude/dnd/campaigns/<name>/characters/<charname>.md
+    ```
+7. Deliver one-paragraph in-character aside — how does it feel to step into a new world?
 
 ---
 

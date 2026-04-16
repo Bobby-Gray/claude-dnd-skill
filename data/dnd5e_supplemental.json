@@ -1,0 +1,80 @@
+{
+  "_meta": {
+    "description": "Supplemental entries for non-SRD content used in active campaigns",
+    "sources": ["Xanathar's Guide to Everything", "Player's Handbook (Thief Archetype)"]
+  },
+  "spells": [
+    {
+      "name": "Toll the Dead",
+      "index": "toll-the-dead",
+      "level": 0,
+      "school": "Necromancy",
+      "casting_time": "1 action",
+      "range": "60 feet",
+      "components": ["V", "S"],
+      "duration": "Instantaneous",
+      "concentration": false,
+      "ritual": false,
+      "classes": ["Cleric", "Warlock", "Wizard"],
+      "description": "You point at one creature you can see within range, and the sound of a dolorous bell fills the air around it for a moment. The target must succeed on a Wisdom saving throw or take 1d8 necrotic damage. If the target is missing any of its hit points, it instead takes 1d12 necrotic damage.\n\nThe spell's damage increases by one die when you reach 5th level (2d8 or 2d12), 11th level (3d8 or 3d12), and 17th level (4d8 or 4d12).",
+      "source": "Xanathar's Guide to Everything, p. 169",
+      "wikidot_url": "https://dnd5e.wikidot.com/spell:toll-the-dead"
+    }
+  ],
+  "features": [
+    {
+      "name": "Circle of Spores",
+      "index": "circle-of-spores",
+      "class": "Druid",
+      "level_req": 2,
+      "description": "The Circle of Spores druid views living and dead matter as interconnected parts of the same cycle of life. Death is not an end but a transition — the spores of decay become the seeds of new growth. Druids of this circle harness that connection, animating the recently dead and infecting living creatures with transformative fungal growth.\n\nSpells always prepared (Circle Spells): Blindness/Deafness (2nd), Gentle Repose (2nd).",
+      "source": "Xanathar's Guide to Everything, p. 23",
+      "wikidot_url": "https://dnd5e.wikidot.com/druid:circle-of-spores"
+    },
+    {
+      "name": "Halo of Spores",
+      "index": "halo-of-spores",
+      "class": "Druid",
+      "level_req": 2,
+      "description": "Starting at 2nd level, you are surrounded by invisible, necrotic spores that are harmless until you unleash them on a creature nearby. When a creature you can see moves into a space within 10 feet of you or starts its turn there, you can use your reaction to deal 1d4 necrotic damage to that creature unless it succeeds on a Constitution saving throw against your spell save DC.\n\nThe necrotic damage increases to 1d6 at 6th level, 1d8 at 10th level, and 1d10 at 14th level.",
+      "source": "Xanathar's Guide to Everything, p. 23",
+      "wikidot_url": "https://dnd5e.wikidot.com/druid:halo-of-spores"
+    },
+    {
+      "name": "Symbiotic Entity",
+      "index": "symbiotic-entity",
+      "class": "Druid",
+      "level_req": 2,
+      "description": "Also at 2nd level, you gain the ability to channel magic into your spores. As an action, you can expend a use of your Wild Shape feature to awaken those spores, rather than transforming into a beast form, and you gain 4 temporary hit points for each level you have in this class.\n\nWhile this feature is active, you gain the following benefits:\n- When you deal your Halo of Spores damage, roll the damage die a second time and add it to the total.\n- Your melee weapon attacks deal an extra 1d6 necrotic damage to any target they hit.\n\nThese benefits last for 10 minutes, until you lose all these temporary hit points, or until you use your Wild Shape again.",
+      "source": "Xanathar's Guide to Everything, p. 23",
+      "wikidot_url": "https://dnd5e.wikidot.com/druid:symbiotic-entity"
+    },
+    {
+      "name": "Fungal Infestation",
+      "index": "fungal-infestation",
+      "class": "Druid",
+      "level_req": 3,
+      "description": "When a Small or Medium beast or humanoid dies within 10 feet of you, you can use your reaction to animate it as a zombie. The zombie acts after all other creatures' turns and follows your mental commands (no action required). It lasts for 1 hour, until it drops to 0 hit points, or until you die.\n\nThe maximum number of zombies you can have active at once equals your Wisdom modifier (3 at current level).",
+      "source": "Xanathar's Guide to Everything, p. 23 (adapted)",
+      "wikidot_url": "https://dnd5e.wikidot.com/druid:fungal-infestation"
+    },
+    {
+      "name": "Fast Hands",
+      "index": "fast-hands",
+      "class": "Rogue",
+      "level_req": 3,
+      "description": "Starting at 3rd level, you can use the bonus action granted by your Cunning Action to make a Dexterity (Sleight of Hand) check, use your thieves' tools to disarm a trap or open a lock, or take the Use an Object action.",
+      "source": "Player's Handbook, p. 97 (Thief Archetype)",
+      "wikidot_url": "https://dnd5e.wikidot.com/rogue:fast-hands"
+    },
+    {
+      "name": "Second-Story Work",
+      "index": "second-story-work",
+      "class": "Rogue",
+      "level_req": 3,
+      "description": "When you choose this archetype at 3rd level, you gain the ability to climb faster than normal; climbing no longer costs you extra movement.\n\nIn addition, when you make a running jump, the distance you cover increases by a number of feet equal to your Dexterity modifier.",
+      "source": "Player's Handbook, p. 97 (Thief Archetype)",
+      "wikidot_url": "https://dnd5e.wikidot.com/rogue:second-story-work"
+    }
+  ]
+}

@@ -174,12 +174,34 @@ DNDEND
 ```
 Brief NPC interjections within narration don't need a separate block.
 
-*DM narration* — **CRITICAL:** compose the complete narration first, then call `send.py` as the very last action. Never call `send.py` mid-response. The send must contain the **complete, unabridged text** — do not summarize or condense. Include the closing prompt and any action context in the same block:
+*DM narration* — **CRITICAL:** compose the complete narration first, then call `send.py` as the very last action. Never call `send.py` mid-response. The send must contain the **complete, unabridged text** — do not summarize or condense. **Bundle all stat changes (HP, spell slots, conditions, concentration, inventory) into this same send.py call** using `--stat-*` flags — no separate `push_stats.py` call needed for turn-resolution state:
 ```bash
-python3 ~/.claude/skills/dnd/display/send.py << 'DNDEND'
+# With stat changes (any HP/slot/condition that changed this turn):
+python3 ~/.claude/skills/dnd/display/send.py \
+  --stat-hp "Kat:12:17" \
+  --stat-slot-use "Ben:1" \
+  --stat-condition-add "Kat:Poisoned" << 'DNDEND'
 [full narration text, word for word — every paragraph, closing prompt, roll outcome summaries]
 DNDEND
+
+# Without stat changes (nothing changed this turn):
+python3 ~/.claude/skills/dnd/display/send.py << 'DNDEND'
+[full narration text]
+DNDEND
 ```
+
+**Stat flags — what to bundle with the narration send:**
+| Flag | Format | Trigger |
+|------|--------|---------|
+| `--stat-hp` | `"NAME:CUR:MAX"` | Damage taken or healed |
+| `--stat-temp-hp` | `"NAME:N"` | Temp HP set (Symbiotic Entity, Aid, etc.) |
+| `--stat-slot-use` | `"NAME:LEVEL"` | Spell cast (expend slot) |
+| `--stat-slot-restore` | `"NAME:LEVEL"` | Slot restored mid-encounter |
+| `--stat-condition-add` | `"NAME:CONDITION"` | Condition applied |
+| `--stat-condition-remove` | `"NAME:CONDITION"` | Condition ends |
+| `--stat-concentrate` | `"NAME:SPELL"` | Concentration starts (empty SPELL = clear) |
+| `--stat-inventory-add` | `"NAME:ITEM"` | Item gained |
+| `--stat-inventory-remove` | `"NAME:ITEM"` | Item spent or given away |
 
 **Batching rule — ONE Bash call per response, multiple typed sends inside it:**
 
@@ -197,8 +219,8 @@ python3 ~/.claude/skills/dnd/display/send.py --dice << 'DNDEND'
 Serath — Stealth: d20+7 = 21 → Clean.
 DNDEND
 
-# 3. DM narration
-python3 ~/.claude/skills/dnd/display/send.py << 'DNDEND'
+# 3. DM narration + stat changes bundled
+python3 ~/.claude/skills/dnd/display/send.py --stat-hp "Serath:14:18" << 'DNDEND'
 The gate swings inward on silence. Beyond: cold stone, darkness, the mineral smell of something very old.
 DNDEND
 
@@ -208,7 +230,7 @@ python3 ~/.claude/skills/dnd/display/send.py --npc "Innkeeper" << 'DNDEND'
 DNDEND
 ```
 
-**Block order:** `--player` → `--dice` → plain narration → `--npc` → `--tutor` (if tutor mode active)
+**Block order:** `--player` → `--dice` → plain narration (with `--stat-*` flags) → `--npc` → `--tutor` (if tutor mode active)
 
 **Per-turn combat sequence (follow exactly):**
 ```
@@ -217,11 +239,11 @@ b. Roll all dice (combat.py attack / dice.py)
 c. send.py --dice    ← ALL roll results with context
 d. tracker.py        ← conditions, concentration, death saves if applicable
 e. Write full narration for this turn
-f. send.py           ← send complete narration — NEVER skip
-g. push_stats.py --player NAME --hp  ← update any changed HP
-h. push_stats.py --turn-current      ← advance turn pointer
+f. send.py [--stat-*] ← send complete narration + ALL stat changes — NEVER skip
+g. push_stats.py --turn-current  ← advance turn pointer (still separate — not a narration)
 ```
 Step (f) is the most commonly missed. Every narration block must be sent.
+Step (g) uses `push_stats.py --turn-current` directly because it has no narration to bundle with.
 
 ---
 

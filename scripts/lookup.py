@@ -25,7 +25,8 @@ import os
 import re
 import sys
 
-DATA_FILE = os.path.expanduser("~/.claude/skills/dnd/data/dnd5e_srd.json")
+DATA_FILE        = os.path.expanduser("~/.claude/skills/dnd/data/dnd5e_srd.json")
+SUPPLEMENTAL_FILE = os.path.expanduser("~/.claude/skills/dnd/data/dnd5e_supplemental.json")
 
 # Category aliases → canonical dataset key
 CATEGORY_MAP = {
@@ -51,7 +52,7 @@ ALL_CATEGORIES = ["spells", "equipment", "magic_items", "conditions", "monsters"
 
 # ─── Data loading / index ─────────────────────────────────────────────────────
 
-_data: dict = {}          # raw dataset keyed by category
+_data: dict = {}          # raw dataset keyed by category (SRD + supplemental merged)
 _index: dict = {}         # {category: {normalized_name: record}}
 _loaded = False
 
@@ -60,14 +61,29 @@ def _load() -> None:
     global _data, _index, _loaded
     if _loaded:
         return
-    if not os.path.exists(DATA_FILE):
-        _data   = {}
-        _index  = {}
-        _loaded = True
-        return
-    with open(DATA_FILE) as f:
-        raw = json.load(f)
-    _data = {k: v for k, v in raw.items() if k != "_meta"}
+
+    _data = {}
+
+    # Load primary SRD
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE) as f:
+            raw = json.load(f)
+        for k, v in raw.items():
+            if k != "_meta":
+                _data[k] = list(v)  # copy so we can safely extend
+
+    # Merge supplemental (non-SRD content) — adds without overwriting SRD entries
+    if os.path.exists(SUPPLEMENTAL_FILE):
+        with open(SUPPLEMENTAL_FILE) as f:
+            supp = json.load(f)
+        for k, v in supp.items():
+            if k == "_meta":
+                continue
+            existing_names = {_norm(r.get("name", "")) for r in _data.get(k, [])}
+            for r in v:
+                if _norm(r.get("name", "")) not in existing_names:
+                    _data.setdefault(k, []).append(r)
+
     _index = {}
     for cat, records in _data.items():
         idx = {}
@@ -75,7 +91,6 @@ def _load() -> None:
             name = r.get("name", "")
             key  = _norm(name)
             idx[key] = r
-            # Also index by index field if present
             if r.get("index") and r["index"] != key:
                 idx[r["index"]] = r
         _index[cat] = idx
@@ -226,6 +241,37 @@ FORMATTERS = {
     "monsters":    _fmt_monster,
     "features":    _fmt_feature,
 }
+
+
+# ─── Wikidot fallback URL ─────────────────────────────────────────────────────
+
+def wikidot_url(name: str, category: str = None, record: dict = None) -> str:
+    """Return a wikidot.com URL for a name that wasn't found in the dataset.
+
+    Uses the record's own wikidot_url field if present (supplemental entries),
+    otherwise constructs a URL from the category and name slug.
+    Falls back to a site search for unknown categories.
+    """
+    if record and record.get("wikidot_url"):
+        return record["wikidot_url"]
+
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    # Map internal category keys back to wikidot path prefixes
+    _PREFIXES = {
+        "spells":     "spell",
+        "spell":      "spell",
+        "conditions": "condition",
+        "condition":  "condition",
+        "monsters":   "monster",
+        "monster":    "monster",
+        "equipment":  "equipment",
+        "magic_items": "magic-items",
+    }
+    prefix = _PREFIXES.get(category or "")
+    if prefix:
+        return f"https://dnd5e.wikidot.com/{prefix}:{slug}"
+    # For features and unknowns: direct slug URL (wikidot search is unavailable)
+    return f"https://dnd5e.wikidot.com/{slug}"
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────

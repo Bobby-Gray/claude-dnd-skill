@@ -29,15 +29,14 @@ else
 fi
 LOCAL_URL="${SCHEME}://localhost:5001"
 
-# Check if already running (skip TLS verification for self-signed cert)
-if curl -sk "$LOCAL_URL/ping" > /dev/null 2>&1; then
-    echo "Display already running at $LOCAL_URL"
-    if [[ -n "$LAN_IP" ]]; then
-        echo "LAN access: ${SCHEME}://$LAN_IP:5001"
-    fi
-    open "$LOCAL_URL" 2>/dev/null || true
-    exit 0
+# Always force-kill our specific instance so updated app.py is always loaded.
+# Use PID file first (precise), then path-based kill scoped to this directory (safe).
+if [[ -f "$PID_FILE" ]]; then
+    kill -9 "$(cat "$PID_FILE")" 2>/dev/null || true
+    rm -f "$PID_FILE"
 fi
+pkill -9 -f "python3.*${DISPLAY_DIR}/app\.py" 2>/dev/null || true
+sleep 0.3
 
 # Start Flask server in background
 nohup python3 "$DISPLAY_DIR/app.py" $LAN_FLAG > "$LOG" 2>&1 &
