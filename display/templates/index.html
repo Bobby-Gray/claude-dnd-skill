@@ -581,6 +581,58 @@
     text-overflow: ellipsis;
   }
 
+  /* ── Timed effects ── */
+  .sb-effects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 4px;
+  }
+  .sb-effect-pill {
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: rgba(60,110,60,0.2);
+    color: rgba(130,190,130,0.7);
+    border: 1px solid rgba(70,130,70,0.3);
+    white-space: nowrap;
+    cursor: default;
+  }
+  .sb-effect-pill.conc {
+    background: rgba(90,60,140,0.2);
+    color: rgba(170,140,220,0.75);
+    border-color: rgba(130,90,190,0.35);
+  }
+  .sb-effect-pill.warning {
+    background: rgba(150,90,20,0.3);
+    color: rgba(220,155,55,0.9);
+    border-color: rgba(180,120,30,0.4);
+    animation: effect-warn 1.4s ease-in-out infinite;
+  }
+  @keyframes effect-warn {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.45; }
+  }
+
+  /* ── Effect expiry block in feed ── */
+  .effect-expired-block {
+    margin: 0.4em 0 1.6em;
+    opacity: 0;
+    animation: fadeIn 0.3s ease forwards;
+    text-align: center;
+  }
+  .effect-expired-result {
+    display: inline-block;
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: rgba(190,120,50,0.85);
+    padding: 0.25em 1.2em;
+    border: 1px solid rgba(190,120,50,0.25);
+    border-radius: 1px;
+    text-shadow: 0 0 8px rgba(190,120,50,0.25);
+  }
+
   /* ── Features (Second Wind etc) ── */
   .sb-features {
     margin-top: 4px;
@@ -2630,6 +2682,19 @@ function _buildPlayerCard(p, solo) {
     card.appendChild(concEl);
   }
 
+  // Timed effects
+  {
+    const effects = p.effects || [];
+    const effEl = document.createElement('div');
+    effEl.className = 'sb-effects';
+    effEl.dataset.role = 'effects';
+    effects.forEach(eff => {
+      const pill = _makeEffectPill(eff, p.name);
+      effEl.appendChild(pill);
+    });
+    card.appendChild(effEl);
+  }
+
   // Spell slots
   if (p.spell_slots && Object.keys(p.spell_slots).length) {
     const ROMAN = ['','I','II','III','IV','V','VI','VII','VIII','IX'];
@@ -3051,6 +3116,92 @@ document.getElementById('sidebar').addEventListener('click', function(e) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSheet();
 });
+
+// ── Timed effect helpers ──────────────────────────────────────────────────────
+
+function _fmtDuration(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s <= 0) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    return min > 0 ? `${h}h ${min}m` : `${h}h`;
+  }
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+function _makeEffectPill(eff, ownerName) {
+  const pill = document.createElement('span');
+  const isConc = eff.concentration;
+  let warn = false;
+
+  if (eff.duration_type === 'rounds') {
+    const r = eff.duration_remaining || 0;
+    pill.textContent = `⧗ ${eff.name} · ${r} rnd`;
+    warn = r <= 2;
+    pill.dataset.durationType = 'rounds';
+  } else if (eff.duration_type === 'minutes' || eff.duration_type === 'hours') {
+    const expireAt = (eff.started_at + eff.duration_seconds) * 1000;
+    const remaining = Math.max(0, expireAt - Date.now());
+    pill.textContent = `⧗ ${eff.name} ${_fmtDuration(remaining)}`;
+    warn = remaining < eff.duration_seconds * 100;  // last 10%
+    pill.dataset.durationType = 'time';
+    pill.dataset.expireAt     = expireAt;
+    pill.dataset.totalMs      = eff.duration_seconds * 1000;
+    pill.dataset.owner        = ownerName;
+    pill.dataset.spell        = eff.name;
+  } else {
+    pill.textContent = `⧗ ${eff.name} ∞`;
+    pill.dataset.durationType = 'indefinite';
+  }
+
+  pill.className = 'sb-effect-pill' + (isConc ? ' conc' : '') + (warn ? ' warning' : '');
+  return pill;
+}
+
+function renderEffectExpiredBlock(owner, name, wasConcentration) {
+  _flushForBlock();
+  const block = document.createElement('div');
+  block.className = 'effect-expired-block';
+  const inner = document.createElement('div');
+  inner.className = 'effect-expired-result';
+  const icon = wasConcentration ? '◈' : '⧗';
+  inner.textContent = `${icon} ${name} (${owner}) — ${wasConcentration ? 'concentration ends' : 'expired'}`;
+  block.appendChild(inner);
+  textContent.appendChild(block);
+  textScroll.scrollTop = textScroll.scrollHeight;
+}
+
+// Countdown ticker — updates time-based effect pills every second
+setInterval(() => {
+  document.querySelectorAll('.sb-effect-pill[data-duration-type="time"]').forEach(pill => {
+    if (pill.dataset.fired) return;
+    const expireAt = +pill.dataset.expireAt;
+    const remaining = Math.max(0, expireAt - Date.now());
+    const spell = pill.dataset.spell;
+    pill.textContent = `⧗ ${spell} ${_fmtDuration(remaining)}`;
+
+    const totalMs = +pill.dataset.totalMs || 1;
+    const warn = remaining < totalMs * 0.1 || remaining < 10000;
+    const isConc = pill.classList.contains('conc');
+    pill.className = 'sb-effect-pill' + (isConc ? ' conc' : '') + (warn ? ' warning' : '');
+
+    if (remaining <= 0) {
+      pill.dataset.fired = '1';
+      const owner = pill.dataset.owner;
+      fetch('/effects/expire', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(_dndToken ? {'X-DND-Token': _dndToken} : {}),
+        },
+        body: JSON.stringify({owner, name: spell}),
+      }).catch(() => {});
+    }
+  });
+}, 1000);
 
 // ── Stats update ─────────────────────────────────────────────────────────────
 
@@ -3777,6 +3928,10 @@ function connect() {
         if (el) el.style.display = 'none';
         _stopAutorunCountdown();
       }
+    }
+    if (payload.effect_expired) {
+      const ev = payload.effect_expired;
+      renderEffectExpiredBlock(ev.owner, ev.name, ev.was_concentration);
     }
     if (payload.device_request) {
       _showDeviceRequest(payload.device_request);

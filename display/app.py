@@ -907,6 +907,7 @@ def stats():
     if not data:
         return "", 204
 
+    _effect_expire_events: list[dict] = []
     with _stats_lock:
         if "players" in data:
             # replace_players=true wipes the list first — used on campaign load
@@ -924,6 +925,7 @@ def stats():
                     "_conditions_add", "_conditions_remove",
                     "_slot_use", "_slot_restore",
                     "_hd_use", "_hd_restore",
+                    "_effect_start", "_effect_end",
                 }
                 if match:
                     for key, val in incoming.items():
@@ -965,6 +967,34 @@ def stats():
                                 hd.get("remaining", 0) + int(val),
                                 hd.get("max", 99)
                             )
+                        elif key == "_effect_start":
+                            # val is an effect dict: {name, duration_type, ...}
+                            spell_name = val.get("name", "")
+                            effects = match.setdefault("effects", [])
+                            # Replace any existing effect with the same name
+                            match["effects"] = [
+                                e for e in effects
+                                if e.get("name", "").lower() != spell_name.lower()
+                            ]
+                            match["effects"].append(val)
+                            # Sync concentration field if this is a conc effect
+                            if val.get("concentration") and spell_name:
+                                match["concentration"] = spell_name
+                        elif key == "_effect_end":
+                            # val is the spell name string
+                            spell_lower = str(val).lower()
+                            removed = [
+                                e for e in match.get("effects", [])
+                                if e.get("name", "").lower() == spell_lower
+                            ]
+                            match["effects"] = [
+                                e for e in match.get("effects", [])
+                                if e.get("name", "").lower() != spell_lower
+                            ]
+                            # If the ended effect was concentration, also clear it
+                            if removed and any(e.get("concentration") for e in removed):
+                                if match.get("concentration", "").lower() == spell_lower:
+                                    match["concentration"] = None
                         elif isinstance(val, dict) and isinstance(match.get(key), dict):
                             match[key].update(val)
                         else:
@@ -975,9 +1005,38 @@ def stats():
                         {k: v for k, v in incoming.items() if k not in _MUTATION_KEYS}
                     )
 
-        # turn_order replaces entirely (None = clear)
+        # turn_order replaces entirely (None = clear); also ticks round-based effects
+        _effect_expire_events: list[dict] = []
         if "turn_order" in data:
-            _current_stats["turn_order"] = data["turn_order"]
+            new_to = data["turn_order"]
+            _current_stats["turn_order"] = new_to
+            # Decrement round-based effects for the actor whose turn just started
+            if new_to and isinstance(new_to, dict) and new_to.get("current"):
+                actor = new_to["current"].lower()
+                for p in _current_stats.get("players", []):
+                    if p.get("name", "").lower() != actor:
+                        continue
+                    kept, expired = [], []
+                    for eff in p.get("effects", []):
+                        if eff.get("duration_type") == "rounds":
+                            eff = dict(eff)  # don't mutate in-place
+                            eff["duration_remaining"] = max(0, eff.get("duration_remaining", 1) - 1)
+                            if eff["duration_remaining"] <= 0:
+                                expired.append(eff)
+                            else:
+                                kept.append(eff)
+                        else:
+                            kept.append(eff)
+                    p["effects"] = kept
+                    for eff in expired:
+                        was_conc = eff.get("concentration", False)
+                        if was_conc and p.get("concentration", "").lower() == eff["name"].lower():
+                            p["concentration"] = None
+                        _effect_expire_events.append({
+                            "owner": p["name"],
+                            "name": eff["name"],
+                            "was_concentration": was_conc,
+                        })
 
         # world_time replaces entirely
         if "world_time" in data:
@@ -1020,6 +1079,9 @@ def stats():
 
     _persist_stats()
     _broadcast({"stats": current})
+    # Broadcast any round-based effect expiries after the stats update
+    for evt in _effect_expire_events:
+        _broadcast({"effect_expired": evt})
 
     # Update expected player count for staged-input auto-trigger
     global _expected_count
@@ -1027,6 +1089,46 @@ def stats():
         players = _current_stats.get("players", [])
     _expected_count = max(1, len(players))
 
+    return "", 204
+
+
+@app.route("/effects/expire", methods=["POST"])
+def effects_expire():
+    """Called by browser when a time-based effect countdown reaches zero.
+    Removes the effect from stats, clears concentration if applicable,
+    and broadcasts effect_expired to all connected clients.
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+    data  = request.get_json(silent=True) or {}
+    owner = data.get("owner", "").strip()
+    name  = data.get("name", "").strip()
+    if not owner or not name:
+        return "", 400
+
+    expire_evt = None
+    with _stats_lock:
+        for p in _current_stats.get("players", []):
+            if p.get("name", "").lower() != owner.lower():
+                continue
+            was_conc   = False
+            new_effects = []
+            for e in p.get("effects", []):
+                if e.get("name", "").lower() == name.lower():
+                    was_conc = e.get("concentration", False)
+                    if was_conc and p.get("concentration", "").lower() == name.lower():
+                        p["concentration"] = None
+                else:
+                    new_effects.append(e)
+            p["effects"] = new_effects
+            expire_evt = {"owner": p["name"], "name": name, "was_concentration": was_conc}
+            break
+        current = dict(_current_stats)
+
+    if expire_evt:
+        _broadcast({"effect_expired": expire_evt})
+    _broadcast({"stats": current})
+    _persist_stats()
     return "", 204
 
 

@@ -49,6 +49,10 @@ Usage:
     #   --stat-concentrate "NAME:SPELL"       (empty SPELL = clear)
     #   --stat-inventory-add    "NAME:ITEM"
     #   --stat-inventory-remove "NAME:ITEM"
+    #
+    # Timed effect flags:
+    #   --effect-start "NAME:SPELL:DURATION"   DURATION: 10r/60m/8h/indef  optional :conc
+    #   --effect-end   "NAME:SPELL"            narrative end (broken/dispelled)
 """
 
 import sys
@@ -56,6 +60,7 @@ import json
 import argparse
 import os
 import ssl
+import time
 import urllib.request
 
 FLASK_URL   = "https://localhost:5001/chunk"
@@ -164,6 +169,50 @@ def _build_stats_payload(args) -> "dict | None":
             if item.strip():
                 _p(name)["_inventory_remove"] = item.strip()
 
+    for spec in (args.effect_start or []):
+        # Format: NAME:SPELL:DURATION[:conc]
+        # DURATION: 10r (rounds), 60m (minutes), 8h (hours), indef (indefinite)
+        parts = spec.split(":", 3)
+        if len(parts) < 3:
+            continue
+        name     = parts[0].strip()
+        spell    = parts[1].strip()
+        dur_str  = parts[2].strip().lower()
+        is_conc  = len(parts) == 4 and parts[3].strip().lower() == "conc"
+        if not name or not spell:
+            continue
+        effect: dict = {"name": spell, "concentration": is_conc}
+        if dur_str.endswith("r"):
+            try:
+                effect["duration_type"]      = "rounds"
+                effect["duration_remaining"] = int(dur_str[:-1])
+            except ValueError:
+                continue
+        elif dur_str.endswith("m"):
+            try:
+                effect["duration_type"]    = "minutes"
+                effect["duration_seconds"] = int(dur_str[:-1]) * 60
+                effect["started_at"]       = time.time()
+            except ValueError:
+                continue
+        elif dur_str.endswith("h"):
+            try:
+                effect["duration_type"]    = "hours"
+                effect["duration_seconds"] = int(dur_str[:-1]) * 3600
+                effect["started_at"]       = time.time()
+            except ValueError:
+                continue
+        else:
+            effect["duration_type"] = "indefinite"
+        _p(name)["_effect_start"] = effect
+
+    for spec in (args.effect_end or []):
+        idx = spec.find(":")
+        if idx > 0:
+            name, spell = spec[:idx], spec[idx + 1:]
+            if spell.strip():
+                _p(name)["_effect_end"] = spell.strip()
+
     if not players:
         return None
     return {"players": list(players.values())}
@@ -211,6 +260,10 @@ def main() -> None:
         help="Add inventory item: NAME:ITEM")
     parser.add_argument("--stat-inventory-remove", action="append", metavar="NAME:ITEM",
         help="Remove inventory item: NAME:ITEM")
+    parser.add_argument("--effect-start", action="append", metavar="NAME:SPELL:DURATION",
+        help="Start a timed effect: NAME:SPELL:DURATION (10r/60m/8h/indef) optionally :conc")
+    parser.add_argument("--effect-end", action="append", metavar="NAME:SPELL",
+        help="End a timed effect: NAME:SPELL (narrative end — broken, dispelled, player drops)")
 
     args = parser.parse_args()
 
