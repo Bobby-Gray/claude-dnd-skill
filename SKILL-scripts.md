@@ -203,10 +203,18 @@ If `check_input.py` returns output, prepend it to the player's terminal input wh
 ---
 
 ## Tracker Script — `scripts/tracker.py`
-Tracks conditions, concentration, and death saves. State persists at `~/.claude/dnd/campaigns/<name>/tracker.json`.
+Tracks conditions, concentration, timed effects, and death saves. State persists at `~/.claude/dnd/campaigns/<name>/tracker.json`.
 
 ```bash
 CAMP=my-campaign
+
+# Timed effects — duration: 10r (rounds), 60m (minutes), 8h (hours), indef
+# Append 'conc' to mark as concentration (auto-sets concentration field)
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect start "Ben" "Web" 10r conc
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect start "Kat" "Disguise Self" 1h
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect start "Kat" "Hunter's Mark" indef
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect end   "Ben" "Web"   # narrative end (broken/dispelled)
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect tick  "Ben"         # call on actor's turn — decrements rounds, prints expiry
 
 # Conditions
 python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP condition add "Mira" poisoned
@@ -226,7 +234,7 @@ python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP saves "Mira" reset
 # Status / clear
 python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP status
 python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP status "Mira"
-python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP clear           # conditions + concentration
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP clear           # conditions + concentration + effects
 python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP clear --all     # also clears death saves
 ```
 

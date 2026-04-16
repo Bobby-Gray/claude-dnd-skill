@@ -202,6 +202,8 @@ DNDEND
 | `--stat-concentrate` | `"NAME:SPELL"` | Concentration starts (empty SPELL = clear) |
 | `--stat-inventory-add` | `"NAME:ITEM"` | Item gained |
 | `--stat-inventory-remove` | `"NAME:ITEM"` | Item spent or given away |
+| `--effect-start` | `"NAME:SPELL:DURATION"` | Start timed effect — DURATION: `10r` / `60m` / `8h` / `indef`; append `:conc` if concentration |
+| `--effect-end` | `"NAME:SPELL"` | End effect (broken concentration, dispelled, player drops it) |
 
 **Batching rule — ONE Bash call per response, multiple typed sends inside it:**
 
@@ -238,12 +240,15 @@ a. send.py --player  ← player action (or describe NPC intent inline)
 b. Roll all dice (combat.py attack / dice.py)
 c. send.py --dice    ← ALL roll results with context
 d. tracker.py        ← conditions, concentration, death saves if applicable
+   tracker.py effect tick <actor>  ← decrement round effects; prints any expiry warnings
 e. Write full narration for this turn
 f. send.py [--stat-*] ← send complete narration + ALL stat changes — NEVER skip
+   Use --effect-start / --effect-end flags when effects begin or end this turn (syncs display)
 g. push_stats.py --turn-current  ← advance turn pointer (still separate — not a narration)
 ```
 Step (f) is the most commonly missed. Every narration block must be sent.
 Step (g) uses `push_stats.py --turn-current` directly because it has no narration to bundle with.
+`tracker.py effect tick` is the headless fallback — it fires regardless of whether the display is running.
 
 ---
 
