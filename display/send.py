@@ -247,6 +247,14 @@ def main() -> None:
         help="Send as a player action intent — subdued label echoing what the player declared",
     )
 
+    # ── Inspiration / XP award flags ─────────────────────────────────────────
+    parser.add_argument("--inspiration-award", metavar="NAME",
+        help="Award Inspiration: fires a styled gold block in the feed + sidebar badge")
+    parser.add_argument("--inspiration-spend", metavar="NAME",
+        help="Spend/clear Inspiration: removes sidebar badge")
+    parser.add_argument("--xp-award", metavar="JSON",
+        help='XP award block: \'{"names":["Aldric","Mira"],"xp":250,"reason":"Encounter resolved","total":"3250/6500"}\'')
+
     # ── Stat-change flags (Option B — bundled with narration) ─────────────────
     parser.add_argument("--stat-hp", action="append", metavar="NAME:CUR:MAX",
         help="Set HP: NAME:CURRENT:MAX (can repeat for multiple players)")
@@ -275,6 +283,34 @@ def main() -> None:
 
     text = sys.stdin.read()
     token = _read_token()
+
+    # ── Inspiration award/spend (bypass normal text flow) ─────────────────────
+    if args.inspiration_award:
+        name = args.inspiration_award.strip()
+        _post(FLASK_URL, json.dumps({"inspiration_award": name, "text": name}).encode(), token)
+        _post(STATS_URL, json.dumps({"players": [{"name": name, "inspiration": True}]}).encode(), token)
+        return
+
+    if args.inspiration_spend:
+        name = args.inspiration_spend.strip()
+        _post(STATS_URL, json.dumps({"players": [{"name": name, "inspiration": False}]}).encode(), token)
+        return
+
+    # ── XP award block ────────────────────────────────────────────────────────
+    if args.xp_award:
+        try:
+            xp_data = json.loads(args.xp_award)
+        except json.JSONDecodeError as e:
+            print(f"Invalid xp-award JSON: {e}", file=sys.stderr)
+            sys.exit(1)
+        # Build a human-readable summary if not provided
+        if "summary" not in xp_data:
+            names = ", ".join(xp_data.get("names", []))
+            amt   = xp_data.get("xp", 0)
+            rsn   = xp_data.get("reason", "")
+            xp_data["summary"] = f"{names} — {amt} XP" + (f" ({rsn})" if rsn else "")
+        _post(FLASK_URL, json.dumps({"xp_award": xp_data, "text": xp_data["summary"]}).encode(), token)
+        return
 
     # ── Text send ─────────────────────────────────────────────────────────────
     if text.strip():

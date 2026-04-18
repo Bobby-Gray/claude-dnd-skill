@@ -641,39 +641,6 @@
     line-height: 1.6;
   }
 
-  /* ── Ability scores — only rendered when 1 player ── */
-  .sb-abilities {
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(180,140,60,0.08);
-  }
-  .sb-ab-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 5px 2px;
-  }
-  .sb-ab-cell {
-    text-align: center;
-  }
-  .sb-ab-name {
-    font-family: 'Cinzel', serif;
-    font-size: 7.5px;
-    letter-spacing: 1px;
-    color: rgba(180,140,60,0.45);
-    text-transform: uppercase;
-  }
-  .sb-ab-score {
-    font-family: 'Cinzel', serif;
-    font-size: 12px;
-    color: rgba(220,200,160,0.8);
-    line-height: 1.2;
-  }
-  .sb-ab-mod {
-    font-size: 9px;
-    color: rgba(180,140,60,0.65);
-    font-family: 'IM Fell English', Georgia, serif;
-  }
-
   /* ── Player card — clickable ── */
   .sb-player {
     cursor: pointer;
@@ -913,6 +880,57 @@
   .sm-no-data {
     font-size: 12px; color: rgba(200,185,150,0.25);
     font-style: italic; text-align: center; padding: 22px 0;
+  }
+
+  /* ── Inspiration badge (sidebar) ── */
+  .sb-inspiration {
+    display: block; margin-top: 5px;
+    font-family: 'Cinzel', serif; font-size: 7.5px; letter-spacing: 1.5px;
+    text-transform: uppercase; color: rgba(220,190,60,0.85);
+    animation: inspBadgePulse 2.5s ease infinite;
+  }
+  @keyframes inspBadgePulse {
+    0%, 100% { opacity: 0.65; } 50% { opacity: 1; }
+  }
+
+  /* ── Inspiration feed block ── */
+  .inspiration-block {
+    margin-bottom: 1.6em; padding: 14px 20px;
+    border: 1px solid rgba(220,190,60,0.45);
+    border-radius: 2px; background: rgba(180,140,40,0.05);
+    text-align: center;
+    opacity: 0;
+    animation: inspirationGlow 0.9s ease forwards;
+  }
+  @keyframes inspirationGlow {
+    0%   { opacity: 0; box-shadow: 0 0 0   rgba(220,190,60,0); }
+    35%  { opacity: 1; box-shadow: 0 0 22px rgba(220,190,60,0.45); }
+    100% { opacity: 1; box-shadow: 0 0 8px  rgba(220,190,60,0.12); }
+  }
+  .inspiration-title {
+    font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 4px;
+    text-transform: uppercase; color: rgba(220,190,60,0.92);
+  }
+  .inspiration-sub {
+    font-size: 12px; font-style: italic;
+    color: rgba(220,190,60,0.55); margin-top: 3px;
+  }
+
+  /* ── XP award feed block ── */
+  .xp-block {
+    margin-bottom: 1.4em; padding: 10px 16px;
+    border-left: 2px solid rgba(140,200,120,0.35);
+    background: rgba(80,160,80,0.04);
+    opacity: 0;
+    animation: fadeIn 0.5s ease 0.1s forwards;
+  }
+  .xp-line {
+    font-size: 12px; font-family: 'Cinzel', serif;
+    letter-spacing: 1px; color: rgba(140,200,120,0.7);
+  }
+  .xp-detail {
+    font-size: 11px; color: rgba(140,200,120,0.4);
+    font-style: italic; margin-top: 2px;
   }
 
   /* ── Spell slots (sidebar) ── */
@@ -2126,12 +2144,46 @@ loop();
 const textScroll  = document.getElementById('text-scroll');
 const textContent = document.getElementById('text-content');
 
-let charQueue    = [];
-let isTyping     = false;
-let currentEl    = null;
-let currentCursor = null;
-let lastChunkTime = Date.now();
-let idleTimer     = null;
+let charQueue       = [];
+let isTyping        = false;
+let currentEl       = null;
+let currentCursor   = null;
+let _currentInlineEl = null;  // tracks open <em>/<strong> during typewriter
+let lastChunkTime   = Date.now();
+let idleTimer       = null;
+
+// ── Markdown segment parser ───────────────────────────────────────────────────
+// Converts a text string into typed queue items for the typewriter.
+// Items are either plain chars/'\n' strings, or {open:'em'}/{close:'em'} objects.
+function _mdParse(text) {
+  const items = [];
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '\n') {
+      items.push('\n'); i++; continue;
+    }
+    // Bold (**text**) — must check before single *
+    if (text[i] === '*' && text[i + 1] === '*') {
+      const end = text.indexOf('**', i + 2);
+      if (end === -1) { items.push(text[i]); i++; continue; }
+      items.push({open: 'strong'});
+      for (let j = i + 2; j < end; j++) items.push(text[j]);
+      items.push({close: 'strong'});
+      i = end + 2; continue;
+    }
+    // Italic (*text*)
+    if (text[i] === '*') {
+      const end = text.indexOf('*', i + 1);
+      if (end === -1) { items.push(text[i]); i++; continue; }
+      items.push({open: 'em'});
+      for (let j = i + 1; j < end; j++) items.push(text[j]);
+      items.push({close: 'em'});
+      i = end + 1; continue;
+    }
+    items.push(text[i]); i++;
+  }
+  return items;
+}
 
 // Auto-scroll: only follow if the user hasn't scrolled up
 let userScrolledUp = false;
@@ -2158,27 +2210,33 @@ function getOrCreateBlock() {
 function typeNextChar() {
   if (charQueue.length === 0) {
     isTyping = false;
-    // Keep cursor blinking at end
     return;
   }
 
-  const ch = charQueue.shift();
-  const p  = getOrCreateBlock();
+  const item = charQueue.shift();
+  const p    = getOrCreateBlock();
 
-  // Remove cursor class from previous paragraph
-  if (currentCursor) {
-    currentCursor.classList.remove('typing-cursor');
-  }
+  if (currentCursor) currentCursor.classList.remove('typing-cursor');
 
-  if (ch === '\n') {
-    // New paragraph inside same block
+  if (item === '\n') {
+    // New paragraph — reset inline state
+    _currentInlineEl = null;
     const next = document.createElement('p');
     currentEl.appendChild(next);
+  } else if (item && typeof item === 'object' && item.open) {
+    // Open a styled inline element inside current paragraph
+    const el = document.createElement(item.open);
+    p.appendChild(el);
+    _currentInlineEl = el;
+  } else if (item && typeof item === 'object' && item.close) {
+    // Close inline element
+    _currentInlineEl = null;
   } else {
-    p.appendChild(document.createTextNode(ch));
+    // Plain character — append to inline element if open, else to paragraph
+    const target = _currentInlineEl || p;
+    target.appendChild(document.createTextNode(item));
   }
 
-  // Apply cursor class to current last paragraph via ::after pseudo-element
   currentCursor = currentEl.querySelector('p:last-child');
   if (currentCursor) currentCursor.classList.add('typing-cursor');
 
@@ -2217,23 +2275,29 @@ function instantFlush() {
   if (charQueue.length === 0) return;
   clearTimeout(idleTimer);
   const pending = charQueue.splice(0);  // atomically drain
-  for (const ch of pending) {
-    if (ch === '\n') {
+  let flushInline = null;  // local inline tracker for this flush pass
+  for (const item of pending) {
+    if (item === '\n') {
+      flushInline = null;
       if (!currentEl) getOrCreateBlock();
       const next = document.createElement('p');
       currentEl.appendChild(next);
+    } else if (item && typeof item === 'object' && item.open) {
+      const p = getOrCreateBlock();
+      const el = document.createElement(item.open);
+      p.appendChild(el);
+      flushInline = el;
+    } else if (item && typeof item === 'object' && item.close) {
+      flushInline = null;
     } else {
       const p = getOrCreateBlock();
-      p.appendChild(document.createTextNode(ch));
+      const target = flushInline || p;
+      target.appendChild(document.createTextNode(item));
     }
   }
-  // The in-flight setTimeout(typeNextChar) will fire into an empty queue
-  // and set isTyping=false itself — force it false now so startTyping()
-  // can restart cleanly if new DM text arrives.
   isTyping = false;
-  if (currentCursor) {
-    currentCursor.classList.remove('typing-cursor');
-  }
+  _currentInlineEl = null;
+  if (currentCursor) currentCursor.classList.remove('typing-cursor');
   currentCursor = currentEl ? currentEl.querySelector('p:last-child') : null;
 }
 
@@ -2427,11 +2491,64 @@ function renderTutorBlock(text, isReplay) {
   _dmHelpReset();
 }
 
+// ── Inspiration award block ────────────────────────────────────────────────
+function renderInspirationBlock(name) {
+  _flushForBlock();
+  const block = document.createElement('div');
+  block.className = 'inspiration-block';
+  const title = document.createElement('div');
+  title.className = 'inspiration-title';
+  title.textContent = `✦  ${name}  ✦`;
+  const sub = document.createElement('div');
+  sub.className = 'inspiration-sub';
+  sub.textContent = 'Inspiration';
+  block.appendChild(title);
+  block.appendChild(sub);
+  textContent.appendChild(block);
+  _reanchorCursor();
+  scrollToBottom();
+}
+
+// ── XP award block ─────────────────────────────────────────────────────────
+function renderXpBlock(xpData) {
+  _flushForBlock();
+  const block = document.createElement('div');
+  block.className = 'xp-block';
+  const line = document.createElement('div');
+  line.className = 'xp-line';
+  // names line: "Aldric, Mira — +250 XP"
+  const names = (xpData.names || []).join(', ');
+  const amt   = xpData.xp != null ? `+${xpData.xp} XP` : '';
+  line.textContent = [names, amt].filter(Boolean).join(' — ');
+  block.appendChild(line);
+  if (xpData.reason || xpData.total) {
+    const detail = document.createElement('div');
+    detail.className = 'xp-detail';
+    const parts = [];
+    if (xpData.reason) parts.push(xpData.reason);
+    if (xpData.total)  parts.push(xpData.total);
+    detail.textContent = parts.join('  ·  ');
+    block.appendChild(detail);
+  }
+  textContent.appendChild(block);
+  _reanchorCursor();
+  scrollToBottom();
+}
+
 // ── Replay batch (reconnect / session resume) ─────────────────────────
 function renderReplayBatch(items) {
   flushNewBlock();
   items.forEach(item => {
-    if (!item || !item.text) return;
+    if (!item) return;
+    if (item.inspiration_award) {
+      renderInspirationBlock(item.inspiration_award);
+      return;
+    }
+    if (item.xp_award) {
+      renderXpBlock(item.xp_award);
+      return;
+    }
+    if (!item.text) return;
     if (item.action) {
       renderActionBlock(item.action, item.text, true);
     } else if (item.player) {
@@ -2468,8 +2585,9 @@ function clearDisplay(then) {
   textContent.style.opacity = '0';
   setTimeout(() => {
     // Abort any in-progress typewriter
-    charQueue = [];
-    isTyping  = false;
+    charQueue        = [];
+    isTyping         = false;
+    _currentInlineEl = null;
     if (currentCursor && currentCursor.parentNode) {
       currentCursor.parentNode.removeChild(currentCursor);
     }
@@ -2520,14 +2638,14 @@ function handleIncomingText(text) {
     if (!isTyping && charQueue.length === 0) flushNewBlock();
   }, IDLE_GAP * 2);
 
-  // Enqueue characters
+  // Enqueue — preprocess markdown to typed segment items
   const cleaned = text
     .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '')  // strip control chars (keep \n \t)
     .replace(/\[[\d;?]*[a-zA-Z]/g, '')           // strip leftover CSI remnants
     .replace(/\r/g, '')
     .replace(/\t/g, '  ');
-  for (const ch of cleaned) {
-    charQueue.push(ch);
+  for (const item of _mdParse(cleaned)) {
+    charQueue.push(item);
   }
 
   startTyping();
@@ -2771,25 +2889,13 @@ function _buildPlayerCard(p, solo) {
     card.appendChild(featEl);
   }
 
-  // Ability scores — only for solo play
-  if (solo && p.ability_scores) {
-    const ab = p.ability_scores;
-    const abSection = document.createElement('div');
-    abSection.className = 'sb-abilities';
-    const grid = document.createElement('div');
-    grid.className = 'sb-ab-grid';
-    ['str','dex','con','int','wis','cha'].forEach(key => {
-      const cell = document.createElement('div');
-      cell.className = 'sb-ab-cell';
-      const d = ab[key] || {};
-      cell.innerHTML = `
-        <div class="sb-ab-name">${key.toUpperCase()}</div>
-        <div class="sb-ab-score">${d.score ?? '—'}</div>
-        <div class="sb-ab-mod">${d.mod ?? '—'}</div>`;
-      grid.appendChild(cell);
-    });
-    abSection.appendChild(grid);
-    card.appendChild(abSection);
+  // Inspiration badge
+  if (p.inspiration) {
+    const badge = document.createElement('div');
+    badge.className = 'sb-inspiration';
+    badge.dataset.role = 'inspiration';
+    badge.textContent = '✦ Inspiration';
+    card.appendChild(badge);
   }
 
   // Direct listener — belt-and-suspenders alongside the delegated sidebar listener
@@ -2814,7 +2920,14 @@ let _openSheetName = null;
 function openSheet(name) {
   _openSheetName = name;
   const p = _playerData[name];
-  if (!p) return;
+  if (!p) {
+    console.warn(
+      `[DnD] openSheet("${name}"): no player data found.`,
+      'Available:', Object.keys(_playerData),
+      '— Run /dnd load to push character data.'
+    );
+    return;
+  }
   const content = document.getElementById('sheet-content');
   content.innerHTML = '';
 
@@ -2883,6 +2996,14 @@ function openSheet(name) {
   }
 
   const sheet = p.sheet || {};
+
+  // Show friendly notice when sheet data hasn't been pushed yet
+  if (!p.sheet) {
+    const noData = document.createElement('div');
+    noData.className = 'sm-no-data';
+    noData.textContent = 'Full sheet not loaded — run /dnd load to restore.';
+    content.appendChild(noData);
+  }
 
   // Attacks
   if (sheet.attacks && sheet.attacks.length) {
@@ -4024,7 +4145,13 @@ function connect() {
     if (payload.sfx) {
       _playSfx(payload.sfx);
     }
-    if (payload.text) {
+    if (payload.inspiration_award) {
+      renderInspirationBlock(payload.inspiration_award);
+    }
+    if (payload.xp_award) {
+      renderXpBlock(payload.xp_award);
+    }
+    if (payload.text && !payload.inspiration_award && !payload.xp_award) {
       if (payload.action) {
         renderActionBlock(payload.action, payload.text);
       } else if (payload.player) {
@@ -4044,7 +4171,7 @@ function connect() {
   evtSource.onerror = () => {
     evtSource.close();
     setTimeout(() => {
-      reconnectDelay = Math.min(reconnectDelay * 1.5, 15000);
+      reconnectDelay = Math.min(reconnectDelay * 1.5, 3000);
       connect();
     }, reconnectDelay);
   };

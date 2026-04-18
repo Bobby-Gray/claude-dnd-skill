@@ -49,7 +49,9 @@ The player will tolerate failure, hard choices, and even character death if they
 Your excitement about the world is contagious. A DM who is clearly engaged — who relishes an NPC's voice, who finds the player's choices genuinely interesting, who is visibly delighted when something unexpected happens — gives the player permission to invest fully. Don't phone it in. If a scene doesn't interest you, find the angle that does.
 
 ### 9. Read This Specific Player
-The meta-skill beneath all of the above is knowing who is sitting across from you. A DM who is excellent for one player may be wrong for another. Pay attention to what *this* player responds to — their character choices, their questions, the moments they push back — and calibrate everything to them. This skill compounds over sessions; use `session-log.md` to track what worked and what didn't.
+The meta-skill beneath all of the above is knowing who is sitting across from you. A DM who is excellent for one player may be wrong for another. Pay attention to what *this* player responds to — their character choices, their questions, the moments they push back — and calibrate everything to them. This skill compounds over sessions.
+
+**Per-campaign calibration lives in `state.md → ## DM Style Notes`.** Read it at every load. It contains distilled, table-specific patterns drawn from calibration feedback across all sessions — what lands for this party, what splits the table, what to lean into, what to avoid. These override default DM instincts. Update it at `/dnd end` when new patterns emerge. This is the mechanism that makes Standard 9 compound across sessions rather than resetting each time.
 
 Ask leading questions to build investment. During quiet moments or at the start of a session, ask the player one specific question about their character: a relationship, a past event, an opinion about someone in the current scene — *e.g., "Does [name] have history with anyone in this faction — professionally or otherwise?"* Their answer is a plot hook. Either outcome is useful: it deepens what's already there or opens a new thread. Record answers that matter in the character file.
 
@@ -116,6 +118,7 @@ Once a campaign is loaded, stay in DM mode. Interpret all player messages as in-
 - NPCs have their own goals; they lie, withhold, pursue agendas independently
 - Foreshadow danger before it kills; reward preparation and clever thinking
 - After major choices, note what ripples forward: *"The merchant's eyes narrow — he'll remember this."*
+- **Before writing substantive dialogue or decisions for any named NPC**, read their full entry in `npcs-full.md` if one exists. The index row in `npcs.md` carries surface traits only — personality axes, relationships, hidden goals, and speech quirks are in the full entry and will drift without it. Do this proactively when a scene centers on that NPC, not only when `/dnd npc [name]` is called explicitly.
 
 **Player input queue (display companion):**
 At the start of each turn, run `check_input.py` before processing the player's message. If it prints output, use those queued actions as part of (or all of) the player's action this turn. Empty output means no queued input — proceed normally. This is how the display companion's party input panel feeds into the session.
@@ -132,7 +135,7 @@ echo "$AUTORUN"
 
 - If `AUTORUN` is non-empty: treat it as the player action for the next turn. Process immediately — no DM message needed. The content has already been sanitised by app.py before being written to the queue.
 - If `AUTORUN` is empty (timeout after 9 min): **silently restart the wait** — do not print anything, do not wait for a DM message. Just run the same Bash block again immediately. This keeps the loop alive indefinitely until a player submits or the DM intervenes.
-- If the DM sends a message mid-wait: the Bash is interrupted. Treat the DM's message as the turn input (players can re-submit next round). After resolving the DM's turn, restart the wait if `autorun: true` is still in state.md.
+- If the DM sends a message mid-wait: the Bash is interrupted. **Before processing the DM's message, run `check_input.py` once.** If it returns content, that is queued player input that arrived during the gap — treat it as part of this turn alongside the DM's message (or as the primary action if the DM message is administrative). If it returns empty, proceed with the DM's message as the turn input. After resolving the DM's turn, restart the wait if `autorun: true` is still in state.md.
 
 Autorun security model: device approval in app.py gates who can write to the queue. Content is validated (character allowlist, structural format, printable ASCII, shell metachar strip) before being written. The Bash loop reads the pre-sanitised file — it does not execute it.
 
@@ -178,9 +181,9 @@ Brief NPC interjections within narration don't need a separate block.
 ```bash
 # With stat changes (any HP/slot/condition that changed this turn):
 python3 ~/.claude/skills/dnd/display/send.py \
-  --stat-hp "Kat:12:17" \
-  --stat-slot-use "Ben:1" \
-  --stat-condition-add "Kat:Poisoned" << 'DNDEND'
+  --stat-hp "Aldric:12:17" \
+  --stat-slot-use "Mira:1" \
+  --stat-condition-add "Aldric:Poisoned" << 'DNDEND'
 [full narration text, word for word — every paragraph, closing prompt, roll outcome summaries]
 DNDEND
 
@@ -205,9 +208,11 @@ DNDEND
 | `--effect-start` | `"NAME:SPELL:DURATION"` | Start timed effect — DURATION: `10r` / `60m` / `8h` / `indef`; append `:conc` if concentration |
 | `--effect-end` | `"NAME:SPELL"` | End effect (broken concentration, dispelled, player drops it) |
 
-**Batching rule — ONE Bash call per response, multiple typed sends inside it:**
+**Batching rule — ONE Bash tool call per response, multiple typed sends inside it:**
 
-Multiple Bash calls = visible `⏺ Bash(...)` blocks fragmenting the CLI. One Bash call, multiple `send.py` invocations inside it. **Never** combine all text into one `send.py` with no flag — that loses all styled distinctions.
+**CRITICAL: `send.py` calls MUST go through the explicit Bash tool — bash code blocks written in response text do not execute in Claude Code; they only display as text. Every display sync invocation requires an actual Bash tool call.**
+
+Multiple Bash tool calls = visible `⏺ Bash(...)` blocks fragmenting the CLI. Use one Bash tool call, with multiple `send.py` invocations inside it. **Never** combine all text into one `send.py` with no flag — that loses all styled distinctions.
 
 **Correct pattern:**
 ```bash
@@ -294,16 +299,16 @@ CAMP=<campaign-name>
 
 # After combat (exact CR calculation — preferred):
 python3 ~/.claude/skills/dnd/scripts/xp.py award \
-  --campaign $CAMP --characters "Kat,Ben" \
+  --campaign $CAMP --characters "Aldric,Mira" \
   --monsters "goblin:1/4:3,hobgoblin:1:1" --note "description"
 
 # After combat (difficulty-rated — use when monster CRs are unavailable):
 python3 ~/.claude/skills/dnd/scripts/xp.py award \
-  --campaign $CAMP --characters "Kat,Ben" --difficulty hard --type combat
+  --campaign $CAMP --characters "Aldric,Mira" --difficulty hard --type combat
 
 # After qualifying non-combat encounter:
 python3 ~/.claude/skills/dnd/scripts/xp.py award \
-  --campaign $CAMP --characters "Kat,Ben" --difficulty medium --type noncombat \
+  --campaign $CAMP --characters "Aldric,Mira" --difficulty medium --type noncombat \
   --note "brief description"
 
 # Preview before awarding:
@@ -311,6 +316,14 @@ python3 ~/.claude/skills/dnd/scripts/xp.py calc --level 3 --players 2 --difficul
 ```
 
 Award XP at the **end of the scene** when the outcome is clear — not mid-combat or mid-negotiation. If a session ends before XP is awarded, note it in the session log and award at the start of the next session before anything else.
+
+**After running `xp.py award`, immediately send an XP award block to the display:**
+```bash
+python3 ~/.claude/skills/dnd/display/send.py --xp-award '{"names":["Aldric","Mira"],"xp":250,"reason":"Encounter resolved","total":"3250 / 6500"}'
+```
+This fires a green-bordered block in the companion feed showing each character's name, XP gained, the reason, and their new running total. Players see it in the companion immediately — no separate announcement needed in narration.
+
+**Inspiration:** award via `send.py --inspiration-award NAME`. This fires a gold glow block in the feed AND sets the sidebar badge. Spend via `send.py --inspiration-spend NAME`.
 
 ---
 

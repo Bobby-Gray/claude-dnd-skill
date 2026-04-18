@@ -11,16 +11,16 @@ Usage:
     python3 xp.py calc --level 3 --players 2 --monsters "goblin:1/4:3,hobgoblin:1:1"
 
     # Award after a combat encounter — difficulty-rated:
-    python3 xp.py award --campaign my-campaign --characters "Kat,Ben" \\
+    python3 xp.py award --campaign my-campaign --characters "Aldric,Mira" \\
         --difficulty hard --type combat
 
     # Award after a combat encounter — exact CR calculation:
-    python3 xp.py award --campaign my-campaign --characters "Kat,Ben" \\
+    python3 xp.py award --campaign my-campaign --characters "Aldric,Mira" \\
         --monsters "goblin:1/4:3,hobgoblin:1:1" --note "Ambush in the alley"
 
     # Award for a qualifying non-combat encounter:
-    python3 xp.py award --campaign my-campaign --characters "Kat,Ben" \\
-        --difficulty medium --type noncombat --note "Theodra interrogation"
+    python3 xp.py award --campaign my-campaign --characters "Aldric,Mira" \\
+        --difficulty medium --type noncombat --note "guild informant interrogation"
 """
 
 import sys
