@@ -64,6 +64,7 @@ TOKEN_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/.token")
 INPUT_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/player_input.json")
 TRIGGER_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.input_trigger")
 QUEUE_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/.input_queue")
+DEVICES_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.approved_devices.json")
 
 # ─── LAN / TLS mode ───────────────────────────────────────────────────────────
 # Pass --lan to bind on 0.0.0.0 and protect write endpoints with a token.
@@ -154,10 +155,37 @@ _pending_devices:  dict[str, dict] = {}  # device_id -> {ip, first_seen}
 _devices_lock = threading.Lock()
 
 
+def _persist_approved_devices() -> None:
+    """Persist approved devices to disk. Must be called WITHOUT _devices_lock held."""
+    try:
+        with _devices_lock:
+            data = list(_approved_devices)
+        with open(DEVICES_FILE, "w") as f:
+            json.dump(data, f)
+        os.chmod(DEVICES_FILE, 0o600)
+    except Exception:
+        pass
+
+
+def _load_approved_devices() -> None:
+    try:
+        with open(DEVICES_FILE) as f:
+            data = json.load(f)
+        with _devices_lock:
+            for d in data:
+                _approved_devices.add(str(d))
+    except Exception:
+        pass
+
+
+_load_approved_devices()
+
+
 def _device_ok(device_id: str, ip: str) -> str:
     """Return 'approved', 'pending', or 'denied' for a given device."""
     if not device_id:
         return "denied"
+    _need_persist = False
     with _devices_lock:
         if device_id in _approved_devices:
             return "approved"
@@ -166,16 +194,20 @@ def _device_ok(device_id: str, ip: str) -> str:
         # Localhost always auto-approved
         if ip in ("127.0.0.1", "::1"):
             _approved_devices.add(device_id)
-            return "approved"
+            _need_persist = True
         # New LAN device — hold and notify DM
-        if device_id not in _pending_devices:
+        elif device_id not in _pending_devices:
             _pending_devices[device_id] = {
                 "id":         device_id,
                 "ip":         ip,
                 "first_seen": _time.time(),
             }
             _broadcast({"device_request": {"id": device_id, "ip": ip}})
-        return "pending"
+    # Persist outside the lock to avoid deadlock (Lock is not reentrant)
+    if _need_persist:
+        _persist_approved_devices()
+        return "approved"
+    return "pending"
 
 
 # ─── Staged input system ──────────────────────────────────────────────────────
@@ -409,7 +441,7 @@ SCENES: dict[str, dict] = {
         "keywords": [
             "city", "market", "street", "crowd", "village", "town",
             "square", "cobble", "district", "quarter", "merchant",
-            "ashenveil",
+            "citadel",
         ],
         "colors": ["#0a0f1a", "#15202e"],
         "accent": "#6080a0",
@@ -687,6 +719,37 @@ _clients_lock = threading.Lock()
 _text_log: deque = deque(maxlen=60)
 _text_log_lock = threading.Lock()
 
+# ─── Session tail buffer ──────────────────────────────────────────────────────
+# Rolling buffer of the last 30 text events — written to session_tail.json after
+# every /chunk POST so it survives crashes. Read at /dnd load for display replay.
+TAIL_FILE    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session_tail.json")
+_tail_buffer: deque = deque(maxlen=30)
+_tail_lock   = threading.Lock()
+
+
+def _persist_tail() -> None:
+    try:
+        with _tail_lock:
+            data = list(_tail_buffer)
+        with open(TAIL_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+
+def _load_tail() -> None:
+    try:
+        with open(TAIL_FILE) as f:
+            data = json.load(f)
+        with _tail_lock:
+            for item in data[-30:]:
+                _tail_buffer.append(item)
+    except Exception:
+        pass
+
+
+_load_tail()
+
 
 def _persist_log() -> None:
     """Write the current text log to disk. Called after every chunk."""
@@ -842,11 +905,52 @@ def chunk():
     if not raw:
         return "", 204
 
-    is_action = bool(data.get("action"))
-    is_player = bool(data.get("player"))
-    is_npc    = bool(data.get("npc"))
-    is_dice   = bool(data.get("dice"))
-    is_tutor  = bool(data.get("tutor"))
+    is_action      = bool(data.get("action"))
+    is_player      = bool(data.get("player"))
+    is_npc         = bool(data.get("npc"))
+    is_dice        = bool(data.get("dice"))
+    is_tutor       = bool(data.get("tutor"))
+    is_inspiration = bool(data.get("inspiration_award"))
+    is_xp_award    = bool(data.get("xp_award"))
+
+    # Inspiration and XP awards carry no text from stdin — build synthetic text.
+    if is_inspiration:
+        name = str(data.get("inspiration_award", "")).strip()[:80]
+        if not name:
+            return "", 204
+        payload: dict = {"inspiration_award": name, "text": name}
+        log_entry: dict = {"inspiration_award": name, "text": name}
+        with _text_log_lock:
+            _text_log.append(log_entry)
+        with _tail_lock:
+            _tail_buffer.append(log_entry)
+        _persist_log()
+        _persist_tail()
+        _broadcast(payload)
+        # Also update player inspiration state in stats
+        with _stats_lock:
+            players = _current_stats.setdefault("players", [])
+            match = next((p for p in players if p.get("name", "").lower() == name.lower()), None)
+            if match:
+                match["inspiration"] = True
+                _persist_stats()
+                _broadcast({"stats": dict(_current_stats)})
+        return "", 204
+
+    if is_xp_award:
+        xp_data = data.get("xp_award", {})
+        if not isinstance(xp_data, dict):
+            return "", 204
+        payload = {"xp_award": xp_data, "text": xp_data.get("summary", "")}
+        log_entry = {"xp_award": xp_data, "text": xp_data.get("summary", "")}
+        with _text_log_lock:
+            _text_log.append(log_entry)
+        with _tail_lock:
+            _tail_buffer.append(log_entry)
+        _persist_log()
+        _persist_tail()
+        _broadcast(payload)
+        return "", 204
 
     # Player/npc/dice/tutor/action text comes from send.py (no ANSI/chrome) — light clean only.
     # DM narration may come from wrapper.py — full clean.
@@ -892,8 +996,11 @@ def chunk():
 
     with _text_log_lock:
         _text_log.append(log_entry)
+    with _tail_lock:
+        _tail_buffer.append(log_entry)
 
     _persist_log()
+    _persist_tail()
     _broadcast(payload)
     return "", 204
 
@@ -999,6 +1106,8 @@ def stats():
                             if removed and any(e.get("concentration") for e in removed):
                                 if match.get("concentration", "").lower() == spell_lower:
                                     match["concentration"] = None
+                        elif key == "inspiration" and val is False:
+                            match["inspiration"] = False
                         elif isinstance(val, dict) and isinstance(match.get(key), dict):
                             match[key].update(val)
                         else:
@@ -1047,8 +1156,25 @@ def stats():
             _current_stats["world_time"] = data["world_time"]
 
         # factions replaces entirely ([] clears)
+        # Validate: default missing standing to "Neutral" and warn so the root
+        # cause (DM omitting the field when building JSON from state.md prose)
+        # is surfaced in logs without silently showing "—" in the sidebar.
         if "factions" in data:
-            _current_stats["factions"] = data["factions"]
+            validated_factions = []
+            for f in (data["factions"] or []):
+                if not isinstance(f, dict):
+                    continue
+                if f.get("name") and not f.get("standing"):
+                    print(
+                        f"[WARN] faction '{f['name']}' missing standing field — "
+                        "defaulting to Neutral. Push with standing: Allied/Friendly/"
+                        "Neutral/Suspicious/Hostile to show correct colour.",
+                        file=sys.stderr,
+                    )
+                    f = dict(f)
+                    f["standing"] = "Neutral"
+                validated_factions.append(f)
+            _current_stats["factions"] = validated_factions
 
         # quests replaces entirely ([] clears)
         if "quests" in data:
@@ -1084,6 +1210,14 @@ def stats():
         if not any(k in data for k in ("players", "turn_order", "world_time", "factions",
                                         "replace_players", "sheet")):
             return "", 204
+
+    # Write active campaign name so dm_help.py always reads the current campaign.
+    if "campaign" in data:
+        try:
+            with open(CAMP_FILE, "w") as f:
+                f.write(str(data["campaign"]).strip())
+        except Exception:
+            pass
 
     _persist_stats()
     _broadcast({"stats": current})
@@ -1235,7 +1369,7 @@ def help_request():
 def player_input():
     """Queue a player action submitted from the display companion.
 
-    Body: {"character": "Mira", "text": "I draw my rapier", "hold": false}
+    Body: {"character": "Torven", "text": "I draw my sword", "hold": false}
     Broadcasts pending_input event to all connected browsers.
     """
     if not _token_ok():
@@ -1277,6 +1411,7 @@ def device_approve():
     with _devices_lock:
         _pending_devices.pop(device_id, None)
         _approved_devices.add(device_id)
+    _persist_approved_devices()
     _broadcast({"device_approved": device_id})
     return "", 204
 
@@ -1298,7 +1433,7 @@ def device_deny():
 def stage_input():
     """Stage a player action for review. Broadcasts staged_inputs to all displays.
 
-    Body: {"character": "Mira", "text": "draws her rapier"}
+    Body: {"character": "Torven", "text": "draws their blade"}
     """
     if not _token_ok():
         return "Forbidden", 403
@@ -1324,15 +1459,22 @@ def stage_input():
     if not _char_ok(character, known):
         return "Forbidden", 403
 
+    # In solo mode (1 expected player), skip the manual Ready step and auto-trigger.
+    solo = (_expected_count == 1)
+
     with _staged_lock:
         _staged[character] = {
             "text":      text,
-            "ready":     False,
+            "ready":     solo,
             "timestamp": _time.time(),
         }
         snap = _staged_snapshot()
 
     _broadcast({"staged_inputs": snap})
+
+    if solo:
+        _check_auto_trigger()
+
     return "", 204
 
 
@@ -1340,7 +1482,7 @@ def stage_input():
 def ready_input():
     """Toggle the ready flag for a staged character.
 
-    Body: {"character": "Mira", "ready": true}
+    Body: {"character": "Torven", "ready": true}
     Triggers auto-fire when all expected players are ready.
     """
     if not _token_ok():
@@ -1377,7 +1519,7 @@ def ready_input():
 def unstage_input():
     """Remove a character's staged action (e.g. player wants to edit it).
 
-    Body: {"character": "Mira"}
+    Body: {"character": "Torven"}
     """
     if not _token_ok():
         return "Forbidden", 403
@@ -1402,7 +1544,7 @@ def skip_input():
     """Skip a character's turn — stages a 'skips their turn' entry marked ready.
 
     Counts toward the auto-trigger threshold and fires auto-trigger if threshold met.
-    Body: {"character": "Mira"}
+    Body: {"character": "Torven"}
     """
     if not _token_ok():
         return "Forbidden", 403

@@ -38,17 +38,17 @@ python3 ~/.claude/skills/dnd/scripts/xp.py calc --level 3 --players 2 --monsters
 
 # Award after a combat encounter — difficulty-rated (use when full monster list is unavailable):
 python3 ~/.claude/skills/dnd/scripts/xp.py award \
-  --campaign <name> --characters "Kat,Ben" --difficulty hard --type combat
+  --campaign <name> --characters "Aldric,Mira" --difficulty hard --type combat
 
 # Award after a combat encounter — exact CR calculation (preferred for standard combats):
 python3 ~/.claude/skills/dnd/scripts/xp.py award \
-  --campaign <name> --characters "Kat,Ben" \
+  --campaign <name> --characters "Aldric,Mira" \
   --monsters "goblin:1/4:3,hobgoblin:1:1" --note "Ambush in the alley"
 
 # Award for a qualifying non-combat encounter:
 python3 ~/.claude/skills/dnd/scripts/xp.py award \
-  --campaign <name> --characters "Kat,Ben" --difficulty medium --type noncombat \
-  --note "Theodra interrogation"
+  --campaign <name> --characters "Aldric,Mira" --difficulty medium --type noncombat \
+  --note "guild informant interrogation"
 ```
 
 **Difficulty tiers:** `easy` `medium` `hard` `deadly`
