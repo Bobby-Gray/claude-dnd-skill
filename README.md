@@ -29,6 +29,14 @@ It is not an official Wizards of the Coast product. It uses Claude as the DM eng
 
 ---
 
+## Using a different LLM?
+
+This skill is built specifically for Claude Code. If you want to run the same framework on a different model — local inference, OpenRouter, or any OpenAI-compatible endpoint — check out [open-tabletop-gm](https://github.com/Bobby-Gray/open-tabletop-gm), the model-agnostic version extracted from this repo. It trades some Claude-specific integration depth for broader model support and includes a probe tool for benchmarking narration quality across models.
+
+If you're on Claude Code, you're in the right place.
+
+---
+
 ## Features
 
 - **Persistent campaigns** — state, NPCs, quests, and characters survive across sessions in plain markdown files
@@ -43,12 +51,13 @@ It is not an official Wizards of the Coast product. It uses Claude as the DM eng
 - **TLS / HTTPS** — self-signed cert generation included; required for full browser feature support over LAN
 - **17 scene types** — auto-detected from narration keywords — tavern, dungeon, ocean, crypt, arcane, glacier, and more
 - **Clickable character sheets** — tap any sidebar card to open a full character sheet modal (attacks, features, inventory); works on phones and tablets via LAN
+- **SRD spell/feature lookup** — click any spell or feature name in a character sheet to view its full description; bundled 5e dataset with supplemental entries for non-SRD content (Xanathar's, Tasha's, subclass features); wikidot fallback link shown for anything not in the local data
 - **DM Help button** — click the ◈ button on the display for an on-demand contextual hint or warning; generated from the current scene without per-turn token overhead
 - **Tutor / learning mode** — enable per-session for automatic hint blocks after every scene, decision point, and roll; ideal for players new to D&D
 - **Browser-side sound effects** — 12 SFX types synthesized on demand via numpy and played through Web Audio API; works on any device with the tab open, including phones over LAN
 - **Couch co-op** — multiple characters, shared display, turn order visible to everyone in the room
 - **Combat tracker** — auto-rolled initiative, `▶` turn pointer, HP bars, inline dice math sent to display
-- **8 helper scripts** — dice rolling, ability scores, combat, character stat derivation, conditions/tracker, calendar, SRD data pull, SRD lookup
+- **Helper scripts** — dice rolling, ability scores, combat, character stat derivation, conditions/tracker, calendar, SRD data sync, SRD lookup, supplemental data builder
 
 ---
 
@@ -126,6 +135,8 @@ Once loaded, type naturally — no `/dnd` prefix needed. The DM interprets every
 | `/dnd autorun off` | Return to manual mode |
 | `/dnd tutor on` | Enable tutor / learning mode for this session |
 | `/dnd tutor off` | Disable tutor / learning mode |
+| `/dnd data sync` | Rebuild bundled SRD dataset from upstream sources (only needed for new upstream content) |
+| `/dnd data status` | Show current dataset record counts and upstream SHA |
 
 ---
 
@@ -406,6 +417,14 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --player Aldric --xp 270 300
 python3 ~/.claude/skills/dnd/display/push_stats.py --player Aldric --conditions-add "Poisoned"
 python3 ~/.claude/skills/dnd/display/push_stats.py --player Aldric --slot-use 2
 
+# Or bundle stat changes directly with a narration send (no separate push_stats.py call needed):
+python3 ~/.claude/skills/dnd/display/send.py \
+  --stat-hp "Aldric:10:18" \
+  --stat-condition-add "Aldric:Poisoned" \
+  --stat-slot-use "Aldric:1" << 'EOF'
+The goblin's blade catches Aldric across the ribs...
+EOF
+
 # Combat turn order
 python3 ~/.claude/skills/dnd/display/push_stats.py \
   --turn-order '{"order":["Aldric","Skeleton","Mira"],"current":"Aldric","round":1}'
@@ -450,6 +469,14 @@ python3 ~/.claude/skills/dnd/display/push_stats.py --replace-players --json '{
 ```
 
 If `sheet` is omitted, the modal still opens but shows only the stats visible in the sidebar. Close with **Esc**, clicking outside the panel, or the ✕ button.
+
+Clicking a spell or feature name inside the sheet opens a description modal sourced from the bundled SRD dataset. Scaling progressions (e.g. Sneak Attack damage) automatically collapse to the character's current level. If a spell or feature isn't in the core SRD dataset, a link to the relevant page on D&D 5e Wiki is shown instead. To extend the local dataset with non-SRD content from a character file:
+
+```bash
+python3 ~/.claude/skills/dnd/scripts/build_supplemental.py --character ~/.claude/dnd/campaigns/<name>/characters/<charname>.md
+```
+
+This fetches descriptions from dnd5e.wikidot.com for any missing entries and writes them to `data/dnd5e_supplemental.json`. Run it once after creating or importing a character. A pre-built supplemental covering Circle of Spores, Thief archetype features, and several Xanathar's spells ships with the skill.
 
 The sidebar:
 - Shows compact dual-column cards for parties of 2+ (full ability grid for solo play)
@@ -511,6 +538,32 @@ python3 scripts/combat.py attack --atk 5 --ac 13 --dmg 1d8+3
 
 `init` outputs a `STATE_JSON:` line — save this to `state.md` under `## Active Combat` for persistence between turns.
 
+### `build_supplemental.py` — Extend the SRD dataset with non-SRD content
+
+Run after creating or importing a character to fetch descriptions for spells and features not in the core SRD:
+
+```bash
+# Scan a character file and fetch anything missing
+python3 scripts/build_supplemental.py --character ~/.claude/dnd/campaigns/<name>/characters/<charname>.md
+
+# Scan all characters in a campaign at once
+python3 scripts/build_supplemental.py --campaign <campaign-name>
+
+# Add a specific entry by name
+python3 scripts/build_supplemental.py --add "Toll the Dead" spell
+python3 scripts/build_supplemental.py --add "Halo of Spores" feature
+
+# See what's currently cached
+python3 scripts/build_supplemental.py --list
+
+# Preview what would be fetched without writing
+python3 scripts/build_supplemental.py --campaign <name> --dry-run
+```
+
+Fetches from `dnd5e.wikidot.com` with a polite request delay. Uses Python stdlib only — no extra dependencies. Writes to `data/dnd5e_supplemental.json`, which `lookup.py` merges at load time.
+
+---
+
 ### `character.py` — Stat derivation and levelling
 
 ```bash
@@ -536,6 +589,9 @@ python3 scripts/character.py xp --level 2 --gained 150
 ├── SKILL-scripts.md          # Script and tool syntax reference
 ├── SKILL-commands.md         # /dnd command procedures
 ├── README.md                 # This file
+├── data/
+│   ├── dnd5e_srd.json        # Bundled 5e SRD dataset (1453 records — spells, features, equipment, monsters)
+│   └── dnd5e_supplemental.json  # Non-SRD content (Xanathar's, subclass features, etc.)
 ├── scripts/
 │   ├── dice.py
 │   ├── ability-scores.py
@@ -543,8 +599,10 @@ python3 scripts/character.py xp --level 2 --gained 150
 │   ├── character.py
 │   ├── tracker.py
 │   ├── calendar.py
-│   ├── data_pull.py
-│   └── lookup.py
+│   ├── lookup.py             # SRD + supplemental query API
+│   ├── build_srd.py          # Fetches upstream 5e data and builds dnd5e_srd.json
+│   ├── sync_srd.py           # Checks upstream SHAs; rebuilds only on new commits
+│   └── build_supplemental.py # Fetches non-SRD entries from wikidot for a character or campaign
 ├── display/
 │   ├── app.py                # Flask SSE server
 │   ├── audio.py              # SFX synthesis and browser trigger (numpy)
