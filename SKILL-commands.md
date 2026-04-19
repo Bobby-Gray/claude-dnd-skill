@@ -34,47 +34,79 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 ## `/dnd load <campaign-name>`
 1. Ask: *"Start the cinematic display companion? [y/n]"*
    - Same display start/LAN flow as `/dnd new` step 1.
+   - **Session tail replay:** before clearing the display, check if `~/.claude/skills/dnd/display/session_tail.json` exists. If it does, read it. After `--clear` and full stats push (step 4 below), replay the tail by sending each entry via the appropriate `send.py` flag (`--player`, `--npc`, `--dice`, or plain stdin narration). This restores the last scene to the display before the recap. The tail is written continuously by `app.py` — it always contains the last session's final exchanges regardless of how the session ended.
    - Clear previous transcript: `python3 ~/.claude/skills/dnd/display/push_stats.py --clear`
-   - Register active campaign for DM Help: `echo "<campaign-name>" > ~/.claude/skills/dnd/display/.campaign`
-   - If display is started, ask: *"Accept player input from the companion? [y/n]"*
-     - If `$DND_PTY_WRAPPED` is already set: skip — wrapper is active, player input works automatically.
-     - If **y** and not wrapped: detect OS, print the message below, then **stop and wait**. Do not continue loading. Ask: *"Type 'skip' to load without player input, or close this session and use the command above."* Only continue if user types `skip` (set player input disabled for this session).
-
-       ```
-       To enable player input, this session must be launched via the Python wrapper.
-       Open a new terminal tab and run:
-
-         [command — see below]
-
-       Then type: /dnd load <campaign-name> in that terminal.
-       ```
-
-       Detect OS with: `uname -s 2>/dev/null || echo Windows`
-       - **macOS / Linux** (`Darwin` or `Linux`):
-         ```
-         python3 ~/.claude/skills/dnd/display/wrapper.py
-         ```
-       - **Windows** (`Windows`):
-         ```
-         python %USERPROFILE%\.claude\skills\dnd\display\wrapper.py
-         ```
-     - If **n**: continue without player input.
+   - Register active campaign for DM Help: `python3 ~/.claude/skills/dnd/display/push_stats.py --set-campaign <campaign-name>`
+   - Ask: *"Enable autorun mode for player input? [y/n]"*
+     - **y** → write `autorun: true` to `state.md → ## Session Flags`; enter the autorun wait after the recap paragraph.
+     - **n** → continue without autorun; DM drives turns manually.
 
 2. Read SKILL-scripts.md (for script syntax this session)
-3. Read state.md, world.md, npcs.md (index only — **do NOT read npcs-full.md or world-seeds.md at load**), and all characters/*.md
-4. Push full party stats to display sidebar with `--replace-players` (clears stale characters from previous campaigns). For each character, include `--sheet <JSON>` built from the character file (attacks, spells, features, inventory). Also push `--world-time` with date/time/season/weather from state.md. Also push `--factions` from active faction states in `state.md → ## World State` (use `[]` if no factions are active).
+3. Read state.md, world.md, npcs.md (index only), and all characters/*.md
+   - **state.md contains `## DM Style Notes`** — read and internalize before narrating anything. These are table-specific calibration patterns that override default DM instincts.
+   - **world.md:** Load in full — World Foundations and active Adventure Nodes both inform narration and faction moves. Do NOT read `world-seeds.md` at load (generation artifact, not live reference).
+   - **npcs.md:** Index row only at load. **Before writing substantive dialogue or decisions for any named NPC, read their full entry in `npcs-full.md`.** Do not wait for an explicit `/dnd npc [name]` call — do it proactively when a scene centers on that character. Index rows carry surface traits only; personality axes, relationships, and hidden goals are in the full entry.
+   - **Do NOT read session-log.md at load** — recent events are already in `state.md → ## Recent Events`. Only read session-log.md if the player explicitly requests a recap, or if DM Calibration from the last 1-2 sessions is needed and not already internalized.
+4. Push full party stats to display sidebar. **CRITICAL:** use `--json` with a complete player object — **never** the `--player` shorthand here. `--player` only updates existing fields; it cannot populate the card or sheet tabs. The display shows "Full sheet not loaded" when `sheet` is absent.
 
-   Sheet JSON structure — see `## push_stats.py → --sheet` in SKILL-scripts.md for full example. Keys: `attacks`, `spells` (omit for non-casters), `features`, `inventory`. Display shows "Full sheet not loaded" when all four are absent.
-
-   Faction JSON structure (from `state.md → ## World State → Faction states`):
-   ```json
-   [{"name":"Pale Court","standing":"Allied"},{"name":"Watch","standing":"Neutral"}]
-   ```
-   Faction `standing` values: `Allied`, `Friendly`, `Neutral`, `Suspicious`, `Hostile`. Use `[]` to clear all factions. Push with:
    ```bash
-   python3 ~/.claude/skills/dnd/display/push_stats.py --factions '[...]'
+   python3 ~/.claude/skills/dnd/display/push_stats.py --replace-players --json '{
+     "players": [
+       {
+         "name": "CharName",
+         "race": "Race",
+         "class": "Class (Background)",
+         "level": N,
+         "hp": {"current": N, "max": N, "temp": 0},
+         "ac": N,
+         "speed": 30,
+         "hit_dice": {"total": N, "remaining": N, "die": "d8"},
+         "xp": {"current": N, "next": N},
+         "conditions": [],
+         "concentration": null,
+         "inspiration": 0,
+         "spell_slots": {},
+         "sheet": {
+           "attacks": [{"name":"...","bonus":"+N","damage":"...","type":"...","notes":"..."}],
+           "features": [{"name":"Feature 1","text":"Description of what it does."},{"name":"Feature 2","text":"Description."}],
+           "inventory": ["Item 1", "Item 2"]
+         }
+       }
+     ]
+   }'
    ```
-   The faction panel on the sidebar only appears when at least one faction is present — do not skip this push.
+
+   For casters, add `"spells": {"cantrips":["..."],"level1":["..."]}` inside `sheet`. Omit for non-casters.
+
+   `--replace-players` clears stale characters from previous campaigns. Build the JSON from the character file — every field above is required for the card and sheet tabs to render correctly.
+
+   Also push `--world-time`, `--factions`, and `--quests` in the **same** `push_stats.py` call as the player JSON to avoid race conditions where the display server receives a partial update. Combine all into one invocation:
+
+   ```bash
+   python3 ~/.claude/skills/dnd/display/push_stats.py --replace-players \
+     --json '{...players...}' \
+     --world-time '{...}' \
+     --factions '[...]' \
+     --quests '[...]'
+   ```
+
+   Faction JSON structure — **`standing` is required**:
+   ```json
+   [{"name":"Pale Court","standing":"Allied"},{"name":"The Kept","standing":"Hostile"}]
+   ```
+   `standing` values: `Allied`, `Friendly`, `Neutral`, `Suspicious`, `Hostile`. If the field is omitted, `app.py` defaults it to `"Neutral"` and logs a warning to stderr — but always include it explicitly. Map prose from `state.md` to exact values (e.g. "deep ally" → `"Allied"`, "active hostile" → `"Hostile"`). Use `[]` to clear.
+
+   The faction panel only appears when at least one faction is present — do not skip this push.
+
+   Quest JSON structure:
+   ```json
+   [{"name":"The Suppressed Ward-Point","status":"resolved"},{"name":"The Hollow King","status":"threat"}]
+   ```
+   Quest `status` values: `active` (amber), `threat` (red), `resolved` (green), `failed` (muted). Use `[]` to clear all quests:
+   ```bash
+   python3 ~/.claude/skills/dnd/display/push_stats.py --quests '[...]'
+   ```
+   The quest panel only appears when at least one quest is present — do not skip this push.
 5. Deliver one in-character paragraph recapping current situation — where the party is, what's at stake, what was last happening.
 6. Enter active DM mode — no `/dnd` prefix needed from this point.
 
@@ -84,6 +116,8 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 Write session events to session-log.md, update state.md (location, active quests, party HP/resources, recent events), update any characters/*.md that changed. Mirror each updated character to global roster (`~/.claude/dnd/characters/<name>.md`).
 
 Then update `## Faction Moves` in state.md: for each active faction, answer *"what did they do while the party was occupied?"* One line per faction — even if nothing visible yet. Confirm what was written.
+
+**Session tail archive:** `app.py` continuously writes `~/.claude/skills/dnd/display/session_tail.json` — this is always current. At save time, also write the tail as a named session snapshot: `~/.claude/dnd/campaigns/<name>/session-tail.md` (SKILL-side human-readable, already done by the DM narration) **and** verify `session_tail.json` exists and is non-empty. If it is missing or empty (e.g. the display was not running), write it from the last narration block and player inputs available in context.
 
 **Session log archival (run on every save after session count > 3):**
 session-log.md keeps only the **2 most recent full session entries**. Older entries move to `session-log-archive.md` (append, never delete). Before archiving each entry, extract a 3–5 bullet continuity summary and write it to `## Continuity Archive` in state.md. Format:
@@ -105,6 +139,7 @@ The continuity summary is what stays hot in context. The full verbose log is in 
    a. Append **Session Recap** block to session-log.md with key events and open threads.
    b. Ask: *"Quick calibration — what worked this session, and what would you adjust next time?"* Write answers to `### DM Calibration`. If skipped, leave blank.
    c. Update `## World State` in state.md: check whether events advanced the threat arc stage, shifted faction states, or changed the in-world date. Update all three.
+   d. If the calibration response reveals a new pattern (or confirms/contradicts an existing one), update `## DM Style Notes` in state.md. Add new bullets; refine existing ones if the pattern has sharpened. Do not log every session — only update when something genuinely new or changed is observed.
 2. If `_display_running = true`, stop the display:
    ```bash
    kill $(cat ~/.claude/skills/dnd/display/app.pid 2>/dev/null) 2>/dev/null
@@ -129,20 +164,20 @@ Exit the current session **without saving any state changes**. Use this when an 
 
 ---
 
-## `/dnd data [pull|status]`
-- `pull` → `python3 ~/.claude/skills/dnd/scripts/data_pull.py`
-- `pull --force` → re-download all files
-- `status` → `python3 ~/.claude/skills/dnd/scripts/data_pull.py --status`
-- No argument → print status and quick-start instructions
+## `/dnd data [sync|status]`
+- `sync` → `python3 ~/.claude/skills/dnd/scripts/sync_srd.py` — checks upstream SHAs (5e-bits + FoundryVTT) and rebuilds `dnd5e_srd.json` only if either source has new commits
+- `sync --force` → `python3 ~/.claude/skills/dnd/scripts/sync_srd.py --force` — rebuild regardless
+- `sync --check` → check upstream without rebuilding
+- `status` → `python3 ~/.claude/skills/dnd/scripts/build_srd.py --status` — show current dataset metadata
 
-Files stored in `~/.claude/skills/dnd/data/`. Safe to run at any time. Run once after initial skill setup, then when you want to update.
+Dataset is bundled at `~/.claude/skills/dnd/data/dnd5e_srd.json` (1453 records: spells, equipment, magic items, conditions, monsters, class features). No download required at runtime. Run `sync` only when you want to pull new upstream content.
 
 ---
 
 ## `/dnd display [start|stop|status]`
 - `start` → ask LAN mode [y/n]; run `bash ~/.claude/skills/dnd/display/start-display.sh [--lan]`; print URL(s)
 - `stop` → `kill $(cat ~/.claude/skills/dnd/display/app.pid) 2>/dev/null && rm -f ~/.claude/skills/dnd/display/app.pid`
-- `status` → `curl -s http://localhost:5001/ping` — reachable or unreachable
+- `status` → `curl -sk $(cat ~/.claude/skills/dnd/display/.scheme 2>/dev/null || echo http)://localhost:5001/ping` — reachable or unreachable
 - No argument → print quick-start instructions
 
 ---
@@ -166,6 +201,11 @@ Read `~/.claude/dnd/campaigns/*/state.md`, print summary table: campaign name | 
 7. Write to `characters/<name>.md` using `templates/character-sheet.md`; set `## Campaign History → Origin campaign`
 8. Add to `state.md` party line
 9. Mirror to global roster: `cp characters/<name>.md ~/.claude/dnd/characters/<name>.md`
+10. Run supplemental builder to fetch any non-SRD spells/features the character uses:
+    ```bash
+    python3 ~/.claude/skills/dnd/scripts/build_supplemental.py --character ~/.claude/dnd/campaigns/<name>/characters/<charname>.md
+    ```
+    This scans the character file for spells and features not in the SRD and fetches descriptions from dnd5e.wikidot.com into `dnd5e_supplemental.json`. Skips any entries already present. Safe to re-run.
 
 ---
 
@@ -181,7 +221,11 @@ Read `characters/<name>.md`, display cleanly. If name omitted and one character 
 3. Copy to current campaign's `characters/<name>.md`. Update: Campaign, Last Updated, Previous campaigns, Death Saves (reset).
 4. Optionally ask about equipment adjustment for new setting.
 5. Add to `state.md` party line. Update global roster.
-6. Deliver one-paragraph in-character aside — how does it feel to step into a new world?
+6. Run supplemental builder for any non-SRD entries:
+    ```bash
+    python3 ~/.claude/skills/dnd/scripts/build_supplemental.py --character ~/.claude/dnd/campaigns/<name>/characters/<charname>.md
+    ```
+7. Deliver one-paragraph in-character aside — how does it feel to step into a new world?
 
 ---
 

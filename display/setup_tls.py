@@ -20,13 +20,14 @@ import socket
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
+from typing import List, Optional
 
 DISPLAY_DIR = os.path.dirname(os.path.abspath(__file__))
 CERT_FILE   = os.path.join(DISPLAY_DIR, "cert.pem")
 KEY_FILE    = os.path.join(DISPLAY_DIR, "key.pem")
 
 
-def _lan_ip() -> str | None:
+def _lan_ip() -> Optional[str]:
     """Return the primary LAN IPv4 address, or None if not found."""
     # macOS: try common interface names
     for iface in ("en0", "en1", "en2"):
@@ -63,7 +64,7 @@ def _lan_ip() -> str | None:
         return None
 
 
-def _generate_cert(lan_ip: str | None) -> None:
+def _generate_cert(lan_ip: Optional[str]) -> None:
     """Generate self-signed cert using cryptography library (pure Python)."""
     try:
         from cryptography import x509
@@ -79,7 +80,7 @@ def _generate_cert(lan_ip: str | None) -> None:
     key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
 
     # SANs
-    sans: list[x509.GeneralName] = [
+    sans: List[x509.GeneralName] = [
         x509.DNSName("localhost"),
         x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
     ]
@@ -119,7 +120,7 @@ def _generate_cert(lan_ip: str | None) -> None:
     os.chmod(KEY_FILE, 0o600)
 
 
-def _generate_cert_openssl(lan_ip: str | None) -> None:
+def _generate_cert_openssl(lan_ip: Optional[str]) -> None:
     """Fallback: generate cert via openssl CLI."""
     san = "DNS:localhost,IP:127.0.0.1"
     if lan_ip:
@@ -171,7 +172,7 @@ def main() -> None:
     print(f"  pkill -9 -f app.py ; bash {DISPLAY_DIR}/start-display.sh")
 
 
-def _print_urls(lan_ip: str | None) -> None:
+def _print_urls(lan_ip: Optional[str]) -> None:
     print("Access URLs (after restart):")
     print("  Localhost : https://localhost:5001")
     if lan_ip:

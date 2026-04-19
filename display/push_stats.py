@@ -76,14 +76,20 @@ import ssl
 import time
 import urllib.request
 
-FLASK_URL  = "https://localhost:5001/stats"
+_DISPLAY_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCHEME_FILE = os.path.join(_DISPLAY_DIR, ".scheme")
+_SCHEME = open(_SCHEME_FILE).read().strip() if os.path.exists(_SCHEME_FILE) else "http"
+FLASK_URL  = f"{_SCHEME}://localhost:5001/stats"
 TOKEN_FILE = os.path.expanduser("~/.claude/skills/dnd/display/.token")
 TIMEOUT    = 2.0
 
-# Self-signed cert — skip verification for localhost connections
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
+# SSL context — only used when running HTTPS (self-signed cert)
+if _SCHEME == "https":
+    _SSL_CTX = ssl.create_default_context()
+    _SSL_CTX.check_hostname = False
+    _SSL_CTX.verify_mode = ssl.CERT_NONE
+else:
+    _SSL_CTX = None
 
 
 def _read_token() -> str:
@@ -144,6 +150,8 @@ def main() -> None:
                         help='Full character sheet data: {"attacks":[...],"spells":{...},"features":[...],"inventory":[...]} (requires --player)')
     parser.add_argument("--factions", metavar="JSON",
                         help='Party faction standings: [{"name":"Pale Court","standing":"Suspicious"},...]; [] clears')
+    parser.add_argument("--quests", metavar="JSON",
+                        help='Quest tracker: [{"name":"The Ward-Points","status":"resolved"},{"name":"Vedra Ceth","status":"threat"},...]; [] clears. Status values: active, threat, resolved, failed')
     parser.add_argument("--turn-order", metavar="JSON",
                         help='Full turn order JSON: {"order":[...],"current":"Name","round":1}')
     parser.add_argument("--turn-current", metavar="NAME",
@@ -243,6 +251,14 @@ def main() -> None:
             payload["factions"] = json.loads(args.factions)
         except json.JSONDecodeError as e:
             print(f"Invalid factions JSON: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    # ── Quests ─────────────────────────────────────────────────────────────────
+    if args.quests is not None:
+        try:
+            payload["quests"] = json.loads(args.quests)
+        except json.JSONDecodeError as e:
+            print(f"Invalid quests JSON: {e}", file=sys.stderr)
             sys.exit(1)
 
     # ── Turn order ─────────────────────────────────────────────────────────────

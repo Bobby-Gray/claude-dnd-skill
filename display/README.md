@@ -5,14 +5,14 @@ View it on a TV, iPad, tablet, phone, or second monitor — any device on your n
 You continue typing in the terminal as normal.
 
 ```
-Terminal (you type here)
-    ↓ stdout captured by wrapper.py
- Flask on localhost:5001
+Terminal (you type here — claude runs directly, no wrapper needed)
+    ↓ send.py calls (narration, dice, NPC dialogue, stat changes)
+ Flask on http://localhost:5001
     ↓ SSE stream
  Browser tab (any device on your network)
     TV — Cast tab or screen mirror
     iPad / tablet — open in Safari or Chrome via LAN
-    Second monitor — open localhost:5001 in a local window
+    Second monitor — open http://localhost:5001 in a local window
 ```
 
 ---
@@ -29,12 +29,23 @@ pip3 install -r requirements.txt
 ### 2. Start the Flask server
 
 ```bash
-# Localhost only (default)
-python3 ~/.claude/skills/dnd/display/app.py
+# Localhost only (default) — HTTP, auto-kills any previous instance
+bash ~/.claude/skills/dnd/display/start-display.sh
 
-# LAN mode — serve to phones, tablets, other devices on your network
-python3 ~/.claude/skills/dnd/display/app.py --lan
+# LAN mode — HTTP, accessible from phones, tablets, other devices on your network
+bash ~/.claude/skills/dnd/display/start-display.sh --lan
+
+# LAN mode with TLS — HTTPS, for public or untrusted networks
+bash ~/.claude/skills/dnd/display/start-display.sh --lan --tls
 ```
+
+**HTTP is the default.** No certificate warnings — guests and new devices connect instantly
+with no setup required. This is the recommended mode for home and trusted networks.
+
+**`--tls` is an explicit opt-in** for public or untrusted networks. When `--tls` is used:
+- A self-signed certificate is auto-generated (10-year validity, LAN IP in SAN)
+- A plain HTTP server starts on `:8080` so devices can download `cert.pem`
+- Full per-platform install instructions are printed to the CLI (iOS, Android, Mac)
 
 In LAN mode a token is generated and stored at `.token`. The `send.py` and `push_stats.py`
 scripts read this file automatically.
@@ -43,8 +54,10 @@ scripts read this file automatically.
 
 ```
 http://localhost:5001
-# or from another device:
+# or from another device (LAN mode):
 http://<your-machine-ip>:5001
+# with --tls:
+https://<your-machine-ip>:5001
 ```
 
 **To display on a TV or other device:**
@@ -53,12 +66,19 @@ http://<your-machine-ip>:5001
 - **iPad / tablet** — start with `--lan`, open `http://<your-ip>:5001` in Safari or Chrome
 - **Second monitor** — drag the browser window to the second display
 
-### 4. Start your Claude session via the wrapper
+### 4. Start your Claude session
 
-```bash
-python3 ~/.claude/skills/dnd/display/wrapper.py
-python3 ~/.claude/skills/dnd/display/wrapper.py --resume
+Run `claude` directly in your terminal — no wrapper needed. The DM skill sends each narration
+block, dice result, and stat update to the display via `send.py` calls automatically.
+
+To load a campaign with the display already running:
+
 ```
+/dnd load <campaign-name>
+```
+
+The skill will detect the running display and push party stats, world time, and factions
+to the sidebar on load.
 
 ---
 
@@ -66,8 +86,11 @@ python3 ~/.claude/skills/dnd/display/wrapper.py --resume
 
 | Component | Role |
 |---|---|
-| `wrapper.py` | Spawns `claude` in a PTY, tees its stdout to the Flask server |
-| `app.py` | Receives text, strips ANSI/TUI chrome, detects scene from keywords, pushes via SSE |
+| `app.py` | Flask server — receives `send.py` POSTs, strips ANSI/TUI chrome, detects scene from keywords, pushes via SSE |
+| `send.py` | Single pipeline for all display updates — narration, dice, NPC dialogue, stat changes, timed effects |
+| `push_stats.py` | Bulk stat pushes (party load, turn order, world time, factions) |
+| `check_input.py` | Drains the player input queue (autorun mode) — called at turn start |
+| `dm_help.py` | One-shot hint fired by the ◈ DM Help button on the display |
 | `audio.py` | Scans narration for SFX triggers; serves synthesized WAV files to browsers |
 | `index.html` | Typewriter rendering, sky canvas, particle system, CSS gradient crossfades |
 
@@ -109,8 +132,66 @@ python3 push_stats.py --world-time \
   '{"date":"19 Ashveil 1312 AR","day_name":"Moonday","time":"morning","season":"Long Hollow","weather":"calm"}'
 ```
 
-Valid `time`: `dawn`, `morning`, `midday`, `afternoon`, `evening`, `dusk`, `night`  
+Valid `time`: `dawn`, `morning`, `midday`, `afternoon`, `evening`, `dusk`, `night`
 Valid `weather`: `calm`, `clear`, `overcast`, `rainy`, `stormy`
+
+### Stat sidebar
+
+The right sidebar tracks each party member in real time:
+
+- **HP bar** — current / max, temp HP shown separately
+- **XP bar** — progress to next level
+- **AC** — armour class
+- **Spell slots** — filled pips per level; drain on use, refill on restore
+- **Conditions** — coloured pills (red = danger, amber = warn, blue = info, green = buff)
+- **Concentration** — purple italic label when active
+- **Timed effects** — green pills with live duration: `⧗ Web · 7 rnd` (rounds), `⧗ Disguise Self 1:45` (live countdown), `⧗ Hunter's Mark ∞` (indefinite)
+- **Combat turn order** — initiative tracker with current actor highlighted
+- **Factions** — party standings (Allied → Hostile)
+
+Click any character's name to open the **full character sheet modal**: attacks, spells, features, inventory, with SRD lookup links on every spell and feature name.
+
+### Timed effects
+
+Effects are started and ended via `send.py` flags, bundled with narration:
+
+```bash
+# Start a round-based concentration spell
+python3 send.py --effect-start "Aldric:Web:10r:conc" --stat-slot-use "Aldric:2" << 'DNDEND'
+Aldric raises his hand and a thick curtain of webbing erupts across the corridor...
+DNDEND
+
+# Start a time-based effect (minutes — live countdown in sidebar)
+python3 send.py --effect-start "Mira:Disguise Self:1h" << 'DNDEND'
+Mira's features shift and blur, settling into an unfamiliar face.
+DNDEND
+
+# Narrative end (broken, dispelled, dropped)
+python3 send.py --effect-end "Aldric:Web" << 'DNDEND'
+The webs shred and fall as Aldric's concentration shatters under the blow.
+DNDEND
+```
+
+**Duration formats:** `10r` (rounds, decremented server-side on turn advance), `60m` / `8h` (live browser countdown, auto-expires), `indef` (indefinite, cleared by `--effect-end` only).
+
+Append `:conc` to mark as concentration — sets the concentration field and clears any previous concentration spell.
+
+When a round-based effect expires naturally (reaches 0 on turn advance), the display shows an amber expiry block in the feed. Time-based effects expire when the browser countdown hits zero and call `POST /effects/expire` automatically.
+
+**Headless fallback:** if the display is not running, use `tracker.py effect start/end/tick` — effects persist in `tracker.json` and expiry warnings print to terminal.
+
+### Player input panel (autorun mode)
+
+When autorun is enabled, a collapsible input panel appears at the bottom of the display. Players on any device can submit their action before their turn. A pie-clock countdown shows the remaining wait window. When the timer fires or enough players are ready, the queued action is picked up automatically by `check_input.py` at turn start.
+
+Enable autorun:
+```
+/dnd autorun on
+```
+
+### DM Help button
+
+The ◈ button in the top-right corner fires a one-shot hint from `dm_help.py` — a single `--tutor` block appears in the feed with a tactical suggestion for the current situation. This is separate from tutor mode (`/dnd tutor on`) which appends hints to every response.
 
 ### Sound effects
 
@@ -124,28 +205,34 @@ The Sound Effects toggle in the top-right corner of the display enables/disables
 
 ### Text rendering
 
-- DM output streams in as chunks from the Claude CLI
+- DM output is sent chunk by chunk via `send.py` after each narration block
 - ANSI escape codes and TUI chrome (borders, cost bars) are stripped server-side
 - Characters render one at a time at ~18ms/char (typewriter effect)
 - Gaps of >1.8 seconds between chunks start a new text block
 - All previous responses remain visible and scroll naturally
+- NPC dialogue renders with an amber border; dice results render in gold inline style; tutor hints render as collapsible parchment blocks
 
 ---
 
 ## Troubleshooting
 
 **Nothing appears on screen**
-- Confirm Flask is running: `curl http://localhost:5001/ping` should return `ok`
-- Confirm wrapper is running (not bare `claude`)
+- Confirm Flask is running: `curl -s http://localhost:5001/ping` should return `ok` (use `https://` if started with `--tls`)
+- Confirm you're running the DM skill (`/dnd load`) rather than bare `claude`
 - Check the browser console for SSE connection errors
 
-**Text looks garbled / shows control characters**
-- The ANSI stripper may need tuning for your Claude CLI version
-- Open an issue at the project repo with a sample of the raw output
+**Browser shows certificate warning**
+- Only expected when started with `--tls`. Click "Advanced → Proceed" once; the browser will remember it.
+- In HTTP mode (default) there are no certificate warnings.
 
 **Scene never changes**
 - Scene detection requires keywords in the DM narration
 - The buffer window is 20 chunks — it may take a few paragraphs to trigger
+
+**Timed effect pills not appearing**
+- Confirm `--effect-start` was sent in the `send.py` call that delivered the narration
+- Check `stats.json` in the display directory — effects should appear under the player's `effects` array
+- If the 2-minute Disguise Self pill isn't counting down, check that `started_at` is a Unix timestamp (not zero)
 
 **Sound effects not playing**
 - Click the Sound Effects toggle once to enable; this also unlocks the Web Audio context
@@ -158,7 +245,12 @@ The Sound Effects toggle in the top-right corner of the display enables/disables
 
 **LAN mode — browsers on other devices can't connect**
 - Confirm the server started with `--lan` (look for `LAN mode (0.0.0.0:5001)` in output)
-- Check your machine's firewall allows port 5001 inbound
+- Check your machine's firewall allows port 5001 inbound TCP
+
+**TLS cert install — iOS**
+- In Safari, open `http://<your-ip>:8080/cert.pem` → tap Allow to download
+- Go to Settings → General → VPN & Device Management → install the downloaded profile
+- Go to Settings → General → About → Certificate Trust Settings → enable full trust for the cert
 
 ---
 
@@ -167,16 +259,33 @@ The Sound Effects toggle in the top-right corner of the display enables/disables
 ```bash
 DISPLAY=~/.claude/skills/dnd/display
 
-# Terminal 1 — Flask server
-python3 $DISPLAY/app.py
-# or for LAN access:
-python3 $DISPLAY/app.py --lan
+# Start the display (force-kills any previous instance)
+bash $DISPLAY/start-display.sh
+# or for LAN access (HTTP, no cert required):
+bash $DISPLAY/start-display.sh --lan
+# or for LAN with TLS (public/untrusted networks):
+bash $DISPLAY/start-display.sh --lan --tls
 
 # Open the display BEFORE starting your session
 open http://localhost:5001   # same machine
 # or: open http://<your-ip>:5001  (LAN device)
+# with --tls: open https://<your-ip>:5001
 
-# Terminal 2 — Claude session via wrapper
-python3 $DISPLAY/wrapper.py
-python3 $DISPLAY/wrapper.py --resume   # resume existing session
+# Start a session — no wrapper needed
+claude   # then: /dnd load <campaign>
+
+# Send narration manually
+python3 $DISPLAY/send.py << 'DNDEND'
+The door groans open onto darkness.
+DNDEND
+
+# Send with stat changes bundled
+python3 $DISPLAY/send.py --stat-hp "Mira:8:17" --stat-condition-add "Mira:Poisoned" << 'DNDEND'
+The dart catches Mira in the neck. She staggers.
+DNDEND
+
+# Start a timed effect
+python3 $DISPLAY/send.py --effect-start "Mira:Bless:10r:conc" << 'DNDEND'
+Mira's prayer takes hold — a faint golden shimmer surrounds the party.
+DNDEND
 ```

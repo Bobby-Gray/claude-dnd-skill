@@ -17,6 +17,7 @@ Endpoints:
     POST /player-input/ready   → mark a staged action as ready
     POST /player-input/unstage → remove a staged action
     POST /player-input/skip    → skip a character's turn (stages + readies a skip entry)
+    GET  /srd-lookup           → look up a spell/item/feature/condition by name
 """
 
 import hmac
@@ -33,6 +34,19 @@ from typing import Optional
 from flask import Flask, Response, request, render_template, jsonify
 from flask_cors import CORS
 
+LOG_FILE      = os.path.expanduser("~/.claude/skills/dnd/display/text_log.json")
+SCRIPTS_DIR   = os.path.expanduser("~/.claude/skills/dnd/scripts")
+
+# SRD lookup module — degrades silently if dataset not built
+if SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, SCRIPTS_DIR)
+try:
+    import lookup as _lookup
+    _SRD_AVAILABLE = True
+except Exception:
+    _lookup = None          # type: ignore
+    _SRD_AVAILABLE = False
+
 # Audio module — degrades silently if numpy not installed
 _AUDIO_DIR = os.path.dirname(os.path.abspath(__file__))
 import sys as _sys
@@ -43,8 +57,6 @@ try:
     _audio.init()
 except Exception:
     _audio = None   # type: ignore
-
-LOG_FILE      = os.path.expanduser("~/.claude/skills/dnd/display/text_log.json")
 HELP_LOCK     = os.path.expanduser("~/.claude/skills/dnd/display/.help-lock")
 CAMP_FILE     = os.path.expanduser("~/.claude/skills/dnd/display/.campaign")
 STATS_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/stats.json")
@@ -52,14 +64,19 @@ TOKEN_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/.token")
 INPUT_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/player_input.json")
 TRIGGER_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.input_trigger")
 QUEUE_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/.input_queue")
+DEVICES_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.approved_devices.json")
 
-# ─── LAN mode ─────────────────────────────────────────────────────────────────
+# ─── LAN / TLS mode ───────────────────────────────────────────────────────────
 # Pass --lan to bind on 0.0.0.0 and protect write endpoints with a token.
+# Pass --tls (requires --lan) to enable HTTPS with a self-signed cert.
 # Without --lan the server binds to localhost only; no token is required.
 
 _LAN_MODE: bool = "--lan" in sys.argv
+_TLS_MODE: bool = "--tls" in sys.argv
 if _LAN_MODE:
     sys.argv.remove("--lan")   # prevent Flask from seeing an unknown flag
+if _TLS_MODE:
+    sys.argv.remove("--tls")
 
 
 def _get_or_create_token() -> str:
@@ -138,10 +155,37 @@ _pending_devices:  dict[str, dict] = {}  # device_id -> {ip, first_seen}
 _devices_lock = threading.Lock()
 
 
+def _persist_approved_devices() -> None:
+    """Persist approved devices to disk. Must be called WITHOUT _devices_lock held."""
+    try:
+        with _devices_lock:
+            data = list(_approved_devices)
+        with open(DEVICES_FILE, "w") as f:
+            json.dump(data, f)
+        os.chmod(DEVICES_FILE, 0o600)
+    except Exception:
+        pass
+
+
+def _load_approved_devices() -> None:
+    try:
+        with open(DEVICES_FILE) as f:
+            data = json.load(f)
+        with _devices_lock:
+            for d in data:
+                _approved_devices.add(str(d))
+    except Exception:
+        pass
+
+
+_load_approved_devices()
+
+
 def _device_ok(device_id: str, ip: str) -> str:
     """Return 'approved', 'pending', or 'denied' for a given device."""
     if not device_id:
         return "denied"
+    _need_persist = False
     with _devices_lock:
         if device_id in _approved_devices:
             return "approved"
@@ -150,16 +194,20 @@ def _device_ok(device_id: str, ip: str) -> str:
         # Localhost always auto-approved
         if ip in ("127.0.0.1", "::1"):
             _approved_devices.add(device_id)
-            return "approved"
+            _need_persist = True
         # New LAN device — hold and notify DM
-        if device_id not in _pending_devices:
+        elif device_id not in _pending_devices:
             _pending_devices[device_id] = {
                 "id":         device_id,
                 "ip":         ip,
                 "first_seen": _time.time(),
             }
             _broadcast({"device_request": {"id": device_id, "ip": ip}})
-        return "pending"
+    # Persist outside the lock to avoid deadlock (Lock is not reentrant)
+    if _need_persist:
+        _persist_approved_devices()
+        return "approved"
+    return "pending"
 
 
 # ─── Staged input system ──────────────────────────────────────────────────────
@@ -393,7 +441,7 @@ SCENES: dict[str, dict] = {
         "keywords": [
             "city", "market", "street", "crowd", "village", "town",
             "square", "cobble", "district", "quarter", "merchant",
-            "ashenveil",
+            "citadel",
         ],
         "colors": ["#0a0f1a", "#15202e"],
         "accent": "#6080a0",
@@ -671,6 +719,37 @@ _clients_lock = threading.Lock()
 _text_log: deque = deque(maxlen=60)
 _text_log_lock = threading.Lock()
 
+# ─── Session tail buffer ──────────────────────────────────────────────────────
+# Rolling buffer of the last 30 text events — written to session_tail.json after
+# every /chunk POST so it survives crashes. Read at /dnd load for display replay.
+TAIL_FILE    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session_tail.json")
+_tail_buffer: deque = deque(maxlen=30)
+_tail_lock   = threading.Lock()
+
+
+def _persist_tail() -> None:
+    try:
+        with _tail_lock:
+            data = list(_tail_buffer)
+        with open(TAIL_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+
+def _load_tail() -> None:
+    try:
+        with open(TAIL_FILE) as f:
+            data = json.load(f)
+        with _tail_lock:
+            for item in data[-30:]:
+                _tail_buffer.append(item)
+    except Exception:
+        pass
+
+
+_load_tail()
+
 
 def _persist_log() -> None:
     """Write the current text log to disk. Called after every chunk."""
@@ -782,6 +861,36 @@ def index():
     return render_template("index.html", lan_token=_lan_token or "")
 
 
+@app.route("/srd-lookup")
+def srd_lookup():
+    """Look up a spell, item, condition, feature, or monster by name.
+
+    Query params:
+        name      — the name to look up (required)
+        category  — spell | item | equipment | magic_item | condition | monster | feature (optional)
+        level     — character level (1–20); collapses scale progressions to the matching entry
+
+    Returns JSON: {"found": bool, "name": str, "category": str, "text": str}
+    """
+    name     = request.args.get("name", "").strip()[:120]
+    category = request.args.get("category", "").strip().lower() or None
+    level_s  = request.args.get("level", "").strip()
+    level    = int(level_s) if level_s.isdigit() and 1 <= int(level_s) <= 20 else None
+    if not name:
+        return jsonify({"found": False, "error": "name required"}), 400
+    if not _SRD_AVAILABLE or _lookup is None:
+        return jsonify({"found": False, "error": "SRD dataset not loaded"}), 503
+
+    text = _lookup.lookup_with_level(name, category=category, level=level)
+    if text:
+        rec = _lookup.lookup_record(name, category=category)
+        resolved_cat = (rec or {}).get("_cat", category or "")
+        return jsonify({"found": True, "name": name, "category": resolved_cat, "text": text})
+    # Not found — return wikidot fallback URL so the frontend can offer a link
+    wurl = _lookup.wikidot_url(name, category=category)
+    return jsonify({"found": False, "name": name, "wikidot_url": wurl})
+
+
 @app.route("/ping")
 def ping():
     return "ok", 200
@@ -796,11 +905,52 @@ def chunk():
     if not raw:
         return "", 204
 
-    is_action = bool(data.get("action"))
-    is_player = bool(data.get("player"))
-    is_npc    = bool(data.get("npc"))
-    is_dice   = bool(data.get("dice"))
-    is_tutor  = bool(data.get("tutor"))
+    is_action      = bool(data.get("action"))
+    is_player      = bool(data.get("player"))
+    is_npc         = bool(data.get("npc"))
+    is_dice        = bool(data.get("dice"))
+    is_tutor       = bool(data.get("tutor"))
+    is_inspiration = bool(data.get("inspiration_award"))
+    is_xp_award    = bool(data.get("xp_award"))
+
+    # Inspiration and XP awards carry no text from stdin — build synthetic text.
+    if is_inspiration:
+        name = str(data.get("inspiration_award", "")).strip()[:80]
+        if not name:
+            return "", 204
+        payload: dict = {"inspiration_award": name, "text": name}
+        log_entry: dict = {"inspiration_award": name, "text": name}
+        with _text_log_lock:
+            _text_log.append(log_entry)
+        with _tail_lock:
+            _tail_buffer.append(log_entry)
+        _persist_log()
+        _persist_tail()
+        _broadcast(payload)
+        # Also update player inspiration state in stats
+        with _stats_lock:
+            players = _current_stats.setdefault("players", [])
+            match = next((p for p in players if p.get("name", "").lower() == name.lower()), None)
+            if match:
+                match["inspiration"] = True
+                _persist_stats()
+                _broadcast({"stats": dict(_current_stats)})
+        return "", 204
+
+    if is_xp_award:
+        xp_data = data.get("xp_award", {})
+        if not isinstance(xp_data, dict):
+            return "", 204
+        payload = {"xp_award": xp_data, "text": xp_data.get("summary", "")}
+        log_entry = {"xp_award": xp_data, "text": xp_data.get("summary", "")}
+        with _text_log_lock:
+            _text_log.append(log_entry)
+        with _tail_lock:
+            _tail_buffer.append(log_entry)
+        _persist_log()
+        _persist_tail()
+        _broadcast(payload)
+        return "", 204
 
     # Player/npc/dice/tutor/action text comes from send.py (no ANSI/chrome) — light clean only.
     # DM narration may come from wrapper.py — full clean.
@@ -846,8 +996,11 @@ def chunk():
 
     with _text_log_lock:
         _text_log.append(log_entry)
+    with _tail_lock:
+        _tail_buffer.append(log_entry)
 
     _persist_log()
+    _persist_tail()
     _broadcast(payload)
     return "", 204
 
@@ -865,6 +1018,7 @@ def stats():
     if not data:
         return "", 204
 
+    _effect_expire_events: list[dict] = []
     with _stats_lock:
         if "players" in data:
             # replace_players=true wipes the list first — used on campaign load
@@ -882,6 +1036,7 @@ def stats():
                     "_conditions_add", "_conditions_remove",
                     "_slot_use", "_slot_restore",
                     "_hd_use", "_hd_restore",
+                    "_effect_start", "_effect_end",
                 }
                 if match:
                     for key, val in incoming.items():
@@ -923,6 +1078,36 @@ def stats():
                                 hd.get("remaining", 0) + int(val),
                                 hd.get("max", 99)
                             )
+                        elif key == "_effect_start":
+                            # val is an effect dict: {name, duration_type, ...}
+                            spell_name = val.get("name", "")
+                            effects = match.setdefault("effects", [])
+                            # Replace any existing effect with the same name
+                            match["effects"] = [
+                                e for e in effects
+                                if e.get("name", "").lower() != spell_name.lower()
+                            ]
+                            match["effects"].append(val)
+                            # Sync concentration field if this is a conc effect
+                            if val.get("concentration") and spell_name:
+                                match["concentration"] = spell_name
+                        elif key == "_effect_end":
+                            # val is the spell name string
+                            spell_lower = str(val).lower()
+                            removed = [
+                                e for e in match.get("effects", [])
+                                if e.get("name", "").lower() == spell_lower
+                            ]
+                            match["effects"] = [
+                                e for e in match.get("effects", [])
+                                if e.get("name", "").lower() != spell_lower
+                            ]
+                            # If the ended effect was concentration, also clear it
+                            if removed and any(e.get("concentration") for e in removed):
+                                if match.get("concentration", "").lower() == spell_lower:
+                                    match["concentration"] = None
+                        elif key == "inspiration" and val is False:
+                            match["inspiration"] = False
                         elif isinstance(val, dict) and isinstance(match.get(key), dict):
                             match[key].update(val)
                         else:
@@ -933,17 +1118,67 @@ def stats():
                         {k: v for k, v in incoming.items() if k not in _MUTATION_KEYS}
                     )
 
-        # turn_order replaces entirely (None = clear)
+        # turn_order replaces entirely (None = clear); also ticks round-based effects
+        _effect_expire_events: list[dict] = []
         if "turn_order" in data:
-            _current_stats["turn_order"] = data["turn_order"]
+            new_to = data["turn_order"]
+            _current_stats["turn_order"] = new_to
+            # Decrement round-based effects for the actor whose turn just started
+            if new_to and isinstance(new_to, dict) and new_to.get("current"):
+                actor = new_to["current"].lower()
+                for p in _current_stats.get("players", []):
+                    if p.get("name", "").lower() != actor:
+                        continue
+                    kept, expired = [], []
+                    for eff in p.get("effects", []):
+                        if eff.get("duration_type") == "rounds":
+                            eff = dict(eff)  # don't mutate in-place
+                            eff["duration_remaining"] = max(0, eff.get("duration_remaining", 1) - 1)
+                            if eff["duration_remaining"] <= 0:
+                                expired.append(eff)
+                            else:
+                                kept.append(eff)
+                        else:
+                            kept.append(eff)
+                    p["effects"] = kept
+                    for eff in expired:
+                        was_conc = eff.get("concentration", False)
+                        if was_conc and p.get("concentration", "").lower() == eff["name"].lower():
+                            p["concentration"] = None
+                        _effect_expire_events.append({
+                            "owner": p["name"],
+                            "name": eff["name"],
+                            "was_concentration": was_conc,
+                        })
 
         # world_time replaces entirely
         if "world_time" in data:
             _current_stats["world_time"] = data["world_time"]
 
         # factions replaces entirely ([] clears)
+        # Validate: default missing standing to "Neutral" and warn so the root
+        # cause (DM omitting the field when building JSON from state.md prose)
+        # is surfaced in logs without silently showing "—" in the sidebar.
         if "factions" in data:
-            _current_stats["factions"] = data["factions"]
+            validated_factions = []
+            for f in (data["factions"] or []):
+                if not isinstance(f, dict):
+                    continue
+                if f.get("name") and not f.get("standing"):
+                    print(
+                        f"[WARN] faction '{f['name']}' missing standing field — "
+                        "defaulting to Neutral. Push with standing: Allied/Friendly/"
+                        "Neutral/Suspicious/Hostile to show correct colour.",
+                        file=sys.stderr,
+                    )
+                    f = dict(f)
+                    f["standing"] = "Neutral"
+                validated_factions.append(f)
+            _current_stats["factions"] = validated_factions
+
+        # quests replaces entirely ([] clears)
+        if "quests" in data:
+            _current_stats["quests"] = data["quests"]
 
         current = dict(_current_stats)
 
@@ -956,7 +1191,7 @@ def stats():
                 _autorun_cycle = None
         _broadcast({"autorun_waiting": bool(data["autorun_waiting"])})
         if not any(k in data for k in ("players", "turn_order", "world_time", "factions",
-                                        "replace_players", "sheet", "autorun_cycle")):
+                                        "quests", "replace_players", "sheet", "autorun_cycle")):
             return "", 204
 
     if "autorun_cycle" in data:
@@ -976,8 +1211,19 @@ def stats():
                                         "replace_players", "sheet")):
             return "", 204
 
+    # Write active campaign name so dm_help.py always reads the current campaign.
+    if "campaign" in data:
+        try:
+            with open(CAMP_FILE, "w") as f:
+                f.write(str(data["campaign"]).strip())
+        except Exception:
+            pass
+
     _persist_stats()
     _broadcast({"stats": current})
+    # Broadcast any round-based effect expiries after the stats update
+    for evt in _effect_expire_events:
+        _broadcast({"effect_expired": evt})
 
     # Update expected player count for staged-input auto-trigger
     global _expected_count
@@ -985,6 +1231,46 @@ def stats():
         players = _current_stats.get("players", [])
     _expected_count = max(1, len(players))
 
+    return "", 204
+
+
+@app.route("/effects/expire", methods=["POST"])
+def effects_expire():
+    """Called by browser when a time-based effect countdown reaches zero.
+    Removes the effect from stats, clears concentration if applicable,
+    and broadcasts effect_expired to all connected clients.
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+    data  = request.get_json(silent=True) or {}
+    owner = data.get("owner", "").strip()
+    name  = data.get("name", "").strip()
+    if not owner or not name:
+        return "", 400
+
+    expire_evt = None
+    with _stats_lock:
+        for p in _current_stats.get("players", []):
+            if p.get("name", "").lower() != owner.lower():
+                continue
+            was_conc   = False
+            new_effects = []
+            for e in p.get("effects", []):
+                if e.get("name", "").lower() == name.lower():
+                    was_conc = e.get("concentration", False)
+                    if was_conc and p.get("concentration", "").lower() == name.lower():
+                        p["concentration"] = None
+                else:
+                    new_effects.append(e)
+            p["effects"] = new_effects
+            expire_evt = {"owner": p["name"], "name": name, "was_concentration": was_conc}
+            break
+        current = dict(_current_stats)
+
+    if expire_evt:
+        _broadcast({"effect_expired": expire_evt})
+    _broadcast({"stats": current})
+    _persist_stats()
     return "", 204
 
 
@@ -1083,7 +1369,7 @@ def help_request():
 def player_input():
     """Queue a player action submitted from the display companion.
 
-    Body: {"character": "Kat", "text": "I draw my rapier", "hold": false}
+    Body: {"character": "Torven", "text": "I draw my sword", "hold": false}
     Broadcasts pending_input event to all connected browsers.
     """
     if not _token_ok():
@@ -1125,6 +1411,7 @@ def device_approve():
     with _devices_lock:
         _pending_devices.pop(device_id, None)
         _approved_devices.add(device_id)
+    _persist_approved_devices()
     _broadcast({"device_approved": device_id})
     return "", 204
 
@@ -1146,7 +1433,7 @@ def device_deny():
 def stage_input():
     """Stage a player action for review. Broadcasts staged_inputs to all displays.
 
-    Body: {"character": "Kat", "text": "draws her rapier"}
+    Body: {"character": "Torven", "text": "draws their blade"}
     """
     if not _token_ok():
         return "Forbidden", 403
@@ -1172,15 +1459,22 @@ def stage_input():
     if not _char_ok(character, known):
         return "Forbidden", 403
 
+    # In solo mode (1 expected player), skip the manual Ready step and auto-trigger.
+    solo = (_expected_count == 1)
+
     with _staged_lock:
         _staged[character] = {
             "text":      text,
-            "ready":     False,
+            "ready":     solo,
             "timestamp": _time.time(),
         }
         snap = _staged_snapshot()
 
     _broadcast({"staged_inputs": snap})
+
+    if solo:
+        _check_auto_trigger()
+
     return "", 204
 
 
@@ -1188,7 +1482,7 @@ def stage_input():
 def ready_input():
     """Toggle the ready flag for a staged character.
 
-    Body: {"character": "Kat", "ready": true}
+    Body: {"character": "Torven", "ready": true}
     Triggers auto-fire when all expected players are ready.
     """
     if not _token_ok():
@@ -1225,7 +1519,7 @@ def ready_input():
 def unstage_input():
     """Remove a character's staged action (e.g. player wants to edit it).
 
-    Body: {"character": "Kat"}
+    Body: {"character": "Torven"}
     """
     if not _token_ok():
         return "Forbidden", 403
@@ -1250,7 +1544,7 @@ def skip_input():
     """Skip a character's turn — stages a 'skips their turn' entry marked ready.
 
     Counts toward the auto-trigger threshold and fires auto-trigger if threshold met.
-    Body: {"character": "Kat"}
+    Body: {"character": "Torven"}
     """
     if not _token_ok():
         return "Forbidden", 403
@@ -1434,20 +1728,25 @@ if __name__ == "__main__":
         _audio.set_broadcast(_broadcast)
 
     host = "0.0.0.0" if _LAN_MODE else "localhost"
-    # TLS — use cert/key if present, otherwise plain HTTP
+    # TLS — only enabled when --tls is explicitly passed; HTTP is the default.
     _display_dir = os.path.dirname(os.path.abspath(__file__))
     _cert = os.path.join(_display_dir, "cert.pem")
     _key  = os.path.join(_display_dir, "key.pem")
-    ssl_ctx = (_cert, _key) if os.path.exists(_cert) and os.path.exists(_key) else None
+    ssl_ctx = (_cert, _key) if (_TLS_MODE and os.path.exists(_cert) and os.path.exists(_key)) else None
     scheme  = "https" if ssl_ctx else "http"
+
+    # Write .scheme so push_stats.py / send.py / autorun-wait.sh know which to use
+    try:
+        with open(os.path.join(_display_dir, ".scheme"), "w") as _sf:
+            _sf.write(scheme)
+    except OSError:
+        pass
 
     if _LAN_MODE:
         print(f"DnD DM Display — LAN mode (0.0.0.0:5001) [{scheme.upper()}]")
         print(f"  Local:  {scheme}://localhost:5001")
         print("  Token stored at:", TOKEN_FILE)
         print("  POST endpoints require X-DND-Token header (send.py/push_stats.py handle this automatically)")
-        if ssl_ctx:
-            print("  TLS: self-signed cert — browser will warn, click through once")
         print()
     else:
         print(f"DnD DM Display — Flask server starting on {scheme}://localhost:5001")

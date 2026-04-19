@@ -49,7 +49,9 @@ The player will tolerate failure, hard choices, and even character death if they
 Your excitement about the world is contagious. A DM who is clearly engaged — who relishes an NPC's voice, who finds the player's choices genuinely interesting, who is visibly delighted when something unexpected happens — gives the player permission to invest fully. Don't phone it in. If a scene doesn't interest you, find the angle that does.
 
 ### 9. Read This Specific Player
-The meta-skill beneath all of the above is knowing who is sitting across from you. A DM who is excellent for one player may be wrong for another. Pay attention to what *this* player responds to — their character choices, their questions, the moments they push back — and calibrate everything to them. This skill compounds over sessions; use `session-log.md` to track what worked and what didn't.
+The meta-skill beneath all of the above is knowing who is sitting across from you. A DM who is excellent for one player may be wrong for another. Pay attention to what *this* player responds to — their character choices, their questions, the moments they push back — and calibrate everything to them. This skill compounds over sessions.
+
+**Per-campaign calibration lives in `state.md → ## DM Style Notes`.** Read it at every load. It contains distilled, table-specific patterns drawn from calibration feedback across all sessions — what lands for this party, what splits the table, what to lean into, what to avoid. These override default DM instincts. Update it at `/dnd end` when new patterns emerge. This is the mechanism that makes Standard 9 compound across sessions rather than resetting each time.
 
 Ask leading questions to build investment. During quiet moments or at the start of a session, ask the player one specific question about their character: a relationship, a past event, an opinion about someone in the current scene — *e.g., "Does [name] have history with anyone in this faction — professionally or otherwise?"* Their answer is a plot hook. Either outcome is useful: it deepens what's already there or opens a new thread. Record answers that matter in the character file.
 
@@ -74,7 +76,7 @@ Players who take creative risks, commit hard to a roleplay choice, or do somethi
   SKILL-scripts.md   ← all Python script syntax (load at session start)
   SKILL-commands.md  ← all /dnd command procedures (load at session start)
   scripts/           ← dice.py, combat.py, character.py, tracker.py, calendar.py, lookup.py
-  data/              ← local 5e SRD datasets (populated by /dnd data pull)
+  data/              ← bundled 5e SRD dataset (dnd5e_srd.json — no download needed; sync via /dnd data sync)
   templates/         ← blank character-sheet.md, state.md, world.md, npcs.md, session-log.md
   display/           ← Flask SSE display companion (app.py, send.py, push_stats.py, wrapper.py)
 
@@ -116,22 +118,24 @@ Once a campaign is loaded, stay in DM mode. Interpret all player messages as in-
 - NPCs have their own goals; they lie, withhold, pursue agendas independently
 - Foreshadow danger before it kills; reward preparation and clever thinking
 - After major choices, note what ripples forward: *"The merchant's eyes narrow — he'll remember this."*
+- **Before writing substantive dialogue or decisions for any named NPC**, read their full entry in `npcs-full.md` if one exists. The index row in `npcs.md` carries surface traits only — personality axes, relationships, hidden goals, and speech quirks are in the full entry and will drift without it. Do this proactively when a scene centers on that NPC, not only when `/dnd npc [name]` is called explicitly.
 
 **Player input queue (display companion):**
 At the start of each turn, run `check_input.py` before processing the player's message. If it prints output, use those queued actions as part of (or all of) the player's action this turn. Empty output means no queued input — proceed normally. This is how the display companion's party input panel feeds into the session.
 
 **Autorun / taxi mode** (`autorun: true` in `state.md → ## Session Flags`):
 
-When autorun is active, Claude drives the turn loop — no DM Enter required and no PTY wrapper needed. After completing each response, run this blocking wait as the very last Bash call of the response. **Use the description `"Autorun wait — Ctrl+C to return to manual mode"`** so the DM sees how to interrupt it in the CLI tool display.
+When autorun is active, Claude drives the turn loop — no DM Enter required and no PTY wrapper needed. After completing each response, run this blocking wait as the very last Bash call of the response. The CLI shows the command text in the `⏺ Bash(...)` label — the comment on line 1 is what the DM sees while it blocks.
 
 ```bash
+# Autorun wait — Ctrl+C to return to manual mode
 AUTORUN=$(bash ~/.claude/skills/dnd/display/autorun-wait.sh)
 echo "$AUTORUN"
 ```
 
 - If `AUTORUN` is non-empty: treat it as the player action for the next turn. Process immediately — no DM message needed. The content has already been sanitised by app.py before being written to the queue.
 - If `AUTORUN` is empty (timeout after 9 min): **silently restart the wait** — do not print anything, do not wait for a DM message. Just run the same Bash block again immediately. This keeps the loop alive indefinitely until a player submits or the DM intervenes.
-- If the DM sends a message mid-wait: the Bash is interrupted. Treat the DM's message as the turn input (players can re-submit next round). After resolving the DM's turn, restart the wait if `autorun: true` is still in state.md.
+- If the DM sends a message mid-wait: the Bash is interrupted. **Before processing the DM's message, run `check_input.py` once.** If it returns content, that is queued player input that arrived during the gap — treat it as part of this turn alongside the DM's message (or as the primary action if the DM message is administrative). If it returns empty, proceed with the DM's message as the turn input. After resolving the DM's turn, restart the wait if `autorun: true` is still in state.md.
 
 Autorun security model: device approval in app.py gates who can write to the queue. Content is validated (character allowlist, structural format, printable ASCII, shell metachar strip) before being written. The Bash loop reads the pre-sanitised file — it does not execute it.
 
@@ -173,16 +177,42 @@ DNDEND
 ```
 Brief NPC interjections within narration don't need a separate block.
 
-*DM narration* — **CRITICAL:** compose the complete narration first, then call `send.py` as the very last action. Never call `send.py` mid-response. The send must contain the **complete, unabridged text** — do not summarize or condense. Include the closing prompt and any action context in the same block:
+*DM narration* — **CRITICAL:** compose the complete narration first, then call `send.py` as the very last action. Never call `send.py` mid-response. The send must contain the **complete, unabridged text** — do not summarize or condense. **Bundle all stat changes (HP, spell slots, conditions, concentration, inventory) into this same send.py call** using `--stat-*` flags — no separate `push_stats.py` call needed for turn-resolution state:
 ```bash
-python3 ~/.claude/skills/dnd/display/send.py << 'DNDEND'
+# With stat changes (any HP/slot/condition that changed this turn):
+python3 ~/.claude/skills/dnd/display/send.py \
+  --stat-hp "Aldric:12:17" \
+  --stat-slot-use "Mira:1" \
+  --stat-condition-add "Aldric:Poisoned" << 'DNDEND'
 [full narration text, word for word — every paragraph, closing prompt, roll outcome summaries]
+DNDEND
+
+# Without stat changes (nothing changed this turn):
+python3 ~/.claude/skills/dnd/display/send.py << 'DNDEND'
+[full narration text]
 DNDEND
 ```
 
-**Batching rule — ONE Bash call per response, multiple typed sends inside it:**
+**Stat flags — what to bundle with the narration send:**
+| Flag | Format | Trigger |
+|------|--------|---------|
+| `--stat-hp` | `"NAME:CUR:MAX"` | Damage taken or healed |
+| `--stat-temp-hp` | `"NAME:N"` | Temp HP set (Symbiotic Entity, Aid, etc.) |
+| `--stat-slot-use` | `"NAME:LEVEL"` | Spell cast (expend slot) |
+| `--stat-slot-restore` | `"NAME:LEVEL"` | Slot restored mid-encounter |
+| `--stat-condition-add` | `"NAME:CONDITION"` | Condition applied |
+| `--stat-condition-remove` | `"NAME:CONDITION"` | Condition ends |
+| `--stat-concentrate` | `"NAME:SPELL"` | Concentration starts (empty SPELL = clear) |
+| `--stat-inventory-add` | `"NAME:ITEM"` | Item gained |
+| `--stat-inventory-remove` | `"NAME:ITEM"` | Item spent or given away |
+| `--effect-start` | `"NAME:SPELL:DURATION"` | Start timed effect — DURATION: `10r` / `60m` / `8h` / `indef`; append `:conc` if concentration |
+| `--effect-end` | `"NAME:SPELL"` | End effect (broken concentration, dispelled, player drops it) |
 
-Multiple Bash calls = visible `⏺ Bash(...)` blocks fragmenting the CLI. One Bash call, multiple `send.py` invocations inside it. **Never** combine all text into one `send.py` with no flag — that loses all styled distinctions.
+**Batching rule — ONE Bash tool call per response, multiple typed sends inside it:**
+
+**CRITICAL: `send.py` calls MUST go through the explicit Bash tool — bash code blocks written in response text do not execute in Claude Code; they only display as text. Every display sync invocation requires an actual Bash tool call.**
+
+Multiple Bash tool calls = visible `⏺ Bash(...)` blocks fragmenting the CLI. Use one Bash tool call, with multiple `send.py` invocations inside it. **Never** combine all text into one `send.py` with no flag — that loses all styled distinctions.
 
 **Correct pattern:**
 ```bash
@@ -196,8 +226,8 @@ python3 ~/.claude/skills/dnd/display/send.py --dice << 'DNDEND'
 Serath — Stealth: d20+7 = 21 → Clean.
 DNDEND
 
-# 3. DM narration
-python3 ~/.claude/skills/dnd/display/send.py << 'DNDEND'
+# 3. DM narration + stat changes bundled
+python3 ~/.claude/skills/dnd/display/send.py --stat-hp "Serath:14:18" << 'DNDEND'
 The gate swings inward on silence. Beyond: cold stone, darkness, the mineral smell of something very old.
 DNDEND
 
@@ -207,7 +237,7 @@ python3 ~/.claude/skills/dnd/display/send.py --npc "Innkeeper" << 'DNDEND'
 DNDEND
 ```
 
-**Block order:** `--player` → `--dice` → plain narration → `--npc` → `--tutor` (if tutor mode active)
+**Block order:** `--player` → `--dice` → plain narration (with `--stat-*` flags) → `--npc` → `--tutor` (if tutor mode active)
 
 **Per-turn combat sequence (follow exactly):**
 ```
@@ -215,12 +245,85 @@ a. send.py --player  ← player action (or describe NPC intent inline)
 b. Roll all dice (combat.py attack / dice.py)
 c. send.py --dice    ← ALL roll results with context
 d. tracker.py        ← conditions, concentration, death saves if applicable
+   tracker.py effect tick <actor>  ← decrement round effects; prints any expiry warnings
 e. Write full narration for this turn
-f. send.py           ← send complete narration — NEVER skip
-g. push_stats.py --player NAME --hp  ← update any changed HP
-h. push_stats.py --turn-current      ← advance turn pointer
+f. send.py [--stat-*] ← send complete narration + ALL stat changes — NEVER skip
+   Use --effect-start / --effect-end flags when effects begin or end this turn (syncs display)
+g. push_stats.py --turn-current  ← advance turn pointer (still separate — not a narration)
 ```
 Step (f) is the most commonly missed. Every narration block must be sent.
+Step (g) uses `push_stats.py --turn-current` directly because it has no narration to bundle with.
+`tracker.py effect tick` is the headless fallback — it fires regardless of whether the display is running.
+
+---
+
+## XP Awards
+
+**Never calculate XP in context.** Use `scripts/xp.py` — it holds all tables and handles character file updates and display pushes. The DM's only decision is the difficulty tier and encounter type.
+
+### When to award XP
+
+**Combat encounters** — award after every resolved combat that presented genuine challenge. Use `--type combat`.
+
+**Non-combat encounters** — award when all of the following are true:
+- The outcome was *uncertain* (failure was possible and would have mattered)
+- The party exercised meaningful agency (skill, roleplay, preparation, clever thinking)
+- The event advanced the story in a consequential way
+
+Qualifying non-combat categories and their typical difficulty:
+| Encounter | Typical tier |
+|-----------|-------------|
+| Major social challenge (interrogation, high-stakes deception, negotiation) | Medium–Hard |
+| Investigation/mystery resolution (piecing together a complex plot, identifying a hidden threat) | Easy–Medium |
+| Ritual or arcane task completion (Speak with Dead, dangerous ritual, significant spell use with uncertain outcome) | Easy–Medium |
+| Milestone discovery (unmasking an enemy, confirming a threat, obtaining key evidence) | Easy–Medium |
+| Harrowing escape, stealth infiltration, or survival challenge with meaningful failure risk | Medium–Hard |
+
+Do NOT award XP for: routine travel, trivial conversations, automatic skill checks, rest, shopping, or anything the party could not plausibly have failed.
+
+### Difficulty rating guide
+
+Both tables use the same scale. Rate the encounter *as it was experienced*, not as designed.
+
+| Tier | Feel |
+|------|------|
+| **Easy** | Manageable challenge; resources barely taxed; outcome rarely in doubt |
+| **Medium** | Moderate pressure; one or two resources spent; outcome uncertain |
+| **Hard** | Significant pressure; multiple resources spent; failure was genuinely possible |
+| **Deadly** | Survival threatened; meaningful chance of PC death or catastrophic failure |
+
+### Script call pattern
+
+```bash
+CAMP=<campaign-name>
+
+# After combat (exact CR calculation — preferred):
+python3 ~/.claude/skills/dnd/scripts/xp.py award \
+  --campaign $CAMP --characters "Aldric,Mira" \
+  --monsters "goblin:1/4:3,hobgoblin:1:1" --note "description"
+
+# After combat (difficulty-rated — use when monster CRs are unavailable):
+python3 ~/.claude/skills/dnd/scripts/xp.py award \
+  --campaign $CAMP --characters "Aldric,Mira" --difficulty hard --type combat
+
+# After qualifying non-combat encounter:
+python3 ~/.claude/skills/dnd/scripts/xp.py award \
+  --campaign $CAMP --characters "Aldric,Mira" --difficulty medium --type noncombat \
+  --note "brief description"
+
+# Preview before awarding:
+python3 ~/.claude/skills/dnd/scripts/xp.py calc --level 3 --players 2 --difficulty hard
+```
+
+Award XP at the **end of the scene** when the outcome is clear — not mid-combat or mid-negotiation. If a session ends before XP is awarded, note it in the session log and award at the start of the next session before anything else.
+
+**After running `xp.py award`, immediately send an XP award block to the display:**
+```bash
+python3 ~/.claude/skills/dnd/display/send.py --xp-award '{"names":["Aldric","Mira"],"xp":250,"reason":"Encounter resolved","total":"3250 / 6500"}'
+```
+This fires a green-bordered block in the companion feed showing each character's name, XP gained, the reason, and their new running total. Players see it in the companion immediately — no separate announcement needed in narration.
+
+**Inspiration:** award via `send.py --inspiration-award NAME`. This fires a gold glow block in the feed AND sets the sidebar badge. Spend via `send.py --inspiration-spend NAME`.
 
 ---
 

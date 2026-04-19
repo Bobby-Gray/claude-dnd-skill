@@ -28,6 +28,39 @@ Roll mode: generates 3 arrays (4d6kh3 × 6 each). Point buy mode: prints cost ta
 
 ---
 
+## XP Script — `scripts/xp.py`
+Awards XP for combat and qualifying non-combat encounters. Reads character files from the campaign directory, updates XP, and pushes to the display sidebar. All tables (difficulty thresholds, CR→XP, monster multipliers, level advancement) are codified in the script — the DM only decides the difficulty tier or provides a monster list.
+
+```bash
+# Preview — no files modified:
+python3 ~/.claude/skills/dnd/scripts/xp.py calc --level 3 --players 2 --difficulty hard --type combat
+python3 ~/.claude/skills/dnd/scripts/xp.py calc --level 3 --players 2 --monsters "goblin:1/4:3,hobgoblin:1:1"
+
+# Award after a combat encounter — difficulty-rated (use when full monster list is unavailable):
+python3 ~/.claude/skills/dnd/scripts/xp.py award \
+  --campaign <name> --characters "Aldric,Mira" --difficulty hard --type combat
+
+# Award after a combat encounter — exact CR calculation (preferred for standard combats):
+python3 ~/.claude/skills/dnd/scripts/xp.py award \
+  --campaign <name> --characters "Aldric,Mira" \
+  --monsters "goblin:1/4:3,hobgoblin:1:1" --note "Ambush in the alley"
+
+# Award for a qualifying non-combat encounter:
+python3 ~/.claude/skills/dnd/scripts/xp.py award \
+  --campaign <name> --characters "Aldric,Mira" --difficulty medium --type noncombat \
+  --note "guild informant interrogation"
+```
+
+**Difficulty tiers:** `easy` `medium` `hard` `deadly`
+**Encounter types:** `combat` `noncombat` (both use the same difficulty threshold table)
+**Monster CR formats:** `1/4`, `0.25`, `1/2`, `0.5`, `1/8`, `0.125`, or integer (`1`, `5`, `10`)
+**Monster count:** omit for 1 (e.g. `"dragon:10"`); explicit for groups (e.g. `"goblin:1/4:3"`)
+**Monster multiplier** (applied automatically): ×1 (1), ×1.5 (2), ×2 (3–6), ×2.5 (7–10), ×3 (11–14), ×4 (15+)
+
+`award` updates the character file XP field, flags LEVEL UP PENDING if a threshold is crossed, and pushes XP to the display via `push_stats.py`. The `--note` label prints to terminal only — not stored.
+
+---
+
 ## Combat Script — `scripts/combat.py`
 ```bash
 # Roll initiative and print tracker
@@ -194,6 +227,8 @@ If `check_input.py` returns output, prepend it to the player's terminal input wh
 - Condition gained → `--player NAME --conditions-add "Name"`; removed → `--conditions-remove "Name"`
 - Concentration started → `--player NAME --concentrate "Spell"`; ended → `--concentrate ""`
 - Item picked up → `--player NAME --inventory-add "Item"`; dropped/used → `--inventory-remove "Item"`
+- Timed effect starts → `--effect-start "NAME:SPELL:DURATION[:conc]"` bundled with narration send
+- Timed effect ends → `--effect-end "NAME:SPELL"` bundled with narration send
 - Faction standing changes → `--factions '[...]'` (full replace)
 - Combat start → `--turn-order`; each turn → `--turn-current`; end → `--turn-clear`
 - Level up → push updated full stats
@@ -203,10 +238,18 @@ If `check_input.py` returns output, prepend it to the player's terminal input wh
 ---
 
 ## Tracker Script — `scripts/tracker.py`
-Tracks conditions, concentration, and death saves. State persists at `~/.claude/dnd/campaigns/<name>/tracker.json`.
+Tracks conditions, concentration, timed effects, and death saves. State persists at `~/.claude/dnd/campaigns/<name>/tracker.json`.
 
 ```bash
 CAMP=my-campaign
+
+# Timed effects — duration: 10r (rounds), 60m (minutes), 8h (hours), indef
+# Append 'conc' to mark as concentration (auto-sets concentration field)
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect start "Aldric" "Web" 10r conc
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect start "Mira" "Disguise Self" 1h
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect start "Mira" "Hunter's Mark" indef
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect end   "Aldric" "Web"   # narrative end (broken/dispelled)
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP effect tick  "Aldric"         # call on actor's turn — decrements rounds, prints expiry
 
 # Conditions
 python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP condition add "Mira" poisoned
@@ -226,7 +269,7 @@ python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP saves "Mira" reset
 # Status / clear
 python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP status
 python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP status "Mira"
-python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP clear           # conditions + concentration
+python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP clear           # conditions + concentration + effects
 python3 ~/.claude/skills/dnd/scripts/tracker.py -c $CAMP clear --all     # also clears death saves
 ```
 
@@ -265,7 +308,7 @@ python3 ~/.claude/skills/dnd/scripts/calendar.py -c $CAMP events
 Keyword search across campaign files. Use this **before** loading full files into context when looking up a specific past event, NPC detail, or plot thread.
 
 ```bash
-CAMP=mom-dad-campaign-0
+CAMP=my-campaign
 
 # Search all default files (state, log, archive, world, npcs):
 python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c $CAMP Lasswater
@@ -287,24 +330,32 @@ Default files searched: state, log, archive, world, npcs
 
 ---
 
-## Data Commands — `scripts/data_pull.py` and `scripts/lookup.py`
+## Data Commands — `scripts/sync_srd.py`, `scripts/build_srd.py`, and `scripts/lookup.py`
+
+Dataset is bundled at `~/.claude/skills/dnd/data/dnd5e_srd.json`. No runtime download required.
 
 ```bash
-# Fetch (run once after install, or to refresh):
-python3 ~/.claude/skills/dnd/scripts/data_pull.py           # download missing files
-python3 ~/.claude/skills/dnd/scripts/data_pull.py --force   # re-download all
-python3 ~/.claude/skills/dnd/scripts/data_pull.py --status
+# Check / rebuild dataset (only needed when upstream sources update):
+python3 ~/.claude/skills/dnd/scripts/sync_srd.py             # rebuild if 5e-bits or FoundryVTT has new commits
+python3 ~/.claude/skills/dnd/scripts/sync_srd.py --check     # check upstream SHAs, don't rebuild
+python3 ~/.claude/skills/dnd/scripts/sync_srd.py --force     # always rebuild
+python3 ~/.claude/skills/dnd/scripts/build_srd.py --status   # show current dataset metadata
 
-# Lookup during play:
-python3 ~/.claude/skills/dnd/scripts/lookup.py monster "goblin"
+# Lookup during play (CLI):
 python3 ~/.claude/skills/dnd/scripts/lookup.py spell "fireball"
-python3 ~/.claude/skills/dnd/scripts/lookup.py condition "poisoned"
-python3 ~/.claude/skills/dnd/scripts/lookup.py equipment "explorer's pack"
 python3 ~/.claude/skills/dnd/scripts/lookup.py item "cloak of protection"
+python3 ~/.claude/skills/dnd/scripts/lookup.py feature "sneak attack"
+python3 ~/.claude/skills/dnd/scripts/lookup.py condition "poisoned"
+python3 ~/.claude/skills/dnd/scripts/lookup.py monster "goblin"
 python3 ~/.claude/skills/dnd/scripts/lookup.py monster "dragon" --all   # all fuzzy matches
+
+# Programmatic (used by display companion /srd-lookup endpoint):
+from lookup import lookup, lookup_record, lookup_with_level
+lookup("fireball", category="spell")                  # → formatted string
+lookup_with_level("sneak attack", category="feature", level=3)  # → level-resolved string
 ```
 
-**When to use:** combat (look up any monster you didn't create before using its stats); spellcasting (range, components, duration, scaling); conditions (rule text before applying); loot and equipment; NPC generation (use monster stat block as mechanical base).
+**When to use:** combat (monster stat blocks before using them); spellcasting (range, components, duration, at-higher-levels); conditions (rule text before applying); loot and equipment; NPC generation (monster stat block as mechanical base). The display companion's character sheet modal handles lookups automatically during play — these CLI calls are for DM reference outside the UI.
 
 ---
 
@@ -316,23 +367,28 @@ pip3 install -r requirements.txt
 ```
 
 ```
-Terminal (wrapper.py spawns claude)
-    ↓ stdout captured via PTY
-Flask on localhost:5001 (app.py)
+Terminal (run claude directly — no wrapper needed)
+    ↓ send.py calls per narration block / dice roll / stat change
+Flask on https://localhost:5001 (app.py — HTTPS, self-signed cert)
     ↓ Server-Sent Events
 Browser tab → Chromecast → TV
 ```
 
-**Option A — wrapper.py (full auto):**
+**Start the display:**
 ```bash
-python3 ~/.claude/skills/dnd/display/app.py          # Terminal 1
-open http://localhost:5001                            # Browser — Chromecast before session
-python3 ~/.claude/skills/dnd/display/wrapper.py      # Terminal 2
-python3 ~/.claude/skills/dnd/display/wrapper.py --resume
+bash ~/.claude/skills/dnd/display/start-display.sh          # localhost
+bash ~/.claude/skills/dnd/display/start-display.sh --lan    # LAN mode (phones, tablets)
+open https://localhost:5001                                  # open browser before /dnd load
 ```
 
-**Option B — direct send (from inside existing session):**
-Flask starts automatically on `/dnd load`. DM sends each block via `send.py` (see Active DM Mode in SKILL.md).
+`start-display.sh` always force-kills any previous instance before starting — no manual pre-kill needed.
+
+**Load a campaign:**
+```
+/dnd load <campaign-name>   # skill auto-detects running display, pushes party stats
+```
+
+The DM skill sends each narration block, dice result, and stat update via `send.py` calls (see Active DM Mode in SKILL.md for full send sequence and stat flag reference).
 
 Open the browser tab and Chromecast it *before* running `/dnd load` so the browser is connected when the opening narration streams in. The display buffers the last 60 chunks and replays them to reconnecting browsers.
 

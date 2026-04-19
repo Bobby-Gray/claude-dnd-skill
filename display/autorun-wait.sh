@@ -11,6 +11,20 @@
 DISPLAY_DIR="$(cd "$(dirname "$0")" && pwd)"
 PUSH="${DISPLAY_DIR}/push_stats.py"
 QFILE="${HOME}/.claude/skills/dnd/display/.input_queue"
+WAIT_PID_FILE="${DISPLAY_DIR}/.autorun-wait.pid"
+
+# ── Kill any previous autorun-wait instance ───────────────────────────────────
+if [[ -f "$WAIT_PID_FILE" ]]; then
+  OLD_PID=$(cat "$WAIT_PID_FILE")
+  # Kill the whole process group so the inner poll loop dies too
+  kill -- -"$OLD_PID" 2>/dev/null || kill "$OLD_PID" 2>/dev/null || true
+  rm -f "$WAIT_PID_FILE"
+  sleep 0.1
+fi
+echo $$ > "$WAIT_PID_FILE"
+
+# Clean up PID file on exit
+trap 'rm -f "$WAIT_PID_FILE"' EXIT
 
 # Read autorun_interval from active campaign's state.md (default 60s)
 INTERVAL=$(python3 -c "
@@ -40,9 +54,14 @@ if [ -n "$AUTORUN" ]; then
   python3 -c "
 import ssl, urllib.request, os
 try:
+    ddir = '$DISPLAY_DIR'
+    scheme_file = os.path.join(ddir, '.scheme')
+    scheme = open(scheme_file).read().strip() if os.path.exists(scheme_file) else 'http'
     token = open(os.path.expanduser('~/.claude/skills/dnd/display/.token')).read().strip()
-    ctx = ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
-    req = urllib.request.Request('https://localhost:5001/queue/consumed', data=b'', method='POST', headers={'X-DND-Token': token})
+    ctx = None
+    if scheme == 'https':
+        ctx = ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
+    req = urllib.request.Request(f'{scheme}://localhost:5001/queue/consumed', data=b'', method='POST', headers={'X-DND-Token': token})
     urllib.request.urlopen(req, timeout=1, context=ctx)
 except: pass
 " 2>/dev/null

@@ -227,14 +227,17 @@ pip3 install flask flask-cors numpy cryptography
 The display starts automatically when you answer **y** at the `/dnd load` prompt. Or start it manually:
 
 ```bash
-# Local only (Mac/same machine)
+# Local only (Mac/same machine) — HTTP, no cert setup
 bash ~/.claude/skills/dnd/display/start-display.sh
 
-# LAN mode — accessible to phones/tablets on your network
+# LAN mode — HTTP, accessible to phones/tablets on your network
 bash ~/.claude/skills/dnd/display/start-display.sh --lan
+
+# LAN mode with TLS — for public or untrusted networks
+bash ~/.claude/skills/dnd/display/start-display.sh --lan --tls
 ```
 
-Then open `https://localhost:5001` in your browser. The first time you'll see a certificate warning for the self-signed cert — click through it. For LAN devices use the IP URL printed at startup (e.g. `https://192.168.1.x:5001`).
+Then open `http://localhost:5001` in your browser. HTTP is the default — no certificate warnings. For LAN devices use the IP URL printed at startup (e.g. `http://192.168.1.x:5001`). Use `--tls` only when the network is public or untrusted.
 
 ### Viewing Options
 
@@ -244,18 +247,17 @@ Open the display URL in a browser, then choose how to show it:
 |--------|-----|
 | **TV — Cast tab** | Chrome → three-dot menu → Cast → Cast tab; select your Chromecast or smart TV |
 | **TV — Screen mirror** | macOS: Control Centre → Screen Mirroring → Apple TV / AirPlay receiver |
-| **iPad / tablet** | Start with `--lan`, open `https://<your-ip>:5001` in Safari or Chrome; works in landscape |
-| **Second monitor** | Open `https://localhost:5001` in a browser window and drag it to the second display |
+| **iPad / tablet** | Start with `--lan`, open `http://<your-ip>:5001` in Safari or Chrome; works in landscape |
+| **Second monitor** | Open `http://localhost:5001` in a browser window and drag it to the second display |
 
-### TLS / HTTPS Setup
+### TLS / HTTPS (optional)
 
-LAN mode requires HTTPS (mobile browsers require it for SSE and clipboard features). A self-signed cert is generated automatically on first `--lan` start, or you can regenerate it manually:
+HTTP is the default. Use `--tls` only when the network is public or untrusted. When `--tls` is passed to `start-display.sh`:
+- A self-signed cert is auto-generated (10-year validity) if `cert.pem` is not already present
+- A plain HTTP server starts on `:8080` to serve `cert.pem` for download
+- Per-platform install instructions are printed to the terminal (iOS, Android, Mac)
 
-```bash
-python3 ~/.claude/skills/dnd/display/setup_tls.py
-```
-
-This creates `cert.pem` + `key.pem` in the display folder with SANs for `localhost` and your current LAN IP. Import `cert.pem` into your phone's trusted certs to eliminate the browser warning on mobile.
+For iOS: open `http://<your-ip>:8080/cert.pem` in Safari → tap Allow → Settings → General → VPN & Device Management → install profile → Certificate Trust Settings → enable full trust.
 
 ### Player Input from the Companion UI
 

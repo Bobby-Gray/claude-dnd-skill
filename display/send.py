@@ -33,6 +33,26 @@ Usage:
 
     # Short inline string
     echo "Short message" | python3 send.py
+
+    # State changes bundled with narration (Option B)
+    python3 send.py --stat-hp "Mira:12:17" --stat-slot-use "Aldric:1" << 'DNDEND'
+    The goblin's blade finds a gap in her armor for 5 damage...
+    DNDEND
+
+    # Supported stat flags (can repeat for multiple players):
+    #   --stat-hp         "NAME:CURRENT:MAX"
+    #   --stat-temp-hp    "NAME:N"
+    #   --stat-slot-use   "NAME:LEVEL"       (expend one slot)
+    #   --stat-slot-restore "NAME:LEVEL"     (restore one slot)
+    #   --stat-condition-add    "NAME:CONDITION"
+    #   --stat-condition-remove "NAME:CONDITION"
+    #   --stat-concentrate "NAME:SPELL"       (empty SPELL = clear)
+    #   --stat-inventory-add    "NAME:ITEM"
+    #   --stat-inventory-remove "NAME:ITEM"
+    #
+    # Timed effect flags:
+    #   --effect-start "NAME:SPELL:DURATION"   DURATION: 10r/60m/8h/indef  optional :conc
+    #   --effect-end   "NAME:SPELL"            narrative end (broken/dispelled)
 """
 
 import sys
@@ -40,16 +60,24 @@ import json
 import argparse
 import os
 import ssl
+import time
 import urllib.request
 
-FLASK_URL  = "https://localhost:5001/chunk"
-TOKEN_FILE = os.path.expanduser("~/.claude/skills/dnd/display/.token")
-TIMEOUT    = 2.0
+_DISPLAY_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCHEME_FILE = os.path.join(_DISPLAY_DIR, ".scheme")
+_SCHEME = open(_SCHEME_FILE).read().strip() if os.path.exists(_SCHEME_FILE) else "http"
+FLASK_URL   = f"{_SCHEME}://localhost:5001/chunk"
+STATS_URL   = f"{_SCHEME}://localhost:5001/stats"
+TOKEN_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.token")
+TIMEOUT     = 2.0
 
-# Self-signed cert — skip verification for localhost connections
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
+# SSL context — only used when running HTTPS (self-signed cert)
+if _SCHEME == "https":
+    _SSL_CTX = ssl.create_default_context()
+    _SSL_CTX.check_hostname = False
+    _SSL_CTX.verify_mode = ssl.CERT_NONE
+else:
+    _SSL_CTX = None
 
 
 def _read_token() -> str:
@@ -57,6 +85,143 @@ def _read_token() -> str:
         return open(TOKEN_FILE).read().strip()
     except FileNotFoundError:
         return ""
+
+
+def _post(url: str, data: bytes, token: str) -> None:
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["X-DND-Token"] = token
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        urllib.request.urlopen(req, timeout=TIMEOUT, context=_SSL_CTX)
+    except Exception:
+        pass  # Display not running — fail silently
+
+
+def _build_stats_payload(args) -> "dict | None":
+    """Build a push_stats-compatible payload from --stat-* flags."""
+    players: "dict[str, dict]" = {}
+
+    def _p(name: str) -> dict:
+        return players.setdefault(name, {"name": name})
+
+    for spec in (args.stat_hp or []):
+        parts = spec.split(":")
+        if len(parts) >= 3:
+            name, cur, mx = parts[0], parts[1], parts[2]
+            try:
+                _p(name)["hp"] = {"current": int(cur), "max": int(mx)}
+            except ValueError:
+                pass
+
+    for spec in (args.stat_temp_hp or []):
+        idx = spec.rfind(":")
+        if idx > 0:
+            name, n = spec[:idx], spec[idx + 1:]
+            try:
+                _p(name).setdefault("hp", {})["temp"] = int(n)
+            except ValueError:
+                pass
+
+    for spec in (args.stat_slot_use or []):
+        idx = spec.rfind(":")
+        if idx > 0:
+            name, lvl = spec[:idx], spec[idx + 1:]
+            try:
+                _p(name)["_slot_use"] = int(lvl)
+            except ValueError:
+                pass
+
+    for spec in (args.stat_slot_restore or []):
+        idx = spec.rfind(":")
+        if idx > 0:
+            name, lvl = spec[:idx], spec[idx + 1:]
+            try:
+                _p(name)["_slot_restore"] = int(lvl)
+            except ValueError:
+                pass
+
+    for spec in (args.stat_condition_add or []):
+        idx = spec.find(":")
+        if idx > 0:
+            name, cond = spec[:idx], spec[idx + 1:]
+            if cond.strip():
+                _p(name)["_conditions_add"] = cond.strip()
+
+    for spec in (args.stat_condition_remove or []):
+        idx = spec.find(":")
+        if idx > 0:
+            name, cond = spec[:idx], spec[idx + 1:]
+            if cond.strip():
+                _p(name)["_conditions_remove"] = cond.strip()
+
+    for spec in (args.stat_concentrate or []):
+        idx = spec.find(":")
+        if idx >= 0:
+            name, spell = spec[:idx], spec[idx + 1:]
+            _p(name)["concentration"] = spell.strip() or None
+
+    for spec in (args.stat_inventory_add or []):
+        idx = spec.find(":")
+        if idx > 0:
+            name, item = spec[:idx], spec[idx + 1:]
+            if item.strip():
+                _p(name)["_inventory_add"] = item.strip()
+
+    for spec in (args.stat_inventory_remove or []):
+        idx = spec.find(":")
+        if idx > 0:
+            name, item = spec[:idx], spec[idx + 1:]
+            if item.strip():
+                _p(name)["_inventory_remove"] = item.strip()
+
+    for spec in (args.effect_start or []):
+        # Format: NAME:SPELL:DURATION[:conc]
+        # DURATION: 10r (rounds), 60m (minutes), 8h (hours), indef (indefinite)
+        parts = spec.split(":", 3)
+        if len(parts) < 3:
+            continue
+        name     = parts[0].strip()
+        spell    = parts[1].strip()
+        dur_str  = parts[2].strip().lower()
+        is_conc  = len(parts) == 4 and parts[3].strip().lower() == "conc"
+        if not name or not spell:
+            continue
+        effect: dict = {"name": spell, "concentration": is_conc}
+        if dur_str.endswith("r"):
+            try:
+                effect["duration_type"]      = "rounds"
+                effect["duration_remaining"] = int(dur_str[:-1])
+            except ValueError:
+                continue
+        elif dur_str.endswith("m"):
+            try:
+                effect["duration_type"]    = "minutes"
+                effect["duration_seconds"] = int(dur_str[:-1]) * 60
+                effect["started_at"]       = time.time()
+            except ValueError:
+                continue
+        elif dur_str.endswith("h"):
+            try:
+                effect["duration_type"]    = "hours"
+                effect["duration_seconds"] = int(dur_str[:-1]) * 3600
+                effect["started_at"]       = time.time()
+            except ValueError:
+                continue
+        else:
+            effect["duration_type"] = "indefinite"
+        _p(name)["_effect_start"] = effect
+
+    for spec in (args.effect_end or []):
+        idx = spec.find(":")
+        if idx > 0:
+            name, spell = spec[:idx], spec[idx + 1:]
+            if spell.strip():
+                _p(name)["_effect_end"] = spell.strip()
+
+    if not players:
+        return None
+    return {"players": list(players.values())}
 
 
 def main() -> None:
@@ -81,39 +246,92 @@ def main() -> None:
         "--action", metavar="NAME",
         help="Send as a player action intent — subdued label echoing what the player declared",
     )
+
+    # ── Inspiration / XP award flags ─────────────────────────────────────────
+    parser.add_argument("--inspiration-award", metavar="NAME",
+        help="Award Inspiration: fires a styled gold block in the feed + sidebar badge")
+    parser.add_argument("--inspiration-spend", metavar="NAME",
+        help="Spend/clear Inspiration: removes sidebar badge")
+    parser.add_argument("--xp-award", metavar="JSON",
+        help='XP award block: \'{"names":["Aldric","Mira"],"xp":250,"reason":"Encounter resolved","total":"3250/6500"}\'')
+
+    # ── Stat-change flags (Option B — bundled with narration) ─────────────────
+    parser.add_argument("--stat-hp", action="append", metavar="NAME:CUR:MAX",
+        help="Set HP: NAME:CURRENT:MAX (can repeat for multiple players)")
+    parser.add_argument("--stat-temp-hp", action="append", metavar="NAME:N",
+        help="Set temp HP: NAME:N")
+    parser.add_argument("--stat-slot-use", action="append", metavar="NAME:LEVEL",
+        help="Expend one spell slot: NAME:LEVEL")
+    parser.add_argument("--stat-slot-restore", action="append", metavar="NAME:LEVEL",
+        help="Restore one spell slot: NAME:LEVEL")
+    parser.add_argument("--stat-condition-add", action="append", metavar="NAME:COND",
+        help="Add condition: NAME:CONDITION (can repeat)")
+    parser.add_argument("--stat-condition-remove", action="append", metavar="NAME:COND",
+        help="Remove condition: NAME:CONDITION (can repeat)")
+    parser.add_argument("--stat-concentrate", action="append", metavar="NAME:SPELL",
+        help="Set concentration: NAME:SPELL (empty SPELL = clear)")
+    parser.add_argument("--stat-inventory-add", action="append", metavar="NAME:ITEM",
+        help="Add inventory item: NAME:ITEM")
+    parser.add_argument("--stat-inventory-remove", action="append", metavar="NAME:ITEM",
+        help="Remove inventory item: NAME:ITEM")
+    parser.add_argument("--effect-start", action="append", metavar="NAME:SPELL:DURATION",
+        help="Start a timed effect: NAME:SPELL:DURATION (10r/60m/8h/indef) optionally :conc")
+    parser.add_argument("--effect-end", action="append", metavar="NAME:SPELL",
+        help="End a timed effect: NAME:SPELL (narrative end — broken, dispelled, player drops)")
+
     args = parser.parse_args()
 
     text = sys.stdin.read()
-    if not text.strip():
+    token = _read_token()
+
+    # ── Inspiration award/spend (bypass normal text flow) ─────────────────────
+    if args.inspiration_award:
+        name = args.inspiration_award.strip()
+        _post(FLASK_URL, json.dumps({"inspiration_award": name, "text": name}).encode(), token)
+        _post(STATS_URL, json.dumps({"players": [{"name": name, "inspiration": True}]}).encode(), token)
         return
 
-    payload: dict = {"text": text}
-    if args.action:
-        payload["action"] = args.action
-    elif args.player:
-        payload["player"] = args.player
-    elif args.npc:
-        payload["npc"] = args.npc
-    elif args.dice:
-        payload["dice"] = True
-    elif args.tutor:
-        payload["tutor"] = True
+    if args.inspiration_spend:
+        name = args.inspiration_spend.strip()
+        _post(STATS_URL, json.dumps({"players": [{"name": name, "inspiration": False}]}).encode(), token)
+        return
 
-    data = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    token = _read_token()
-    if token:
-        headers["X-DND-Token"] = token
-    req = urllib.request.Request(
-        FLASK_URL,
-        data=data,
-        headers=headers,
-        method="POST",
-    )
-    try:
-        urllib.request.urlopen(req, timeout=TIMEOUT, context=_SSL_CTX)
-    except Exception:
-        pass  # Display not running — fail silently
+    # ── XP award block ────────────────────────────────────────────────────────
+    if args.xp_award:
+        try:
+            xp_data = json.loads(args.xp_award)
+        except json.JSONDecodeError as e:
+            print(f"Invalid xp-award JSON: {e}", file=sys.stderr)
+            sys.exit(1)
+        # Build a human-readable summary if not provided
+        if "summary" not in xp_data:
+            names = ", ".join(xp_data.get("names", []))
+            amt   = xp_data.get("xp", 0)
+            rsn   = xp_data.get("reason", "")
+            xp_data["summary"] = f"{names} — {amt} XP" + (f" ({rsn})" if rsn else "")
+        _post(FLASK_URL, json.dumps({"xp_award": xp_data, "text": xp_data["summary"]}).encode(), token)
+        return
+
+    # ── Text send ─────────────────────────────────────────────────────────────
+    if text.strip():
+        payload: dict = {"text": text}
+        if args.action:
+            payload["action"] = args.action
+        elif args.player:
+            payload["player"] = args.player
+        elif args.npc:
+            payload["npc"] = args.npc
+        elif args.dice:
+            payload["dice"] = True
+        elif args.tutor:
+            payload["tutor"] = True
+
+        _post(FLASK_URL, json.dumps(payload).encode("utf-8"), token)
+
+    # ── Stat send (bundled) ───────────────────────────────────────────────────
+    stats_payload = _build_stats_payload(args)
+    if stats_payload:
+        _post(STATS_URL, json.dumps(stats_payload).encode("utf-8"), token)
 
 
 if __name__ == "__main__":
