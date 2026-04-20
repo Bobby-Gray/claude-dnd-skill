@@ -66,7 +66,8 @@ TOKEN_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/.token")
 INPUT_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/player_input.json")
 TRIGGER_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.input_trigger")
 QUEUE_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/.input_queue")
-DEVICES_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.approved_devices.json")
+DEVICES_FILE         = os.path.expanduser("~/.claude/skills/dnd/display/.approved_devices.json")
+PENDING_DEVICES_FILE = os.path.expanduser("~/.claude/skills/dnd/display/.pending_devices.json")
 
 # ─── LAN / TLS mode ───────────────────────────────────────────────────────────
 # Pass --lan to bind on 0.0.0.0 and protect write endpoints with a token.
@@ -180,14 +181,42 @@ def _load_approved_devices() -> None:
         pass
 
 
+def _persist_pending_devices() -> None:
+    """Persist pending devices to disk so they survive app restarts. Must be called WITHOUT _devices_lock held."""
+    try:
+        with _devices_lock:
+            data = list(_pending_devices.values())
+        with open(PENDING_DEVICES_FILE, "w") as f:
+            json.dump(data, f)
+        os.chmod(PENDING_DEVICES_FILE, 0o600)
+    except Exception:
+        pass
+
+
+def _load_pending_devices() -> None:
+    try:
+        with open(PENDING_DEVICES_FILE) as f:
+            data = json.load(f)
+        with _devices_lock:
+            for d in data:
+                if isinstance(d, dict) and d.get("id"):
+                    # Skip if already approved/denied during this run
+                    if d["id"] not in _approved_devices and d["id"] not in _denied_devices:
+                        _pending_devices[d["id"]] = d
+    except Exception:
+        pass
+
+
 _load_approved_devices()
+_load_pending_devices()
 
 
 def _device_ok(device_id: str, ip: str) -> str:
     """Return 'approved', 'pending', or 'denied' for a given device."""
     if not device_id:
         return "denied"
-    _need_persist = False
+    _need_persist_approved = False
+    _need_persist_pending  = False
     with _devices_lock:
         if device_id in _approved_devices:
             return "approved"
@@ -196,7 +225,7 @@ def _device_ok(device_id: str, ip: str) -> str:
         # Localhost always auto-approved
         if ip in ("127.0.0.1", "::1"):
             _approved_devices.add(device_id)
-            _need_persist = True
+            _need_persist_approved = True
         # New LAN device — hold and notify DM
         elif device_id not in _pending_devices:
             _pending_devices[device_id] = {
@@ -204,11 +233,14 @@ def _device_ok(device_id: str, ip: str) -> str:
                 "ip":         ip,
                 "first_seen": _time.time(),
             }
+            _need_persist_pending = True
             _broadcast({"device_request": {"id": device_id, "ip": ip}})
     # Persist outside the lock to avoid deadlock (Lock is not reentrant)
-    if _need_persist:
+    if _need_persist_approved:
         _persist_approved_devices()
         return "approved"
+    if _need_persist_pending:
+        _persist_pending_devices()
     return "pending"
 
 
@@ -755,9 +787,17 @@ def _load_tail() -> None:
     try:
         with open(_get_tail_file()) as f:
             data = json.load(f)
+        try:
+            current_camp = open(CAMP_FILE).read().strip()
+        except Exception:
+            current_camp = ""
         with _tail_lock:
             _tail_buffer.clear()
             for item in data[-30:]:
+                # Skip entries stamped with a different campaign (bleed prevention)
+                item_camp = item.get("_camp", "")
+                if current_camp and item_camp and item_camp != current_camp:
+                    continue
                 _tail_buffer.append(item)
     except Exception:
         pass
@@ -1021,6 +1061,14 @@ def chunk():
     elif is_tutor:
         log_entry["tutor"] = True
 
+    # Stamp campaign on tail entries to prevent bleed when switching campaigns
+    try:
+        _camp_stamp = open(CAMP_FILE).read().strip()
+        if _camp_stamp:
+            log_entry["_camp"] = _camp_stamp
+    except Exception:
+        pass
+
     with _text_log_lock:
         _text_log.append(log_entry)
     with _tail_lock:
@@ -1064,6 +1112,7 @@ def stats():
                     "_slot_use", "_slot_restore",
                     "_hd_use", "_hd_restore",
                     "_effect_start", "_effect_end",
+                    "_sheet_spells",
                 }
                 if match:
                     for key, val in incoming.items():
@@ -1133,6 +1182,10 @@ def stats():
                             if removed and any(e.get("concentration") for e in removed):
                                 if match.get("concentration", "").lower() == spell_lower:
                                     match["concentration"] = None
+                        elif key == "_sheet_spells":
+                            # Patch only the spells sub-key inside sheet
+                            sheet = match.setdefault("sheet", {})
+                            sheet["spells"] = val
                         elif key == "inspiration" and val is False:
                             match["inspiration"] = False
                         elif isinstance(val, dict) and isinstance(match.get(key), dict):
@@ -1442,6 +1495,7 @@ def device_approve():
         _pending_devices.pop(device_id, None)
         _approved_devices.add(device_id)
     _persist_approved_devices()
+    _persist_pending_devices()
     _broadcast({"device_approved": device_id})
     return "", 204
 
@@ -1455,6 +1509,7 @@ def device_deny():
     with _devices_lock:
         _pending_devices.pop(device_id, None)
         _denied_devices.add(device_id)
+    _persist_pending_devices()
     _broadcast({"device_denied": device_id})
     return "", 204
 

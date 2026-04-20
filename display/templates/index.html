@@ -3975,19 +3975,41 @@ async function _stageAction() {
   if (!text) return;
   _stageBtn.disabled = true;
   _stageBtn.textContent = '…';
-  try {
-    const res = await fetch('/player-input/stage', {
-      method: 'POST',
-      headers: _authHeaders(),
-      body: JSON.stringify({ character: _selectedChar, text }),
-    });
-    if (res.status === 202) {
-      _stageBtn.disabled = false;
-      _stageBtn.textContent = 'Awaiting approval…';
-      return;  // leave text in box; retry once approved
+
+  // Cache submission in localStorage so text survives page reload
+  localStorage.setItem('dnd_staged_input', JSON.stringify({ char: _selectedChar, text, ts: Date.now() }));
+
+  let attempts = 0;
+  while (attempts < 3) {
+    attempts++;
+    try {
+      const res = await fetch('/player-input/stage', {
+        method: 'POST',
+        headers: _authHeaders(),
+        body: JSON.stringify({ character: _selectedChar, text }),
+      });
+      if (res.status === 202) {
+        // Device pending approval — persist state so it survives page reload
+        localStorage.setItem('dnd_awaiting_approval', _deviceId);
+        _stageBtn.disabled = false;
+        _stageBtn.textContent = 'Awaiting approval…';
+        return;  // leave text in box; auto-retry once approved via _onDeviceApproved
+      }
+      if (res.ok) {
+        localStorage.removeItem('dnd_staged_input');
+        localStorage.removeItem('dnd_awaiting_approval');
+        _inputText.value = '';
+        break;
+      }
+      // Non-retriable error (403, 400, etc.)
+      break;
+    } catch (_) {
+      if (attempts < 3) {
+        _stageBtn.textContent = `Retrying (${attempts})…`;
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
-    _inputText.value = '';
-  } catch (_) { /* silently ignore */ }
+  }
   _stageBtn.disabled = false;
   _stageBtn.textContent = 'Stage';
 }
@@ -4039,6 +4061,32 @@ _inputText.addEventListener('keydown', e => {
 // Initialise with no extra chars (populated when stats arrive)
 _buildCharTabs([]);
 
+// Restore cached staged input text on page load (survives reload before submission received)
+(function _restoreStagedCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem('dnd_staged_input') || 'null');
+    if (!cached) return;
+    if (Date.now() - cached.ts > 10 * 60 * 1000) {
+      // Cache expired (> 10 min)
+      localStorage.removeItem('dnd_staged_input');
+      localStorage.removeItem('dnd_awaiting_approval');
+      return;
+    }
+    if (cached.text && !_inputText.value.trim()) {
+      _inputText.value = cached.text;
+    }
+    // If we were awaiting approval for this device, restore the button state;
+    // the SSE device_request replay will confirm and keep it, or clear it if approved.
+    if (localStorage.getItem('dnd_awaiting_approval') === _deviceId) {
+      _stageBtn.disabled = false;
+      _stageBtn.textContent = 'Awaiting approval…';
+    }
+  } catch (_) {
+    localStorage.removeItem('dnd_staged_input');
+    localStorage.removeItem('dnd_awaiting_approval');
+  }
+})();
+
 // ═══════════════════════════════════════════════════════════════════
 // DEVICE APPROVAL
 // ═══════════════════════════════════════════════════════════════════
@@ -4048,6 +4096,19 @@ const _deviceApprovalsEl = document.getElementById('device-approvals');
 function _showDeviceRequest(dev) {
   // Don't duplicate
   if (document.querySelector(`[data-device-id="${dev.id}"]`)) return;
+
+  // If it's our own device replayed on SSE reconnect, restore the awaiting state
+  if (dev.id === _deviceId) {
+    _stageBtn.disabled = false;
+    _stageBtn.textContent = 'Awaiting approval…';
+    // Restore cached input text if available
+    try {
+      const cached = JSON.parse(localStorage.getItem('dnd_staged_input') || 'null');
+      if (cached && cached.text && Date.now() - cached.ts < 10 * 60 * 1000) {
+        if (!_inputText.value.trim()) _inputText.value = cached.text;
+      }
+    } catch (_) {}
+  }
 
   const card = document.createElement('div');
   card.className = 'device-card';
@@ -4092,16 +4153,21 @@ async function _respondDevice(deviceId, approve) {
 function _onDeviceApproved(deviceId) {
   document.querySelector(`[data-device-id="${deviceId}"]`)?.remove();
   // If it's our own device — reset stage button and retry
-  if (deviceId === _deviceId && _stageBtn.textContent === 'Awaiting approval…') {
+  if (deviceId === _deviceId) {
+    localStorage.removeItem('dnd_awaiting_approval');
     _stageBtn.disabled = false;
     _stageBtn.textContent = 'Stage';
-    _stageAction();  // auto-retry the staged action
+    if (_inputText.value.trim()) {
+      _stageAction();  // auto-retry with cached text
+    }
   }
 }
 
 function _onDeviceDenied(deviceId) {
   document.querySelector(`[data-device-id="${deviceId}"]`)?.remove();
   if (deviceId === _deviceId) {
+    localStorage.removeItem('dnd_awaiting_approval');
+    localStorage.removeItem('dnd_staged_input');
     _stageBtn.disabled = true;
     _stageBtn.textContent = 'Access denied';
   }

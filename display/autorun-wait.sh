@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # autorun-wait.sh — blocking wait for the next player input in autorun/taxi mode.
 #
+# Uses a session-ID file (.autorun-session) instead of PID tracking so it works
+# correctly when run as a Claude Code background task (process isolation makes PID
+# kill unreliable). Writing a new session ID to the file causes any previous wait
+# loop to exit gracefully without kill signals.
+#
 # Broadcasts the countdown to the display, polls for .input_queue, calls
 # /queue/consumed on success (clears the display indicator), and prints the
 # queue content to stdout. Prints nothing on timeout (9 min).
@@ -11,20 +16,14 @@
 DISPLAY_DIR="$(cd "$(dirname "$0")" && pwd)"
 PUSH="${DISPLAY_DIR}/push_stats.py"
 QFILE="${HOME}/.claude/skills/dnd/display/.input_queue"
-WAIT_PID_FILE="${DISPLAY_DIR}/.autorun-wait.pid"
+SESSION_FILE="${DISPLAY_DIR}/.autorun-session"
 
-# ── Kill any previous autorun-wait instance ───────────────────────────────────
-if [[ -f "$WAIT_PID_FILE" ]]; then
-  OLD_PID=$(cat "$WAIT_PID_FILE")
-  # Kill the whole process group so the inner poll loop dies too
-  kill -- -"$OLD_PID" 2>/dev/null || kill "$OLD_PID" 2>/dev/null || true
-  rm -f "$WAIT_PID_FILE"
-  sleep 0.1
-fi
-echo $$ > "$WAIT_PID_FILE"
+# ── Invalidate any previous wait loop by writing a new session ID ─────────────
+MY_SESSION="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
+echo "$MY_SESSION" > "$SESSION_FILE"
 
-# Clean up PID file on exit
-trap 'rm -f "$WAIT_PID_FILE"' EXIT
+# Clean up session file on exit (only if it's still ours)
+trap '[[ "$(cat "$SESSION_FILE" 2>/dev/null)" == "$MY_SESSION" ]] && rm -f "$SESSION_FILE"' EXIT
 
 # Read autorun_interval from active campaign's state.md (default 60s)
 INTERVAL=$(python3 -c "
@@ -39,17 +38,38 @@ except Exception: print(60)
 
 python3 "$PUSH" --autorun-waiting true --autorun-cycle "$INTERVAL"
 
-# Counter-loop (macOS has no GNU timeout)
-AUTORUN=$(bash -c '
-  QFILE=~/.claude/skills/dnd/display/.input_queue
-  COUNT=0
-  while ! [ -f "$QFILE" ] && [ "$COUNT" -lt 1800 ]; do sleep 0.3; COUNT=$((COUNT+1)); done
-  [ -f "$QFILE" ] && cat "$QFILE" && rm -f "$QFILE"
-' 2>/dev/null)
+# ── Poll loop — exits when queue file appears, session changes, or 9 min pass ──
+AUTORUN=$(python3 - "$MY_SESSION" "$QFILE" "$SESSION_FILE" << 'PYEOF'
+import sys, os, time
+
+my_session, qfile, session_file = sys.argv[1], sys.argv[2], sys.argv[3]
+max_count = 1800   # 0.3s * 1800 = 9 minutes
+
+for _ in range(max_count):
+    # Queue file appeared — consume and return content
+    if os.path.exists(qfile):
+        try:
+            content = open(qfile).read()
+            os.unlink(qfile)
+            print(content, end='')
+        except Exception:
+            pass
+        break
+
+    # Session ID changed — a newer autorun-wait.sh started; exit silently
+    try:
+        if open(session_file).read().strip() != my_session:
+            break
+    except Exception:
+        break
+
+    time.sleep(0.3)
+PYEOF
+)
 
 python3 "$PUSH" --autorun-waiting false
 
-# Clear the display queue indicator
+# Clear the display queue indicator on success
 if [ -n "$AUTORUN" ]; then
   python3 -c "
 import ssl, urllib.request, os

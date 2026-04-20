@@ -5,12 +5,12 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 ---
 
 ## `/dnd new <campaign-name> [theme]`
-1. Ask: *"Start the cinematic display companion? [y/n]"*
-   - **Yes** → ask *"LAN mode? [y/n]"*
-     - LAN → `bash ~/.claude/skills/dnd/display/start-display.sh --lan`, print both URLs, set `_display_running = true`
-     - Local → `bash ~/.claude/skills/dnd/display/start-display.sh`, print URL, set `_display_running = true`
+1. Ask a single compound question: *"Start display companion? LAN mode? Enable autorun player input? (e.g. y/y/n)"*
+   - If display **yes**:
+     - LAN **yes** → `bash ~/.claude/skills/dnd/display/start-display.sh --lan`, print both URLs, set `_display_running = true`
+     - LAN **no** → `bash ~/.claude/skills/dnd/display/start-display.sh`, print URL, set `_display_running = true`
      - Then: `python3 ~/.claude/skills/dnd/display/push_stats.py --clear`
-   - **No** → continue without display
+   - If display **no** → continue without display
 2. `mkdir -p ~/.claude/dnd/campaigns/<name>/characters`
 3. Copy and populate templates from `~/.claude/skills/dnd/templates/` — state.md, world.md, npcs.md, session-log.md
 4. Ask: **party size** and **starting level**
@@ -52,21 +52,23 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 ---
 
 ## `/dnd load <campaign-name>`
-1. Ask: *"Start the cinematic display companion? [y/n]"*
-   - Same display start/LAN flow as `/dnd new` step 1.
-   - **Session tail replay:** before clearing the display, check if `~/.claude/skills/dnd/display/session_tail.json` exists. If it does, read it. After `--clear` and full stats push (step 4 below), replay the tail by sending each entry via the appropriate `send.py` flag. Entry type → flag mapping:
+1. Ask a single compound question: *"Start display companion? LAN mode? Enable autorun player input? (e.g. y/y/n)"*
+   - Parse three answers from the response (y/n each, in order). Defaults: no display, no LAN, no autorun.
+   - If display **yes**:
+     - LAN **yes** → `bash ~/.claude/skills/dnd/display/start-display.sh --lan`, print both URLs, set `_display_running = true`
+     - LAN **no** → `bash ~/.claude/skills/dnd/display/start-display.sh`, print URL, set `_display_running = true`
+   - **Session tail replay:** before clearing the display, check if the campaign's `session_tail.json` exists. If it does, read it. After `--clear` and full stats push (step 4 below), replay the tail by sending each entry via the appropriate `send.py` flag. Entry type → flag mapping:
      - `player` key present → `send.py --player <name>` with text via stdin
      - `npc` key present → `send.py --npc <name>` with text via stdin
      - `dice` key present → `send.py --dice` with text via stdin
-     - `xp_award` key present → `send.py --xp-award '<json of the xp_award sub-dict>'` (the sub-dict already has a `summary` field so no reconstruction needed)
+     - `xp_award` key present → `send.py --xp-award '<json of the xp_award sub-dict>'`
      - `inspiration_award` key present → `send.py --inspiration-award '<name>'`
      - none of the above (plain DM narration) → `send.py` with text via stdin
      This restores the last scene to the display before the recap. The tail is written continuously by `app.py` — it always contains the last session's final exchanges regardless of how the session ended.
    - Clear previous transcript: `python3 ~/.claude/skills/dnd/display/push_stats.py --clear`
    - Register active campaign for DM Help: `python3 ~/.claude/skills/dnd/display/push_stats.py --set-campaign <campaign-name>`
-   - Ask: *"Enable autorun mode for player input? [y/n]"*
-     - **y** → write `autorun: true` to `state.md → ## Session Flags`; enter the autorun wait after the recap paragraph.
-     - **n** → continue without autorun; DM drives turns manually.
+   - If autorun **yes** → write `autorun: true` to `state.md → ## Session Flags`; enter the autorun wait after the recap paragraph.
+   - If autorun **no** → continue without autorun; DM drives turns manually.
 
 2. Read SKILL-scripts.md (for script syntax this session)
 3. Read state.md, world.md, npcs.md (index only), and all characters/*.md
@@ -104,6 +106,8 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
    ```
 
    For casters, add `"spells": {"cantrips":["..."],"level1":["..."]}` inside `sheet`. Omit for non-casters.
+
+   **Inspiration:** read from `state.md → ## Current Situation → Party status`. Set `"inspiration": 1` (or `true`) if the character has it, `0` if not. Inspiration is NOT reset by a long rest — it persists until spent. Must be explicitly tracked in the party status line at `/dnd save` (e.g., `Kat: Inspiration ✓`) and loaded at `/dnd load`. Use `push_stats.py --player <name> --inspiration true/false` for mid-session updates.
 
    `--replace-players` clears stale characters from previous campaigns. Build the JSON from the character file — every field above is required for the card and sheet tabs to render correctly.
 
@@ -244,6 +248,8 @@ Campaign "<name>" created from <source title>.
 
 ## `/dnd save`
 Write session events to session-log.md, update state.md (location, active quests, party HP/resources, recent events), update any characters/*.md that changed. Mirror each updated character to global roster (`~/.claude/dnd/characters/<name>.md`).
+
+**Inspiration tracking:** On every save, record each PC's Inspiration state in `state.md → ## Current Situation → Party status`. Use explicit text: `Inspiration ✓` if held, omit or `No Inspiration` if not. Inspiration persists across sessions and is NOT cleared by long rests. Example: `Kat: HP 24/24. Inspiration ✓. Ben: HP 24/24.`
 
 **Update `## Live State Flags` in state.md on every save.** This section is the compaction-resistant anchor — it holds facts that prose summaries flatten. After each session, review and update:
 - **Cover:** each PC's active cover, its status (INTACT / BLOWN / PARTIAL), and the one-line reason. Remove covers that are no longer active.

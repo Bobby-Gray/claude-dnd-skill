@@ -146,6 +146,12 @@ def main() -> None:
                         help="Append one item to inventory (requires --player)")
     parser.add_argument("--inventory-remove", metavar="ITEM",
                         help="Remove one item from inventory by name, case-insensitive (requires --player)")
+    parser.add_argument("--ability-scores", metavar="JSON",
+                        help='Set ability scores: {"str":18,"dex":16,...} or {"str":{"score":18,"mod":"+4"},...} (requires --player)')
+    parser.add_argument("--spells", metavar="JSON",
+                        help='Set spells inside the sheet tab: {"cantrips":["Mending"],"level1":["Cure Wounds"],...} (requires --player)')
+    parser.add_argument("--inspiration", metavar="BOOL",
+                        help="Set Inspiration: true or false (requires --player)")
     parser.add_argument("--sheet", metavar="JSON",
                         help='Full character sheet data: {"attacks":[...],"spells":{...},"features":[...],"inventory":[...]} (requires --player)')
     parser.add_argument("--factions", metavar="JSON",
@@ -172,6 +178,8 @@ def main() -> None:
                         help="Start autorun countdown: broadcast interval + current timestamp to display")
     parser.add_argument("--autorun-threshold", metavar="N", type=int,
                         help="Set min players needed to auto-fire (0 or omit to reset to player count)")
+    parser.add_argument("--set-campaign", metavar="NAME",
+                        help="Set the active campaign name (written to .campaign for dm_help.py)")
     args = parser.parse_args()
 
     payload: dict = {}
@@ -193,6 +201,8 @@ def main() -> None:
         or args.spell_slots is not None or args.slot_use or args.slot_restore
         or args.hit_dice_use or args.hit_dice_restore
         or args.sheet is not None or args.inventory_add or args.inventory_remove
+        or args.ability_scores is not None or args.spells is not None
+        or args.inspiration is not None
     )
     if _player_flags:
         if not args.player:
@@ -235,6 +245,31 @@ def main() -> None:
             except json.JSONDecodeError as e:
                 print(f"Invalid sheet JSON: {e}", file=sys.stderr)
                 sys.exit(1)
+        if args.ability_scores is not None:
+            try:
+                raw = json.loads(args.ability_scores)
+                # Accept shorthand {str:18, dex:16, ...} and expand to {str:{score:18,mod:"+N"}}
+                expanded: dict = {}
+                for stat, val in raw.items():
+                    if isinstance(val, int):
+                        mod = (val - 10) // 2
+                        expanded[stat] = {"score": val, "mod": f"+{mod}" if mod >= 0 else str(mod)}
+                    else:
+                        expanded[stat] = val
+                player_update["ability_scores"] = expanded
+            except json.JSONDecodeError as e:
+                print(f"Invalid ability-scores JSON: {e}", file=sys.stderr)
+                sys.exit(1)
+        if args.spells is not None:
+            try:
+                spells_data = json.loads(args.spells)
+                # Merge into sheet.spells — uses _sheet_patch key so server merges rather than replaces
+                player_update["_sheet_spells"] = spells_data
+            except json.JSONDecodeError as e:
+                print(f"Invalid spells JSON: {e}", file=sys.stderr)
+                sys.exit(1)
+        if args.inspiration is not None:
+            player_update["inspiration"] = args.inspiration.lower() in ("true", "1", "yes")
         if args.inventory_add:
             player_update["_inventory_add"] = args.inventory_add
         if args.inventory_remove:
@@ -302,6 +337,9 @@ def main() -> None:
     if args.autorun_threshold is not None:
         # 0 = reset to auto (use player count); positive int = explicit minimum
         payload["autorun_threshold"] = args.autorun_threshold if args.autorun_threshold > 0 else None
+
+    if args.set_campaign:
+        payload["campaign"] = args.set_campaign
 
     # ── Clear display ─────────────────────────────────────────────────────────
     if args.clear:
