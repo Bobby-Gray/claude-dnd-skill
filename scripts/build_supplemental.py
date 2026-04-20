@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 build_supplemental.py — fetch and cache non-SRD spell/feature descriptions
 
@@ -8,10 +9,10 @@ dnd5e_supplemental.json so the display companion can resolve them locally.
 
 Usage:
     # Scan a campaign's characters and fetch anything missing
-    python3 build_supplemental.py --campaign mom-dad-campaign-0
+    python3 build_supplemental.py --campaign my-campaign
 
     # Scan a specific character file
-    python3 build_supplemental.py --character ~/.claude/dnd/campaigns/X/characters/ben.md
+    python3 build_supplemental.py --character ~/.claude/dnd/campaigns/my-campaign/characters/aldric.md
 
     # Add specific entries by name + category
     python3 build_supplemental.py --add "Toll the Dead" spell
@@ -35,7 +36,9 @@ import urllib.parse
 from html.parser import HTMLParser
 
 SKILLS_DIR       = os.path.expanduser("~/.claude/skills/dnd")
-CAMPAIGNS_DIR    = os.path.expanduser("~/.claude/dnd/campaigns")
+
+from paths import campaigns_dir as _campaigns_dir, find_campaign as _find_campaign
+CAMPAIGNS_DIR    = str(_campaigns_dir())
 DATA_FILE        = os.path.join(SKILLS_DIR, "data", "dnd5e_srd.json")
 SUPPLEMENTAL_FILE = os.path.join(SKILLS_DIR, "data", "dnd5e_supplemental.json")
 
@@ -320,7 +323,7 @@ def main() -> None:
 
     # Collect from --campaign
     if args.campaign:
-        camp_dir = os.path.join(CAMPAIGNS_DIR, args.campaign, "characters")
+        camp_dir = os.path.join(str(_find_campaign(args.campaign)), "characters")
         if not os.path.isdir(camp_dir):
             print(f"Campaign characters directory not found: {camp_dir}", file=sys.stderr)
             sys.exit(1)

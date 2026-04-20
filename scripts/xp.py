@@ -93,7 +93,8 @@ LEVEL_XP: dict[int, int] = {
 DIFF_IDX: dict[str, int] = {"easy": 0, "medium": 1, "hard": 2, "deadly": 3}
 DIFF_LABELS: dict[int, str] = {0: "Easy", 1: "Medium", 2: "Hard", 3: "Deadly"}
 
-CAMPAIGNS_DIR = pathlib.Path("~/.claude/dnd/campaigns").expanduser()
+from paths import find_campaign as _find_campaign, campaigns_dir as _campaigns_dir
+CAMPAIGNS_DIR = _campaigns_dir()
 DISPLAY_SCRIPT = pathlib.Path("~/.claude/skills/dnd/display/push_stats.py").expanduser()
 
 

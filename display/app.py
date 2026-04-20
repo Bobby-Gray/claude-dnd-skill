@@ -47,6 +47,8 @@ except Exception:
     _lookup = None          # type: ignore
     _SRD_AVAILABLE = False
 
+from paths import find_campaign as _find_campaign
+
 # Audio module — degrades silently if numpy not installed
 _AUDIO_DIR = os.path.dirname(os.path.abspath(__file__))
 import sys as _sys
@@ -441,7 +443,7 @@ SCENES: dict[str, dict] = {
         "keywords": [
             "city", "market", "street", "crowd", "village", "town",
             "square", "cobble", "district", "quarter", "merchant",
-            "citadel",
+            "ashenveil",
         ],
         "colors": ["#0a0f1a", "#15202e"],
         "accent": "#6080a0",
@@ -733,7 +735,7 @@ def _get_tail_file() -> str:
     try:
         camp = open(CAMP_FILE).read().strip()
         if camp:
-            return os.path.expanduser(f"~/.claude/dnd/campaigns/{camp}/session_tail.json")
+            return str(_find_campaign(camp) / "session_tail.json")
     except Exception:
         pass
     return _TAIL_FALLBACK
@@ -1397,7 +1399,7 @@ def help_request():
 def player_input():
     """Queue a player action submitted from the display companion.
 
-    Body: {"character": "Torven", "text": "I draw my sword", "hold": false}
+    Body: {"character": "Mira", "text": "I draw my rapier", "hold": false}
     Broadcasts pending_input event to all connected browsers.
     """
     if not _token_ok():
@@ -1461,7 +1463,7 @@ def device_deny():
 def stage_input():
     """Stage a player action for review. Broadcasts staged_inputs to all displays.
 
-    Body: {"character": "Torven", "text": "draws their blade"}
+    Body: {"character": "Mira", "text": "draws her rapier"}
     """
     if not _token_ok():
         return "Forbidden", 403
@@ -1510,7 +1512,7 @@ def stage_input():
 def ready_input():
     """Toggle the ready flag for a staged character.
 
-    Body: {"character": "Torven", "ready": true}
+    Body: {"character": "Mira", "ready": true}
     Triggers auto-fire when all expected players are ready.
     """
     if not _token_ok():
@@ -1547,7 +1549,7 @@ def ready_input():
 def unstage_input():
     """Remove a character's staged action (e.g. player wants to edit it).
 
-    Body: {"character": "Torven"}
+    Body: {"character": "Mira"}
     """
     if not _token_ok():
         return "Forbidden", 403
@@ -1572,7 +1574,7 @@ def skip_input():
     """Skip a character's turn — stages a 'skips their turn' entry marked ready.
 
     Counts toward the auto-trigger threshold and fires auto-trigger if threshold met.
-    Body: {"character": "Torven"}
+    Body: {"character": "Mira"}
     """
     if not _token_ok():
         return "Forbidden", 403

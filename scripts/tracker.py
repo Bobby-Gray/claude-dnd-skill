@@ -44,6 +44,7 @@ import subprocess
 import argparse
 import time
 from datetime import datetime, timezone
+from paths import find_campaign as _find_campaign
 
 PUSH_STATS = os.path.expanduser("~/.claude/skills/dnd/display/push_stats.py")
 SEND_PY    = os.path.expanduser("~/.claude/skills/dnd/display/send.py")
@@ -69,7 +70,7 @@ CONDITION_COLOURS = {
 
 
 def _state_path(campaign: str) -> str:
-    d = os.path.expanduser(f"~/.claude/dnd/campaigns/{campaign}")
+    d = str(_find_campaign(campaign))
     os.makedirs(d, exist_ok=True)
     return os.path.join(d, "tracker.json")
 

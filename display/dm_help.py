@@ -24,6 +24,8 @@ import pathlib
 import re
 import subprocess
 import sys
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "scripts"))
+from paths import find_campaign as _find_campaign
 
 BASE      = pathlib.Path("~/.claude/skills/dnd").expanduser()
 LOCK_FILE = BASE / "display" / ".help-lock"
@@ -82,9 +84,7 @@ def get_campaign_state(campaign: str) -> str:
     Skips Open Threads and Recent Events — those go stale mid-session.
     session-log.md is the authoritative source for in-session state.
     """
-    state_path = pathlib.Path(
-        f"~/.claude/dnd/campaigns/{campaign}/state.md"
-    ).expanduser()
+    state_path = _find_campaign(campaign) / "state.md"
     if not state_path.exists():
         return ""
     text = state_path.read_text()
@@ -108,9 +108,7 @@ def get_session_context(campaign: str) -> str:
     current session — more current than state.md during an active session.
     Falls back to the archive if the main log is empty or has no sessions.
     """
-    log_path = pathlib.Path(
-        f"~/.claude/dnd/campaigns/{campaign}/session-log.md"
-    ).expanduser()
+    log_path = _find_campaign(campaign) / "session-log.md"
     if not log_path.exists():
         return ""
     text = log_path.read_text()

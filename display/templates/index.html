@@ -144,8 +144,40 @@
     text-shadow: 0 1px 6px rgba(0,0,0,0.8);
   }
 
-  /* Italic for atmospheric/narration lines */
-  .dm-block p em { color: #c8b080; }
+  /* Emphasis inside narration — warm amber, upright (italic is hard to read at distance) */
+  .dm-block p em {
+    color: #c8b080;
+    font-style: normal;
+  }
+
+  /* Markdown tables inside narration */
+  .dm-block table.dm-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.8em 0 1em;
+    font-size: 0.92em;
+    color: #d4c4a0;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+  }
+  .dm-block table.dm-table th {
+    text-align: left;
+    padding: 0.45em 0.9em;
+    background: rgba(80, 55, 30, 0.35);
+    color: rgba(230, 210, 170, 0.95);
+    font-weight: 600;
+    border-bottom: 1px solid rgba(180, 140, 90, 0.45);
+  }
+  .dm-block table.dm-table td {
+    padding: 0.4em 0.9em;
+    border-bottom: 1px solid rgba(180, 140, 90, 0.18);
+    vertical-align: top;
+  }
+  .dm-block table.dm-table tr:last-child td {
+    border-bottom: none;
+  }
+  .dm-block table.dm-table strong {
+    color: #ffffff;
+  }
 
   /* ── Player action blocks ── */
   .player-block {
@@ -226,10 +258,14 @@
   }
 
   .npc-block p {
-    color: #c8a878;
-    font-style: italic;
+    color: #ffffff;
+    font-style: normal;
     font-size: 0.95em;
     text-shadow: 0 1px 6px rgba(0,0,0,0.8);
+  }
+  .npc-block p em {
+    font-style: normal;
+    color: #ffffff;
   }
 
   /* ── Dice result blocks ── */
@@ -2154,14 +2190,12 @@ let idleTimer       = null;
 
 // ── Markdown segment parser ───────────────────────────────────────────────────
 // Converts a text string into typed queue items for the typewriter.
-// Items are either plain chars/'\n' strings, or {open:'em'}/{close:'em'} objects.
-function _mdParse(text) {
-  const items = [];
+// Items are plain chars, '\n' strings, {open/close tag} objects, or {table} objects.
+
+// Parse inline markdown (bold, italic) from a single line into items array.
+function _mdParseInline(text, items) {
   let i = 0;
   while (i < text.length) {
-    if (text[i] === '\n') {
-      items.push('\n'); i++; continue;
-    }
     // Bold (**text**) — must check before single *
     if (text[i] === '*' && text[i + 1] === '*') {
       const end = text.indexOf('**', i + 2);
@@ -2181,6 +2215,98 @@ function _mdParse(text) {
       i = end + 1; continue;
     }
     items.push(text[i]); i++;
+  }
+}
+
+// Split a markdown table row "| a | b | c |" into ["a","b","c"].
+function _splitTableRow(line) {
+  let s = line.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|'))   s = s.slice(0, -1);
+  return s.split('|').map(c => c.trim());
+}
+
+// Detect a markdown table block starting at lines[idx].
+// Returns {headers, rows, end} or null.
+function _detectTable(lines, idx) {
+  const header = lines[idx];
+  const sep    = lines[idx + 1];
+  if (!header || !sep) return null;
+  if (!/^\s*\|.*\|\s*$/.test(header)) return null;
+  if (!/^\s*\|?\s*:?-{2,}:?(\s*\|\s*:?-{2,}:?)+\s*\|?\s*$/.test(sep)) return null;
+  const headerCells = _splitTableRow(header);
+  const rows = [];
+  let j = idx + 2;
+  while (j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j])) {
+    rows.push(_splitTableRow(lines[j]));
+    j++;
+  }
+  return { headers: headerCells, rows, end: j };
+}
+
+// Build a <table> DOM node from a parsed table segment.
+function _buildTableNode(tbl) {
+  const t = document.createElement('table');
+  t.className = 'dm-table';
+  if (tbl.headers && tbl.headers.length) {
+    const thead = document.createElement('thead');
+    const tr = document.createElement('tr');
+    tbl.headers.forEach(h => {
+      const th = document.createElement('th');
+      const inline = [];
+      _mdParseInline(h, inline);
+      _appendInlineSegments(th, inline);
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+    t.appendChild(thead);
+  }
+  const tbody = document.createElement('tbody');
+  tbl.rows.forEach(row => {
+    const tr = document.createElement('tr');
+    row.forEach(cell => {
+      const td = document.createElement('td');
+      const inline = [];
+      _mdParseInline(cell, inline);
+      _appendInlineSegments(td, inline);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  t.appendChild(tbody);
+  return t;
+}
+
+// Append a flat list of inline segments to a DOM node.
+function _appendInlineSegments(parent, segments) {
+  let inline = null;
+  for (const s of segments) {
+    if (s && typeof s === 'object' && s.open) {
+      const el = document.createElement(s.open);
+      parent.appendChild(el);
+      inline = el;
+    } else if (s && typeof s === 'object' && s.close) {
+      inline = null;
+    } else {
+      (inline || parent).appendChild(document.createTextNode(s));
+    }
+  }
+}
+
+// Main parser: splits text into lines, detects table blocks, falls back to inline parsing.
+function _mdParse(text) {
+  const items = [];
+  const lines = text.split('\n');
+  for (let li = 0; li < lines.length; li++) {
+    const tbl = _detectTable(lines, li);
+    if (tbl) {
+      items.push({ table: { headers: tbl.headers, rows: tbl.rows } });
+      li = tbl.end - 1;
+      if (li < lines.length - 1) items.push('\n');
+      continue;
+    }
+    _mdParseInline(lines[li], items);
+    if (li < lines.length - 1) items.push('\n');
   }
   return items;
 }
@@ -2223,6 +2349,9 @@ function typeNextChar() {
     _currentInlineEl = null;
     const next = document.createElement('p');
     currentEl.appendChild(next);
+  } else if (item && typeof item === 'object' && item.table) {
+    _currentInlineEl = null;
+    currentEl.appendChild(_buildTableNode(item.table));
   } else if (item && typeof item === 'object' && item.open) {
     // Open a styled inline element inside current paragraph
     const el = document.createElement(item.open);
@@ -2282,6 +2411,10 @@ function instantFlush() {
       if (!currentEl) getOrCreateBlock();
       const next = document.createElement('p');
       currentEl.appendChild(next);
+    } else if (item && typeof item === 'object' && item.table) {
+      flushInline = null;
+      if (!currentEl) getOrCreateBlock();
+      currentEl.appendChild(_buildTableNode(item.table));
     } else if (item && typeof item === 'object' && item.open) {
       const p = getOrCreateBlock();
       const el = document.createElement(item.open);
@@ -2516,7 +2649,7 @@ function renderXpBlock(xpData) {
   block.className = 'xp-block';
   const line = document.createElement('div');
   line.className = 'xp-line';
-  // names line: "Aldric, Mira — +250 XP"
+  // names line: "Kat, Ben — +250 XP"
   const names = (xpData.names || []).join(', ');
   const amt   = xpData.xp != null ? `+${xpData.xp} XP` : '';
   line.textContent = [names, amt].filter(Boolean).join(' — ');
@@ -2565,7 +2698,7 @@ function renderReplayBatch(items) {
       block.style.opacity = '0.75';
       item.text.split('\n').forEach(line => {
         const p = document.createElement('p');
-        p.textContent = line;
+        _appendInlineSegments(p, _mdParse(line));
         block.appendChild(p);
       });
       textContent.appendChild(block);
@@ -2672,7 +2805,7 @@ function renderReplay(text) {
   block.style.opacity = '0.75';   // subtle visual distinction for historical text
   cleaned.split('\n').forEach(line => {
     const p = document.createElement('p');
-    p.textContent = line;
+    _appendInlineSegments(p, _mdParse(line));
     block.appendChild(p);
   });
   textContent.appendChild(block);

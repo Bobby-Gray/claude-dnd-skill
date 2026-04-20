@@ -46,6 +46,7 @@ import os
 import sys
 import subprocess
 import argparse
+from paths import find_campaign as _find_campaign
 
 SEND_PY = os.path.expanduser("~/.claude/skills/dnd/display/send.py")
 
@@ -72,7 +73,7 @@ HOURS_PER_TIME = {
 
 
 def _cal_path(campaign: str) -> str:
-    d = os.path.expanduser(f"~/.claude/dnd/campaigns/{campaign}")
+    d = str(_find_campaign(campaign))
     os.makedirs(d, exist_ok=True)
     return os.path.join(d, "calendar.json")
 

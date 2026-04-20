@@ -8,8 +8,8 @@ Usage:
     python3 campaign_search.py -c <campaign> <keyword> -C 4   # context lines (default 3)
 
 Examples:
-    python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c mom-dad-campaign-0 Lasswater
-    python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c mom-dad-campaign-0 Vael letter --files log,archive
+    python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c my-campaign dragon
+    python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c my-campaign Vael letter --files log,archive
     python3 ~/.claude/skills/dnd/scripts/campaign_search.py -c test-campaign VARETH Kel
 
 Returns: file name, nearest section heading, and matching lines with context.
@@ -21,7 +21,8 @@ import os
 import argparse
 import re
 
-CAMPAIGNS_DIR = os.path.expanduser("~/.claude/dnd/campaigns")
+from paths import campaigns_dir as _campaigns_dir
+CAMPAIGNS_DIR = str(_campaigns_dir())
 
 FILE_MAP = {
     "state":   "state.md",
