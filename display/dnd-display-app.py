@@ -994,8 +994,12 @@ def chunk():
         name = str(data.get("inspiration_award", "")).strip()[:80]
         if not name:
             return "", 204
+        reason = str(data.get("reason", "")).strip()[:240]
         payload: dict = {"inspiration_award": name, "text": name}
         log_entry: dict = {"inspiration_award": name, "text": name}
+        if reason:
+            payload["reason"] = reason
+            log_entry["reason"] = reason
         with _text_log_lock:
             _text_log.append(log_entry)
         with _tail_lock:

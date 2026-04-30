@@ -958,6 +958,11 @@
     font-size: 12px; font-style: italic;
     color: rgba(220,190,60,0.55); margin-top: 3px;
   }
+  .inspiration-detail {
+    font-size: 11px; font-style: italic;
+    color: rgba(220,190,60,0.42); margin-top: 6px;
+    line-height: 1.4;
+  }
 
   /* ── XP award feed block ── */
   .xp-block {
@@ -2801,7 +2806,7 @@ function renderTutorBlock(text, isReplay) {
 }
 
 // ── Inspiration award block ────────────────────────────────────────────────
-function renderInspirationBlock(name) {
+function renderInspirationBlock(name, reason) {
   _flushForBlock();
   const block = document.createElement('div');
   block.className = 'inspiration-block';
@@ -2815,6 +2820,12 @@ function renderInspirationBlock(name) {
   sub.textContent = 'Inspiration';
   block.appendChild(title);
   block.appendChild(sub);
+  if (reason) {
+    const detail = document.createElement('div');
+    detail.className = 'inspiration-detail';
+    detail.textContent = reason;
+    block.appendChild(detail);
+  }
   textContent.appendChild(block);
   _reanchorCursor();
   scrollToBottom();
@@ -2852,7 +2863,7 @@ function renderReplayBatch(items) {
   items.forEach(item => {
     if (!item) return;
     if (item.inspiration_award) {
-      renderInspirationBlock(item.inspiration_award);
+      renderInspirationBlock(item.inspiration_award, item.reason || '');
       return;
     }
     if (item.xp_award) {
@@ -4555,7 +4566,7 @@ function connect() {
       _playSfx(payload.sfx);
     }
     if (payload.inspiration_award) {
-      renderInspirationBlock(payload.inspiration_award);
+      renderInspirationBlock(payload.inspiration_award, payload.reason || '');
     }
     if (payload.xp_award) {
       renderXpBlock(payload.xp_award);

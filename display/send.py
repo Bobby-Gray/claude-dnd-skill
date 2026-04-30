@@ -307,6 +307,9 @@ def main() -> None:
     # ── Inspiration / XP award flags ─────────────────────────────────────────
     parser.add_argument("--inspiration-award", metavar="NAME",
         help="Award Inspiration: fires a styled gold block in the feed + sidebar badge")
+    parser.add_argument("--inspiration-reason", metavar="TEXT",
+        help="Optional reason to render below the name in the inspiration block "
+             "(matches how --xp-award reason is rendered). Requires --inspiration-award.")
     parser.add_argument("--inspiration-spend", metavar="NAME",
         help="Spend/clear Inspiration: removes sidebar badge")
     parser.add_argument("--xp-award", metavar="JSON",
@@ -355,7 +358,10 @@ def main() -> None:
     # ── Inspiration award/spend (bypass normal text flow) ─────────────────────
     if args.inspiration_award:
         name = args.inspiration_award.strip()
-        _post(FLASK_URL, json.dumps({"inspiration_award": name, "text": name}).encode(), token)
+        body: dict = {"inspiration_award": name, "text": name}
+        if args.inspiration_reason:
+            body["reason"] = args.inspiration_reason.strip()
+        _post(FLASK_URL, json.dumps(body).encode(), token)
         _post(STATS_URL, json.dumps({"players": [{"name": name, "inspiration": True}]}).encode(), token)
         return
 
