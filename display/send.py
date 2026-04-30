@@ -338,7 +338,18 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    text = sys.stdin.read()
+    # Only read stdin when a content flag (or no flag at all = plain narration)
+    # is set. Body-less flags (inspiration / xp-award / stat-only) have no text
+    # body and must not touch stdin — when chained in a multi-command Bash
+    # block, the parent shell's stdin pipe stays open until the whole bash
+    # exits, so a body-less stdin.read() would block for the entire bash
+    # duration and silently drop every subsequent send in the chain.
+    _has_content_flag = bool(args.player or args.npc or args.dice or args.tutor or args.action)
+    _has_bodyless_flag = bool(
+        args.inspiration_award or args.inspiration_spend or args.xp_award
+        or _build_stats_payload(args)
+    )
+    text = sys.stdin.read() if (_has_content_flag or not _has_bodyless_flag) else ""
     token = _read_token()
 
     # ── Inspiration award/spend (bypass normal text flow) ─────────────────────
