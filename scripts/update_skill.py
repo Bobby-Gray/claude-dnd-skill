@@ -24,6 +24,24 @@ def git(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     )
 
 
+def _read_local_version() -> str:
+    f = SKILL_DIR / "VERSION"
+    if not f.exists():
+        return "(no VERSION file — pre-1.6 baseline)"
+    return f.read_text().strip()
+
+
+def _read_remote_version(branch: str) -> str:
+    """Read VERSION from origin/<branch> without checking it out."""
+    try:
+        r = git("show", f"origin/{branch}:VERSION", check=False)
+        if r.returncode == 0:
+            return r.stdout.strip()
+        return "(no VERSION on remote)"
+    except subprocess.CalledProcessError:
+        return "(unreadable)"
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--check", action="store_true", help="check only, do not pull")
@@ -40,7 +58,8 @@ def main() -> int:
         return 2
 
     branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
-    print(f"Skill location: {SKILL_DIR}  (branch: {branch})")
+    local_ver = _read_local_version()
+    print(f"Skill location: {SKILL_DIR}  (branch: {branch}, version: {local_ver})")
 
     dirty = git("status", "--porcelain").stdout.strip()
     if dirty:
@@ -59,10 +78,14 @@ def main() -> int:
 
     behind = git("rev-list", "--count", f"HEAD..origin/{branch}").stdout.strip()
     log = git("log", "--oneline", f"HEAD..origin/{branch}").stdout.strip()
-    print(f"Local:  {local[:7]}")
-    print(f"Remote: {remote[:7]}")
+    remote_ver = _read_remote_version(branch)
+    print(f"Local:  {local[:7]}  (version {local_ver})")
+    print(f"Remote: {remote[:7]}  (version {remote_ver})")
     print(f"\n{behind} commits behind origin/{branch}:")
     print(log)
+    if local_ver != remote_ver and not local_ver.startswith("("):
+        print(f"\nVersion change: {local_ver} → {remote_ver}  "
+              f"(see CHANGELOG.md after update for details)")
 
     if args.check:
         return 0

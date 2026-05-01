@@ -1,0 +1,1305 @@
+# Verb Table Seed — Phase 2 Deterministic Extraction
+#
+# Designed from the 142-proposal Phase 1 corpus across 7 campaigns
+# (drawn from 7 live campaigns + 4 published adventures + 280 Reddit narrative posts).
+#
+# Each entry maps verb forms to a canonical edge type with directionality
+# and emit templates. The deterministic extractor matches sentences against
+# the patterns and produces edge proposals with source anchors.
+#
+# Layers:
+#   inclusion   — verbs that produced clean APPLY verdicts (use these)
+#   borderline  — verbs with frequent REFINE need; included with caveats
+#   exclusion   — verbs that produced REJECT or pure REFINE; pattern-only,
+#                 LLM-fallback territory; do NOT auto-emit
+#
+# Schema:
+#   verb_forms:    list of word forms (stem matches via difflib if not exact)
+#   edge_type:     canonical relationship type written to graph
+#   patterns:      list of sentence templates with X/Y/Z slots for entities
+#                  Each pattern has `template` and `emits` (list of edges)
+#   symmetric:     bool — if true, both X→Y and Y→X are equivalent; only one
+#                  edge written
+#   confidence:    high|medium|low — default for proposals from this verb
+#   notes:         freeform guidance for human reviewer
+#
+# version: 0.5
+# corpus:
+#   - phase1:    /tmp/aggregate-review.json (142 proposals, 7 live campaigns)
+#   - phase1.5:  ~/.claude/skills/dnd/data/phase1-reviews/pdf-extracts/
+#                (100 proposals, 4 published adventures)
+#   - phase1.6:  ~/.claude/skills/dnd/data/external-verb-stats.json
+#                (310 verb extractions, 50 Reddit posts, 187 unique verbs)
+#   - phase1.7:  ~/.claude/skills/dnd/data/external-verb-stats-pass2.json
+#                (462 verb extractions, 40 Reddit posts from
+#                 r/DnDBehindTheScreen + dndstories + RolePlay + rpghorror-all,
+#                 295 unique verbs)
+# total corpus: 1,014 verb-bearing observations across ~14 sources
+# total Reddit corpus: 280 posts
+#
+# v0.2 changes:
+#   - Promoted to inclusion (multi-source confirmed): parent_of, serves,
+#     imprisoned, leads, killed, commands
+#   - Demoted from exclusion → borderline (PDF showed they work with entity
+#     resolution): opposes, originates_from, discovered, guards
+#   - Added pattern templates from PDF corpus (faction-leadership, family
+#     trees, captivity arcs, place-adjacency)
+#
+# v0.3 changes (Reddit corpus pass):
+#   - Promoted to inclusion (multi-source confirmed across 6+ posts):
+#     told, asked, attacked, gave, convinced, offered, lured
+#   - Added candidates for future review: refused, accused, argued,
+#     forgave, assassinated, corrected, suggested, rejected, sabotaged,
+#     interrupted, abandoned, blocked, tasked, shared, removed, joined,
+#     dealt, encountered
+#   - Confirmed prior PDF candidate `lured` (3 Reddit + 1 PDF = inclusion)
+#   - Confirmed prior live `referred`-pattern via `sent` (4 Reddit posts;
+#     75% concrete rate)
+#
+# v0.4 changes (deeper Reddit corpus pass — DnDBehindTheScreen / dndstories /
+# RolePlay / rpghorror-all):
+#   - Promoted to inclusion (multi-post 100% concrete in pass 2):
+#     fight, steal, train, defend, invited, tame, challenged, followed,
+#     turned_on, kissed, confessed, flirted, helped
+#   - Diminishing returns observed: 462 extractions yielded only ~13 new
+#     promotion-worthy verbs. Inclusion list is saturating; recommend
+#     locking it before Phase 2 implementation
+#   - Generic action verbs explicitly excluded as noise (find, play, stop,
+#     bring, pick, keep, turn, choose, talk, fill, let, carry, set, left,
+#     lived) — these are too high-frequency, low-relational to seed edges
+#
+# v0.5 changes (gap-categories audit; see docs/research/graph/verb-gap-categories.md):
+#   - Promoted to inclusion (Tier 1, ≥10 hits + 100% concrete in samples):
+#     possessed_by, in_love_with
+#   - Promoted to inclusion (Tier 2, ≥5 hits + concrete):
+#     swore_oath_to, sworn_enemy_of
+#   - Added to borderline (Tier 3, single-source or low-volume but high-value):
+#     resurrected, worships, sponsored_by, betrothed_to
+#   - Schema additions (apply incrementally; not all entries annotated yet):
+#       lifetime: event | state | dispositional   (per phase-2-3-plan.md §Schema)
+#       category_object_ok: bool                   (allow categorical objects like
+#                                                   "a ghost" / "the gods" as targets)
+#   - Deferred to v0.6+: future-tense verbs (plans_to, intends_to) — corpus
+#     mismatch (Reddit narrative is past-tense; needs DM session-prep corpus)
+
+# ============================================================================
+# INCLUSION — high-confidence verbs (apply rate ≥80%, multi-campaign)
+# ============================================================================
+
+inclusion:
+
+  - verb_forms: [met, meets, meeting]
+    edge_type: met
+    patterns:
+      - template: "X met Y"
+        emits: [{from: X, to: Y, type: met}]
+      - template: "X met Y at Z"
+        emits: [{from: X, to: Y, type: met, note: "at Z"}]
+    symmetric: true
+    confidence: high
+    notes: |
+      Top performer: 24/24 across 6 campaigns, 96% apply rate. Symmetric —
+      emit one edge only. Most reliable verb in the corpus.
+
+  - verb_forms: [watches, watching, watched]
+    edge_type: watches
+    patterns:
+      - template: "X watches Y"
+        emits: [{from: X, to: Y, type: watches}]
+      - template: "X was watching Y"
+        emits: [{from: X, to: Y, type: watches}]
+    confidence: high
+    notes: |
+      4/4 apply across 4 campaigns. Surveillance posture without active hostility.
+
+  - verb_forms: [committed, commits, consents, consented, agreed]
+    edge_type: committed_to
+    patterns:
+      - template: "X committed to Y"
+        emits: [{from: X, to: Y, type: committed_to}]
+      - template: "X consented to Y"
+        emits: [{from: X, to: Y, type: committed_to}]
+    confidence: high
+    notes: |
+      80% apply rate. Strong signal of formal alliance/commitment.
+      Watch out for premature inference — "I can tell already X" is NOT a
+      commitment; require explicit consent or formal vow.
+
+  - verb_forms: [shelters, shelter, sheltering, sheltered]
+    edge_type: shelters
+    patterns:
+      - template: "X sheltered Y"
+        emits: [{from: X, to: Y, type: shelters}]
+      - template: "X is sheltering Y"
+        emits: [{from: X, to: Y, type: shelters}]
+    confidence: high
+    notes: 3/3 apply, single campaign. Concrete, actionable verb.
+
+  - verb_forms: [arrived, arrives]
+    edge_type: arrived_at
+    patterns:
+      - template: "X arrived at Y"
+        emits: [{from: X, to: Y, type: arrived_at}]
+      - template: "X arrived in Y"
+        emits: [{from: X, to: Y, type: arrived_at}]
+    confidence: high
+    notes: 2/2 apply, place-target verb.
+
+  - verb_forms: [stayed, stays]
+    edge_type: stayed_at
+    patterns:
+      - template: "X stayed at Y"
+        emits: [{from: X, to: Y, type: stayed_at}]
+    confidence: high
+    notes: 2/2 apply, single campaign. Place-target.
+
+  - verb_forms: [led, leads, leading]
+    edge_type: led
+    patterns:
+      - template: "X led Y to Z"
+        emits:
+          - {from: X, to: Y, type: led}
+          - {from: X, to: Z, type: led_to_place}  # Z is place
+      - template: "X led Y"
+        emits: [{from: X, to: Y, type: led}]
+    confidence: high
+    notes: 2/2 apply. Distinguish from "X leads Y" (group leadership) — see borderline.
+
+  - verb_forms: [told, telling, said]
+    edge_type: told
+    patterns:
+      - template: "X told Y"
+        emits: [{from: X, to: Y, type: told}]
+      - template: "X said to Y"
+        emits: [{from: X, to: Y, type: told}]
+    confidence: medium
+    notes: |
+      2/2 apply but small sample. Be careful — "told" generates many edges
+      in dialogue-heavy sessions. Consider only emitting when the disclosure
+      is substantive (named information shared).
+
+  - verb_forms: [freed, frees, freeing]
+    edge_type: frees
+    patterns:
+      - template: "X freed Y"
+        emits: [{from: X, to: Y, type: frees}]
+    confidence: high
+    notes: 2/2 apply, single campaign. Concrete liberation event.
+
+  - verb_forms: [works for, work for, employed by, hired by]
+    edge_type: works_for
+    patterns:
+      - template: "X works for Y"
+        emits: [{from: X, to: Y, type: works_for}]
+      - template: "X is employed by Y"
+        emits: [{from: X, to: Y, type: works_for}]
+    confidence: high
+    notes: 2/2 apply. Strong faction/employment signal.
+
+  - verb_forms: [recognized, recognizes, recognising]
+    edge_type: recognized
+    patterns:
+      - template: "X recognized Y"
+        emits: [{from: X, to: Y, type: recognized}]
+    confidence: high
+    notes: |
+      Tense normalization: collapse "recognized"/"recognizes" to single form.
+      Single-campaign sample. Watch for "X recognizes Y as Z" (different relation).
+
+  - verb_forms: [foresaw, foreseen, foresees]
+    edge_type: foresaw
+    patterns:
+      - template: "X foresaw Y"
+        emits: [{from: X, to: Y, type: foresaw}]
+    confidence: high
+    notes: 1/1 apply. Prophecy/vision relation; appears rarely but clean when it does.
+
+  - verb_forms: [sought, seeks, looking for, searching for]
+    edge_type: sought
+    patterns:
+      - template: "X sought Y"
+        emits: [{from: X, to: Y, type: sought}]
+      - template: "X looking for Y"
+        emits: [{from: X, to: Y, type: sought}]
+    confidence: medium
+    notes: |
+      Mixed: 1/1 apply when target is concrete (Pell Catter); 1/1 refine when
+      target is abstract (Choir seed-vessel). Filter: target must resolve to
+      a concrete node.
+
+  - verb_forms: [avoiding, avoids, avoided]
+    edge_type: has_been_avoiding
+    patterns:
+      - template: "X has been avoiding Y"
+        emits: [{from: X, to: Y, type: has_been_avoiding}]
+      - template: "X is avoiding Y"
+        emits: [{from: X, to: Y, type: has_been_avoiding}]
+    confidence: high
+    notes: 1/1 apply. Useful for capturing strained relationships.
+
+  - verb_forms: [founded, founds]
+    edge_type: founded
+    patterns:
+      - template: "X founded Y"
+        emits: [{from: X, to: Y, type: founded}]
+    confidence: high
+    notes: 1/1 apply. Faction-creates-place pattern.
+
+  - verb_forms: [visited, visits, visiting]
+    edge_type: visited
+    patterns:
+      - template: "X visited Y"
+        emits: [{from: X, to: Y, type: visited}]
+    confidence: medium
+    notes: 1/1 apply. Place-target. Distinguish from has_been_to (more permanent past).
+
+  - verb_forms: [seeks out, seeks, seeking out]
+    edge_type: seeks_out
+    patterns:
+      - template: "X seeks out Y"
+        emits: [{from: X, to: Y, type: seeks_out}]
+      - template: "X seeking out Y"
+        emits: [{from: X, to: Y, type: seeks_out}]
+    confidence: medium
+    notes: |
+      1/1 apply. NPC-target verb. Filter: target must be concrete entity.
+
+  - verb_forms: [based at, based out of, headquartered at, lives at]
+    edge_type: based_at
+    patterns:
+      - template: "X is based at Y"
+        emits: [{from: X, to: Y, type: based_at}]
+    confidence: high
+    notes: 1/1 apply. Place-target. Stronger than visited.
+
+  - verb_forms: [saved, saves, saving]
+    edge_type: saves
+    patterns:
+      - template: "X saved Y"
+        emits: [{from: X, to: Y, type: saves}]
+    confidence: high
+    notes: 1/1 apply. Crisis-rescue relationship.
+
+  - verb_forms: [referred, refers, referring, sent ... to, directed ... to]
+    edge_type: referred_to
+    patterns:
+      - template: "X sent Y to Z"
+        emits:
+          - {from: X, to: Y, type: referred_to, note: "to Z"}
+          - {from: Y, to: Z, type: met}
+      - template: "X referred Y to Z"
+        emits:
+          - {from: X, to: Y, type: referred_to, note: "to Z"}
+          - {from: Y, to: Z, type: met}
+      - template: "X directed Y to Z"
+        emits:
+          - {from: X, to: Y, type: referred_to, note: "to Z"}
+    confidence: medium
+    notes: |
+      7/7 across 5 campaigns but 43% apply, 4/7 REFINE — common failure is
+      directionality. The pattern "X sent Y to Z" must NOT collapse to
+      "X referred Z" (Haiku's failure mode). Use the X→referred_to→Y form
+      with Z in note. The auxiliary `Y → met → Z` edge is high-value.
+
+  - verb_forms: [knows, knew, known]
+    edge_type: knows
+    patterns:
+      - template: "X knows Y"
+        emits: [{from: X, to: Y, type: knows}]
+      - template: "X knows about Y"
+        emits: [{from: X, to: Y, type: knows_about}]
+    confidence: medium
+    notes: |
+      8/8 across 4 campaigns at 62% apply. Refines often want a more specific
+      verb (tracks, surveils, has_intel_on). Default to knows; flag for review
+      when the context suggests something sharper.
+
+  # ── promoted from candidates in v0.2 (PDF corpus confirmation) ──
+
+  - verb_forms: [parent_of, mother_of, father_of, mom of, dad of]
+    edge_type: parent_of
+    patterns:
+      - template: "X is the mother of Y"
+        emits: [{from: X, to: Y, type: parent_of, note: "mother"}]
+      - template: "X is the father of Y"
+        emits: [{from: X, to: Y, type: parent_of, note: "father"}]
+      - template: "X's son Y"
+        emits: [{from: X, to: Y, type: parent_of, note: "son"}]
+      - template: "X's daughter Y"
+        emits: [{from: X, to: Y, type: parent_of, note: "daughter"}]
+      - template: "X and Y with their children Z and W"
+        emits:
+          - {from: X, to: Z, type: parent_of}
+          - {from: X, to: W, type: parent_of}
+          - {from: Y, to: Z, type: parent_of}
+          - {from: Y, to: W, type: parent_of}
+    confidence: high
+    notes: |
+      6 occurrences across 2 PDFs (Curse of Strahd, Lost Mine). Family relations
+      are common in published modules; our live corpus undercounted them because
+      Haiku used `has_history_with` instead. Use specific verb when biological
+      parentage is named.
+
+  - verb_forms: [sibling_of, brother_of, sister_of, twin_of]
+    edge_type: sibling_of
+    patterns:
+      - template: "X's brother Y"
+        emits: [{from: X, to: Y, type: sibling_of}]
+      - template: "X's sister Y"
+        emits: [{from: X, to: Y, type: sibling_of}]
+    symmetric: true
+    confidence: high
+    notes: 1 PDF occurrence; included for family-tree completeness alongside parent_of.
+
+  - verb_forms: [married to, wife of, husband of, wed]
+    edge_type: married_to
+    patterns:
+      - template: "X is married to Y"
+        emits: [{from: X, to: Y, type: married_to}]
+      - template: 'X and Y (in genealogy context)'
+        emits: [{from: X, to: Y, type: married_to}]
+    symmetric: true
+    confidence: high
+    notes: |
+      1 PDF (Curse of Strahd: Gustav and Elisabeth Durst). Symmetric.
+
+  - verb_forms: [serves, served, serving]
+    edge_type: serves
+    patterns:
+      - template: "X serves Y"
+        emits: [{from: X, to: Y, type: serves}]
+      - template: "X is X's lieutenant"
+        emits: [{from: X, to: Y, type: serves, note: "lieutenant"}]
+    confidence: high
+    notes: |
+      5 across 3 PDFs. Subordinate-to-authority relation. Common in faction
+      hierarchies. Distinct from `works_for` (employment) and `member_of`
+      (peer-level membership).
+
+  - verb_forms: [leads, led by, leader of]
+    edge_type: leads
+    patterns:
+      - template: "X leads Y"
+        emits: [{from: X, to: Y, type: leads}]
+      - template: "X is the leader of Y"
+        emits: [{from: X, to: Y, type: leads}]
+    confidence: high
+    notes: |
+      4 across 2 PDFs. Faction/group leadership. Distinct from `led` (past
+      action of leading-someone-to-place). Pair with reverse `led_by` if needed.
+
+  - verb_forms: [commands, commanded, commanding]
+    edge_type: commands
+    patterns:
+      - template: "X commands Y"
+        emits: [{from: X, to: Y, type: commands}]
+      - template: "X takes orders from Y"
+        emits: [{from: X, to: Y, type: serves, note: "takes orders"}]
+    confidence: high
+    notes: |
+      2 across 2 PDFs. Authority over individuals/groups. Stronger than `leads`
+      (implies active direction, not just leadership).
+
+  - verb_forms: [killed, slew, murdered, slaughtered]
+    edge_type: killed
+    patterns:
+      - template: "X killed Y"
+        emits: [{from: X, to: Y, type: killed}]
+      - template: "X slew Y"
+        emits: [{from: X, to: Y, type: killed}]
+    confidence: high
+    notes: |
+      3 across 2 PDFs (Curse of Strahd). Confirmed candidate from live corpus
+      (Aldric Fenn → Senna Drel). Use when action completed; for ongoing,
+      use `hunts` or `pursues`.
+
+  - verb_forms: [imprisoned, captured, captive of, held by]
+    edge_type: imprisoned
+    patterns:
+      - template: "X imprisoned Y"
+        emits: [{from: X, to: Y, type: imprisoned}]
+      - template: "X held Y prisoner"
+        emits: [{from: X, to: Y, type: imprisoned}]
+      - template: "X locked Y in Z"
+        emits:
+          - {from: X, to: Y, type: imprisoned}
+          - {from: Y, to: Z, type: located_at, note: "prisoner"}
+    confidence: high
+    notes: |
+      5 across 2 PDFs (Wild Sheep Chase, Curse of Strahd). Captivity arc verb;
+      common in adventure modules. Pair with `escaped_from` for resolution.
+
+  - verb_forms: [abducted, kidnapped, taken]
+    edge_type: abducted
+    patterns:
+      - template: "X abducted Y"
+        emits: [{from: X, to: Y, type: abducted}]
+      - template: "X kidnapped Y"
+        emits: [{from: X, to: Y, type: abducted}]
+    confidence: high
+    notes: |
+      3 in Lost Mine (Redbrands → Mirna's family). Distinct from `imprisoned`
+      (the act of taking vs the state of being held).
+
+  - verb_forms: [possesses, has, owns, carries]
+    edge_type: possesses
+    patterns:
+      - template: "X possesses Y"
+        emits: [{from: X, to: Y, type: possesses}]
+      - template: "X owns Y"
+        emits: [{from: X, to: Y, type: possesses}]
+      - template: "X keeps Y"
+        emits: [{from: X, to: Y, type: possesses}]
+    confidence: high
+    notes: |
+      Multi-source: 2 PDFs explicit + many implicit ("the wand on his belt").
+      Item ownership; requires item nodes. Use only when target is a named item.
+
+  - verb_forms: [neighbors, neighboring, adjacent to, borders]
+    edge_type: neighbors
+    patterns:
+      - template: "X's closest neighbors are Y"
+        emits: [{from: X, to: Y, type: neighbors}]
+      - template: "X borders Y"
+        emits: [{from: X, to: Y, type: neighbors}]
+    symmetric: true
+    confidence: high
+    notes: |
+      2 in SKT (Nightstone-Ardeep). Place-to-place adjacency. New pattern from
+      PDFs that didn't appear in live campaigns. Symmetric.
+
+  - verb_forms: [escaped from, escapes, escaping]
+    edge_type: escaped_from
+    patterns:
+      - template: "X escaped from Y"
+        emits: [{from: X, to: Y, type: escaped_from}]
+    confidence: high
+    notes: |
+      1 PDF (Wild Sheep Chase: a polymorphed NPC from Noke). Counterpart to imprisoned.
+
+  # ── promoted from external corpus in v0.3 (Reddit pass) ──
+
+  - verb_forms: [told, tells, telling]
+    edge_type: told
+    patterns:
+      - template: "X told Y"
+        emits: [{from: X, to: Y, type: told}]
+      - template: "X told Y about Z"
+        emits:
+          - {from: X, to: Y, type: told}
+          - {from: X, to: Z, type: knows_about}
+    confidence: high
+    notes: |
+      External corpus #1 verb: 20 occurrences across 14 posts, 70% concrete.
+      Live + PDF showed it too. Common in dialogue-heavy sessions. Filter:
+      target must be concrete; emit only when content is substantive disclosure.
+
+  - verb_forms: [asked, asks, asking]
+    edge_type: asked
+    patterns:
+      - template: "X asked Y"
+        emits: [{from: X, to: Y, type: asked}]
+      - template: "X asked Y about Z"
+        emits:
+          - {from: X, to: Y, type: asked}
+          - {from: X, to: Z, type: investigated}
+    confidence: high
+    notes: |
+      External corpus #2 verb: 20 occurrences across 14 posts, 65% concrete.
+      Investigation/petition relation. Common in mystery campaigns. Strong
+      pair with `told` (asked → told response cycle).
+
+  - verb_forms: [attacked, attacks, attacking]
+    edge_type: attacked
+    patterns:
+      - template: "X attacked Y"
+        emits: [{from: X, to: Y, type: attacked}]
+    confidence: high
+    notes: |
+      7 occurrences across 6 posts (43% concrete — pronoun-heavy in combat
+      narration). Combat-instigation event. Distinct from `killed` (resolved)
+      and `fought` (mutual).
+
+  - verb_forms: [gave, gives, giving]
+    edge_type: gave
+    patterns:
+      - template: "X gave Y to Z"
+        emits:
+          - {from: X, to: Z, type: gave, note: "gave Y"}
+          - {from: Z, to: Y, type: possesses}
+      - template: 'X gave Z Y (inverted indirect-object form)'
+        emits:
+          - {from: X, to: Z, type: gave, note: "gave Y"}
+    confidence: high
+    notes: |
+      6 occurrences, 83% concrete, 4 posts. Bestowal of items / favors.
+      Symmetric to `received` (which we don't track separately). Auxiliary
+      `Z possesses Y` edge captures item ownership transfer.
+
+  - verb_forms: [convinced, convinces, convincing]
+    edge_type: convinced
+    patterns:
+      - template: "X convinced Y"
+        emits: [{from: X, to: Y, type: convinced}]
+      - template: "X convinced Y to do Z"
+        emits: [{from: X, to: Y, type: convinced, note: "to Z"}]
+    confidence: high
+    notes: |
+      3 occurrences, 67% concrete, 3 posts. Persuasion-outcome verb.
+      Distinct from `told` (information transfer) — this is opinion change.
+
+  - verb_forms: [offered, offers, offering]
+    edge_type: offered
+    patterns:
+      - template: "X offered Y to Z"
+        emits: [{from: X, to: Z, type: offered, note: "offered Y"}]
+      - template: "X offered Y a Z"
+        emits: [{from: X, to: Y, type: offered, note: "Z"}]
+    confidence: high
+    notes: |
+      3 occurrences, 100% concrete, 3 posts. Proposal-of-deal verb.
+      Distinct from `gave` (consummated) — `offered` is the proposal stage.
+
+  - verb_forms: [lured, lures, luring]
+    edge_type: lured
+    patterns:
+      - template: "X lured Y"
+        emits: [{from: X, to: Y, type: lured}]
+      - template: "X lured Y to Z"
+        emits:
+          - {from: X, to: Y, type: lured, note: "to Z"}
+          - {from: Y, to: Z, type: arrived_at}
+    confidence: high
+    notes: |
+      Multi-source: 3 Reddit + 1 PDF (Curse of Strahd: Strahd lured adventurers).
+      Trap/ambush relation. Confirmed candidate in v0.3.
+
+  - verb_forms: [sent, sends, sending]
+    edge_type: sent
+    patterns:
+      - template: "X sent Y to Z"
+        emits:
+          - {from: X, to: Y, type: referred_to, note: "to Z"}
+          - {from: Y, to: Z, type: met}
+      - template: "X sent Y"
+        emits: [{from: X, to: Y, type: dispatched}]
+    confidence: high
+    notes: |
+      4 Reddit occurrences (75% concrete) confirm the live `referred` pattern.
+      The "X sent Y to Z" pattern is the gap-fixer for introduction chains
+      (an introducer-NPC → sent the player-character → to a captain-NPC). v0.3 pulls it out as a primary verb;
+      `referred` (in inclusion above) remains the canonical edge type.
+
+  - verb_forms: [refused, refuses, refusing]
+    edge_type: refused
+    patterns:
+      - template: "X refused Y"
+        emits: [{from: X, to: Y, type: refused}]
+      - template: "X refused to help Y"
+        emits: [{from: X, to: Y, type: refused}]
+    confidence: medium
+    notes: |
+      2 Reddit, 100% concrete. Denial-of-aid relation. Counterpart to `agreed`
+      / `committed_to`. Sample size small but pattern is unambiguous.
+
+  # ── promoted from external corpus pass 2 in v0.4 ──
+
+  - verb_forms: [fight, fights, fighting, fought]
+    edge_type: fight
+    patterns:
+      - template: "X fight Y"
+        emits: [{from: X, to: Y, type: fight}]
+      - template: "X fought Y"
+        emits: [{from: X, to: Y, type: fight}]
+    symmetric: true
+    confidence: high
+    notes: |
+      Pass 2: 8/8 posts/88% concrete (`fight`) + 4 pass 1 + 3 pass 2 (`fought` lemma).
+      Symmetric combat verb; emit one edge. Distinct from `attacked`
+      (one-sided initiation) — `fight` implies mutual engagement.
+
+  - verb_forms: [steal, steals, stole, stolen, stealing]
+    edge_type: stole
+    patterns:
+      - template: "X stole Y from Z"
+        emits:
+          - {from: X, to: Z, type: stole, note: "Y"}
+          - {from: X, to: Y, type: possesses}
+          - {from: Z, to: Y, type: lost_possession_of}
+      - template: "X stole Y"
+        emits: [{from: X, to: Y, type: stole}]
+    confidence: high
+    notes: |
+      Pass 2: 6/5 posts/100% concrete. Possession-transfer-by-theft. Common
+      in heist/intrigue arcs. Auxiliary edges capture full state change.
+
+  - verb_forms: [trained, trains, training, train]
+    edge_type: trained_by
+    patterns:
+      - template: "X trained Y"
+        emits: [{from: Y, to: X, type: trained_by}]
+      - template: "X trained Y in Z"
+        emits: [{from: Y, to: X, type: trained_by, note: "in Z"}]
+    confidence: high
+    notes: |
+      Pass 2: 4/4 posts/100% concrete. Apprenticeship/teaching relation.
+      Note inverted direction: store as `Y trained_by X` (the student is
+      the relationship anchor). Distinct from `serves` (no skill transfer).
+
+  - verb_forms: [defended, defends, defending, defend]
+    edge_type: defended
+    patterns:
+      - template: "X defended Y"
+        emits: [{from: X, to: Y, type: defended}]
+      - template: "X defended Y from Z"
+        emits:
+          - {from: X, to: Y, type: defended}
+          - {from: X, to: Z, type: opposes, note: "in defense of Y"}
+    confidence: high
+    notes: |
+      Pass 2: 3/3 posts/100% concrete. Protection-action verb. Auxiliary
+      `opposes` edge captures the antagonist when "from Z" pattern matches.
+
+  - verb_forms: [helped, helps, helping]
+    edge_type: helped
+    patterns:
+      - template: "X helped Y"
+        emits: [{from: X, to: Y, type: helped}]
+      - template: "X helped Y do Z"
+        emits: [{from: X, to: Y, type: helped, note: "with Z"}]
+    confidence: medium
+    notes: |
+      Pass 2: 4/4 posts/75% concrete. Common assistance verb. Concrete% slightly
+      lower because target is sometimes "the party" (collective) — borderline
+      acceptable when collective is a known faction-like entity.
+
+  - verb_forms: [invited, invites, inviting]
+    edge_type: invited
+    patterns:
+      - template: "X invited Y"
+        emits: [{from: X, to: Y, type: invited}]
+      - template: "X invited Y to Z"
+        emits: [{from: X, to: Y, type: invited, note: "to Z"}]
+    confidence: high
+    notes: |
+      Pass 2: 3/3 posts/100% concrete. Invitation/inclusion verb. Distinct
+      from `tasked` (assignment) — invitation implies optional acceptance.
+
+  - verb_forms: [tamed, tames, taming, tame]
+    edge_type: tamed
+    patterns:
+      - template: "X tamed Y"
+        emits: [{from: X, to: Y, type: tamed}]
+    confidence: high
+    notes: |
+      Pass 2: 3/3 posts/100% concrete. Animal/control relation. Common in
+      ranger/druid arcs and creature-companion subplots.
+
+  - verb_forms: [challenged, challenges, challenging]
+    edge_type: challenged
+    patterns:
+      - template: "X challenged Y"
+        emits: [{from: X, to: Y, type: challenged}]
+      - template: "X challenged Y to a duel"
+        emits: [{from: X, to: Y, type: challenged, note: "to a duel"}]
+    confidence: high
+    notes: |
+      Pass 2: 2/2 posts/100% concrete. Duel/contest formal-conflict verb.
+      Distinct from `attacked` (no formality required) — challenge is
+      structured opposition.
+
+  - verb_forms: [followed, follows, following]
+    edge_type: followed
+    patterns:
+      - template: "X followed Y"
+        emits: [{from: X, to: Y, type: followed}]
+    confidence: medium
+    notes: |
+      Pass 2: 2/2 posts/100% concrete. Pursuit OR loyalty depending on context.
+      Use note field to disambiguate ("loyalty" vs "tracking").
+
+  - verb_forms: [turned_on, turns_on, turning_on, betrayed, betrays, betraying]
+    edge_type: betrayed
+    patterns:
+      - template: "X turned on Y"
+        emits: [{from: X, to: Y, type: betrayed}]
+      - template: "X betrayed Y"
+        emits: [{from: X, to: Y, type: betrayed}]
+    confidence: high
+    notes: |
+      Pass 2: 2/2 posts/100% concrete. Betrayal relation — high-impact narrative
+      verb. Counterpart to `committed_to`. Common in faction-arc reversals.
+
+  - verb_forms: [kissed, kisses, kissing]
+    edge_type: kissed
+    patterns:
+      - template: "X kissed Y"
+        emits: [{from: X, to: Y, type: kissed}]
+    symmetric: true
+    confidence: high
+    notes: |
+      Pass 2: 2/2 posts/100% concrete. Romantic relation. Symmetric in concept;
+      emit one edge.
+
+  - verb_forms: [confessed, confesses, confessing]
+    edge_type: confessed
+    patterns:
+      - template: "X confessed to Y"
+        emits: [{from: X, to: Y, type: confessed}]
+      - template: "X confessed Y to Z"
+        emits: [{from: X, to: Z, type: confessed, note: "Y"}]
+    confidence: high
+    notes: |
+      Pass 2: 2/2 posts/100% concrete. Disclosure-under-pressure relation.
+      Distinct from `told` — confession implies prior concealment.
+
+  - verb_forms: [flirted, flirts, flirting]
+    edge_type: flirted
+    patterns:
+      - template: "X flirted with Y"
+        emits: [{from: X, to: Y, type: flirted}]
+    symmetric: true
+    confidence: medium
+    notes: |
+      Multi-source: 1 pass-1 + 2 pass-2 = 3 posts. Romantic precursor verb.
+      Common in social campaigns. Symmetric.
+
+  # ── v0.5 additions (gap-categories audit) ─────────────────────────────────
+
+  - verb_forms: [possessed by, possesses (when entity-target), inhabited by, inhabits, hosts]
+    edge_type: possessed_by
+    lifetime: state             # reversible — exorcism / cleansing ends it
+    symmetric: false
+    category_object_ok: true    # object often categorical: "a ghost", "the gods"
+    confidence: high
+    patterns:
+      - template: "X is possessed by Y"
+        emits: [{from: Y, to: X, type: possessed_by}]
+      - template: "X was possessed by Y"
+        emits: [{from: Y, to: X, type: possessed_by}]
+    notes: |
+      v0.5 promotion. 27+ hits in r/dndstories; 100% concrete in samples.
+      Distinct from `possesses` (item ownership) — pattern requires animate-entity
+      object. NOT to be conflated with `transformed_by` (physical/permanent change).
+      Object frequently a category ("a spirit", "a demon", "the lawful god") rather
+      than a unique entity — `category_object_ok: true` permits the edge to a
+      category-node.
+
+  - verb_forms: [in love with, loves, fell in love with, fall in love with, fallen for]
+    edge_type: in_love_with
+    lifetime: dispositional      # can drift / fade / sour
+    symmetric: false             # asymmetric — unrequited love is the default
+    confidence: high
+    patterns:
+      - template: "X is in love with Y"
+        emits: [{from: X, to: Y, type: in_love_with}]
+      - template: "X fell in love with Y"
+        emits: [{from: X, to: Y, type: in_love_with}]
+      - template: "X loves Y"
+        emits: [{from: X, to: Y, type: in_love_with}]
+    notes: |
+      v0.5 promotion. 28+ hits in r/dndstories; 100% concrete in samples.
+      Captures romantic STATE (not event). Distinct from `married_to` (formal),
+      `flirted` (event), `kissed` (event). Asymmetric default — most love
+      declarations in narrative are one-sided until explicitly mutual.
+
+  - verb_forms: [swore an oath to, swore to, oath to, pledged to, vowed to]
+    edge_type: swore_oath_to
+    lifetime: state              # can be broken (broken_vow_to)
+    symmetric: false
+    confidence: high
+    patterns:
+      - template: "X swore an oath to Y"
+        emits: [{from: X, to: Y, type: swore_oath_to}]
+      - template: "X pledged to Y"
+        emits: [{from: X, to: Y, type: swore_oath_to}]
+    notes: |
+      v0.5 promotion. 6 hits in r/DnDBehindTheScreen oath-search corpus.
+      Distinct from `committed_to` (one-shot commitment) and `allied_with`
+      (faction-level). Implies a binding personal commitment with consequence
+      on breach. Common Paladin / clergy / political-fealty register.
+
+  - verb_forms: [sworn enemy of, sworn enemies of, nemesis of, archnemesis of]
+    edge_type: sworn_enemy_of
+    lifetime: state              # can be reconciled
+    symmetric: true              # mutual enmity is the default
+    confidence: high
+    patterns:
+      - template: "X is the sworn enemy of Y"
+        emits: [{from: X, to: Y, type: sworn_enemy_of}]
+      - template: "X and Y are sworn enemies"
+        emits: [{from: X, to: Y, type: sworn_enemy_of}]
+    notes: |
+      v0.5 promotion. 4+ hits in r/dndstories rivalry corpus + 3 plural variants.
+      State, not event — distinct from `attacked` / `fought` (which are events).
+      Captures the persistent hostile relationship that frames future encounters.
+
+
+# ============================================================================
+# BORDERLINE — frequently used but produces high REFINE rate
+# Pattern matches OK, but proposals need human review before applying
+# ============================================================================
+
+borderline:
+
+  - verb_forms: [member of, members of, belongs to]
+    edge_type: member_of
+    patterns:
+      - template: "X is a member of Y"
+        emits: [{from: X, to: Y, type: member_of}]
+      - template: "X is the [role] of Y"   # role-of phrasing
+        emits: [{from: X, to: Y, type: member_of}]
+    confidence: medium
+    notes: |
+      15/15 across 3 campaigns at 47% apply. PRIMARY FAILURE MODE: emitted
+      when the "faction" is actually a role/type (e.g. "member_of ward-point"
+      where ward-point is a role classification, not a faction). FIX: when
+      target name appears in canonical faction list (world.md ## Factions),
+      emit `member_of`. Otherwise emit `has_role` or `is_a`.
+
+  - verb_forms: [allied with, allies with, ally to]
+    edge_type: allied_with
+    patterns:
+      - template: "X allied with Y"
+        emits: [{from: X, to: Y, type: allied_with}]
+    symmetric: true
+    confidence: medium
+    notes: |
+      11/11 across 5 campaigns at 36% apply. PRIMARY FAILURE MODES:
+      (1) bidirectional duplication — X→allied→Y AND Y→allied→X both emitted.
+      Mark symmetric: true and only emit one edge.
+      (2) premature commitment — "I can tell we could work well" is NOT
+      alliance. Require explicit alliance phrasing or formal commitment.
+
+  - verb_forms: [has history with, history with, knew ... long]
+    edge_type: has_history_with
+    patterns:
+      - template: "X has history with Y"
+        emits: [{from: X, to: Y, type: has_history_with}]
+    confidence: low
+    notes: |
+      8/8 at 38% apply. Often too vague — refiner usually wants
+      "worked_for", "owes", "designated_successor_to", etc. Use as
+      catch-all only when no more specific verb fits. Flag for human review.
+
+  - verb_forms: [controls, control, controlling]
+    edge_type: controls
+    patterns:
+      - template: "X controls Y"
+        emits: [{from: X, to: Y, type: controls}]
+    confidence: medium
+    notes: |
+      5/5 at 20% apply. Overstates simple authority. "Controls the schedule"
+      ≠ "controls the entity". Filter: emit only when target is a faction,
+      place, or organization — NOT for processes, schedules, or abstractions.
+
+  - verb_forms: [fears, feared, fearing, dreads]
+    edge_type: fears
+    patterns:
+      - template: "X fears Y"
+        emits: [{from: X, to: Y, type: fears}]
+    confidence: medium
+    notes: |
+      3/3 at 33%. Often emitted when target is abstract ("exposure") or
+      consequence ("seal failure"). Filter: target must be a named NPC,
+      faction, or place.
+
+  # ── v0.5 additions (gap-categories audit, Tier 3) ─────────────────────────
+
+  - verb_forms: [raised from the dead, resurrected, brought back, returned from death, raised by]
+    edge_type: resurrected
+    lifetime: event              # immutable — the event of return
+    symmetric: false
+    confidence: medium
+    patterns:
+      - template: "X raised Y from the dead"
+        emits: [{from: X, to: Y, type: resurrected}]
+      - template: "X was resurrected by Y"
+        emits: [{from: Y, to: X, type: resurrected}]
+    notes: |
+      v0.5 borderline. D&D-specific. Agent (cleric / divine source) → patient.
+      Often accompanied by mechanical context (Revivify / Raise Dead /
+      True Resurrection). Low corpus volume (3 hits), high narrative weight
+      when present.
+
+  - verb_forms: [worships, devoted to, prays to, cleric of, paladin of]
+    edge_type: worships
+    lifetime: state              # devotion can lapse / change
+    symmetric: false
+    category_object_ok: true     # target is often a deity name or divine domain
+    confidence: medium
+    patterns:
+      - template: "X worships Y"
+        emits: [{from: X, to: Y, type: worships}]
+      - template: "X is devoted to Y"
+        emits: [{from: X, to: Y, type: worships}]
+    notes: |
+      v0.5 borderline. Religious-devotion state. Target may be deity / saint /
+      icon. Distinct from `serves` (institutional authority — bishop serves
+      church). Low pure-corpus volume (worldbuilding subs under-sampled);
+      promote to inclusion after Phase 2 collects real session data.
+
+  - verb_forms: [patron of, backed by, sponsored by, funded by, bankrolls]
+    edge_type: sponsored_by
+    lifetime: state              # patronage can end
+    symmetric: false             # X is patron of Y; reverse direction in extraction
+    confidence: medium
+    patterns:
+      - template: "X is the patron of Y"
+        emits: [{from: Y, to: X, type: sponsored_by}]
+      - template: "X is backed by Y"
+        emits: [{from: Y, to: X, type: sponsored_by}]
+    notes: |
+      v0.5 borderline. Asymmetric power relationship — patron has leverage,
+      client has obligation. Important for political / factional graphs.
+      Distinct from `serves` (employment) and `committed_to` (loyalty oath).
+
+  - verb_forms: [betrothed to, engaged to, fiancé of, fiancée of, promised to wed]
+    edge_type: betrothed_to
+    lifetime: state              # can be broken — `broken_engagement`
+    symmetric: true
+    confidence: medium
+    patterns:
+      - template: "X is betrothed to Y"
+        emits: [{from: X, to: Y, type: betrothed_to}]
+      - template: "X is engaged to Y"
+        emits: [{from: X, to: Y, type: betrothed_to}]
+    notes: |
+      v0.5 borderline. Pre-marriage state. Distinct from `married_to` (formal)
+      and `in_love_with` (emotional). Common in political / dynastic plots.
+
+
+# ============================================================================
+# EXCLUSION — patterns that consistently fail; do NOT auto-emit
+# Reserve for LLM fallback or explicit human authoring
+# ============================================================================
+
+exclusion:
+
+  # opposes / originates_from / discovered / guards moved to borderline
+  # in v0.2 — PDF corpus showed they work with concrete entity targets.
+  # See borderline section above.
+
+  - verb_forms: [hunted, hunts, hunting]
+    edge_type: hunted
+    reason: |
+      2/2 at 0%. When the action completed, "killed" is sharper. When ongoing,
+      "pursues" or "tracks" fits better. Avoid "hunted" — too ambiguous.
+
+  - verb_forms: [advancing thread, advances thread]
+    edge_type: advancing_thread
+    reason: |
+      2/2 at 0%. Meta-narrative term, not a relationship. Use specific verbs
+      ("orchestrates", "manages", "prepares").
+
+  - verb_forms: [protects]
+    edge_type: protects
+    reason: |
+      1/1 at 0%. Subject is usually unnamed faction (Protection Network).
+      Filter: subject must be canonical entity.
+
+  - verb_forms: [studies]
+    edge_type: studies
+    reason: 1/1 at 0%. Target usually documents/abstractions, not graph nodes.
+
+  - verb_forms: [explored, explores]
+    edge_type: explored
+    reason: |
+      1/1 at 0%. Action verb, not relationship state. Often overstates
+      ("found a door" ≠ "explored the place").
+
+  - verb_forms: [carries lineage from, lineage from]
+    edge_type: carries_lineage_from
+    reason: |
+      1/1 at 0%. Custom verb that compresses too many concepts. Decompose
+      into "descendant_of" or "inherits".
+
+  - verb_forms: [prepares for, prepares]
+    edge_type: prepares_for
+    reason: 1/1 at 0%. Action, not relationship. Skip.
+
+  - verb_forms: [triggered, triggers]
+    edge_type: triggered
+    reason: 1/1 at 0%. Action verb. Targets unresolved.
+
+  - verb_forms: [holds]
+    edge_type: holds
+    reason: |
+      1/1 at 0%. Item-target failure (manuscript). Could become inclusion
+      if scoped to "X holds [item-node]" with proper item resolution.
+
+  # `guards` moved to borderline in v0.2 — PDF showed it works with concrete
+  # subject (Nothic guards Tresendar Manor). See borderline section.
+
+  - verb_forms: [travels with]
+    edge_type: travels_with
+    reason: |
+      1/1 at 0%. Target was generic ("wolves"). Could become inclusion
+      if entity resolution is strict.
+
+  - verb_forms: [influences]
+    edge_type: influences
+    reason: 1/1 at 0%. Vague; unresolved subject.
+
+  - verb_forms: [seeks]
+    edge_type: seeks
+    reason: |
+      1/1 at 0% (vs seeks_out which apply'd). Distinguish: "seeks Y" wants
+      possession; "seeks_out Y" wants encounter. Latter is cleaner.
+
+  - verb_forms: [protecting]
+    edge_type: protecting
+    reason: 1/1 at 0%. Wrong directionality issue.
+
+  - verb_forms: [introduced to, introduces to]
+    edge_type: introduced_to
+    reason: |
+      1/1 at 0%. Confused with "referred". Default to "referred_to" for
+      X-introduces-Y-to-Z pattern.
+
+  - verb_forms: [impersonated, impersonates]
+    edge_type: impersonated
+    reason: |
+      1/1 at 0%. Specific failure mode: "posed as colleague of X" vs "posed
+      as X" — disambiguation needed.
+
+  - verb_forms: [flagged offlimits]
+    edge_type: flagged_offlimits
+    reason: |
+      1/1 at 0%. Direction inversion + custom semantics. Replace with
+      "warned_against" or simpler "fears".
+
+
+# ============================================================================
+# CANDIDATE — verbs identified from missed_relationships across 60 cases
+# Add to inclusion table as Phase 2 implementation proceeds
+# ============================================================================
+
+candidates:
+
+  - verb_forms: [killed, slew, murdered]
+    edge_type: killed
+    patterns:
+      - template: "X killed Y"
+        emits: [{from: X, to: Y, type: killed}]
+    rationale: |
+      Multiple campaigns missed "killed" relationships because Haiku used
+      "hunted" instead. Explicit verb prevents tense ambiguity.
+
+  - verb_forms: [is a fragment of, fragment of]
+    edge_type: is_fragment_of
+    rationale: |
+      <a horror-leaning campaign>: 3+ NPCs are fragments of the entity. Identity
+      relationship not captured by member_of. Custom-but-justified verb.
+
+  - verb_forms: [designated successor, named successor, unnamed successor]
+    edge_type: designated_successor_to
+    rationale: |
+      a deep-ally NPC → an elder-NPC relationship. Specific governance/inheritance role
+      that has_history_with is too vague for.
+
+  - verb_forms: [governs, rules, mayor of]
+    edge_type: governs
+    rationale: |
+      <a family-fantasy campaign>: a town authority → the town. Authority over place.
+      Distinct from based_at (resides) and member_of (faction).
+
+  - verb_forms: [grandmother of, grandfather of, father of, mother of, sibling of]
+    edge_type: family_of
+    rationale: |
+      <a family-fantasy campaign>: an elder-NPC → a young NPC; an elder-NPC → a magic-craft NPC.
+      Family relations are common; current table has no family verb.
+
+  - verb_forms: [created, made, built]
+    edge_type: created
+    rationale: |
+      <a family-fantasy campaign>: a magic-craft NPC created a sealing object seal.
+      Origin/authorship relation.
+
+  - verb_forms: [polymorphed, transformed, cursed]
+    edge_type: transformed_by
+    rationale: |
+      <a published one-shot>: a polymorphed NPC was polymorphed by an arcane-craft NPC.
+      Magical/curse relation that produces persistent state.
+
+  - verb_forms: [hunts, pursuing, chasing]
+    edge_type: hunts
+    rationale: |
+      Active version (vs deprecated "hunted"). <a published one-shot>: a hunter-NPC hunts
+      a polymorphed NPC. Distinct from killed (completion) and tracks (passive).
+
+  - verb_forms: [possesses, has, owns, carries]
+    edge_type: possesses
+    rationale: |
+      <a published one-shot>: an arcane-craft NPC possesses a powerful magical item.
+      Item ownership; needs item nodes.
+
+  - verb_forms: [located at, currently at, in]
+    edge_type: located_at
+    rationale: |
+      <a published one-shot>: party located at the current location (current location).
+      Distinct from based_at (permanent residence).
+
+  - verb_forms: [identified, named, exposed]
+    edge_type: identified
+    rationale: |
+      <a horror-leaning campaign>: a researcher-NPC → identified a hidden-operative NPC. Intel/investigation
+      relation. Common in mystery campaigns.
+
+  - verb_forms: [witnessed, observed, saw]
+    edge_type: witnessed
+    rationale: |
+      <a faction-driven campaign>: Han-Ulish witnessed Iren turning her head. Distinct
+      from watches (ongoing) — this is a singular event.
+
+  - verb_forms: [pays, paid]
+    edge_type: pays
+    rationale: |
+      <a faction-driven campaign>: Velka Orne pays Coble Ashen stipend. Economic relation
+      distinct from works_for.
+
+  - verb_forms: [employs, hired]
+    edge_type: employs
+    rationale: |
+      Reverse of works_for from the employer side. <a faction-driven campaign>: Velka
+      employs Doss as retainer.
+
+  - verb_forms: [leads, led by, headed by]
+    edge_type: leads
+    rationale: |
+      Faction leadership. <a test campaign>: a faction-leader leads an institutional faction.
+      Distinct from led (past action of leading-someone-to-place).
+
+  - verb_forms: [resides at, lives at, residence]
+    edge_type: resides_at
+    rationale: |
+      <a family-fantasy campaign>: a wizard-NPC resides at a wizard's tower. Distinct
+      from based_at (which can include workplaces).
+
+  - verb_forms: [dreamed of, had a dream about]
+    edge_type: dreamed_of
+    rationale: |
+      <a faction-driven campaign>: Bob dreamed of Iren before meeting. Foreshadowing/
+      mystical connection.
+
+  - verb_forms: [wary of, suspicious of, distrusts]
+    edge_type: wary_of
+    rationale: |
+      <a faction-driven campaign> npcs-full.md: Velka Orne wary of Han-Ulish. Distinct
+      from fears (lower intensity).
+
+  - verb_forms: [destroyed, demolished]
+    edge_type: destroyed
+    rationale: |
+      <a faction-driven campaign>: Bob destroyed all 49 seed-vessels. Complete-action
+      relation against an item/object class.
+
+  - verb_forms: [examined, inspected]
+    edge_type: examined
+    rationale: |
+      <a test campaign>: an NPC examined the a magical artifact. Single-event interaction
+      with item, distinct from holds (possession).
+
+  # ── added in v0.3 from Reddit corpus pass ──
+
+  - verb_forms: [accused, accuses]
+    edge_type: accused
+    rationale: 2 Reddit, 50% concrete. Interpersonal conflict / blame relation.
+
+  - verb_forms: [argued, argues, arguing]
+    edge_type: argued
+    rationale: 2 Reddit, 100% concrete. Disagreement event; symmetric.
+
+  - verb_forms: [forgave, forgives]
+    edge_type: forgave
+    rationale: 2 Reddit, 50% concrete. Reconciliation; counter to accused/betrayed.
+
+  - verb_forms: [assassinated, assassinates]
+    edge_type: assassinated
+    rationale: |
+      2 Reddit, 50% concrete. More specific than `killed` (planned, deliberate).
+      Worth distinguishing in mystery/intrigue campaigns.
+
+  - verb_forms: [corrected, corrects]
+    edge_type: corrected
+    rationale: 2 Reddit, 100% concrete. Critique/clarification relation.
+
+  - verb_forms: [suggested, suggests]
+    edge_type: suggested
+    rationale: 2 Reddit, 100% concrete. Proposal-of-action; lighter than `offered`.
+
+  - verb_forms: [rejected, rejects]
+    edge_type: rejected
+    rationale: |
+      2 Reddit, 100% concrete + 1 PDF (Curse of Strahd: Strahd rejected
+      Priests of Osybus). Confirmed multi-source candidate.
+
+  - verb_forms: [sabotaged, sabotages]
+    edge_type: sabotaged
+    rationale: 2 Reddit, 100% concrete. Covert opposition; useful for intrigue arcs.
+
+  - verb_forms: [interrupted, interrupts]
+    edge_type: interrupted
+    rationale: 2 Reddit, 100% concrete. Disruption event; common in scene transitions.
+
+  - verb_forms: [blocked, blocks]
+    edge_type: blocked
+    rationale: |
+      2 Reddit, 50% concrete. Obstruction relation. Better than `opposes`
+      (more concrete). Could substitute for opposes in many cases.
+
+  - verb_forms: [tasked, tasks, tasking]
+    edge_type: tasked
+    rationale: |
+      2 Reddit, 100% concrete. Assignment/quest-giving relation. Useful
+      for explicit quest-hook authorship (NPC X tasks party with Y).
+
+  - verb_forms: [shared, shares, sharing]
+    edge_type: shared
+    rationale: |
+      2 Reddit, 100% concrete. Disclosure relation distinct from `told`
+      (more bilateral). Useful when both parties know.
+
+  - verb_forms: [removed, removes, removing]
+    edge_type: removed
+    rationale: 2 Reddit, 100% concrete. Exclusion-from-group relation.
+
+  - verb_forms: [joined, joins, joining]
+    edge_type: joined
+    rationale: |
+      3 Reddit, 0% concrete. Concrete% low because target is usually a group
+      not a single named entity. Promote with note: target must be faction.
+
+  - verb_forms: [encountered, encounters]
+    edge_type: encountered
+    rationale: |
+      2 Reddit, 50% concrete. Synonym of `met` for hostile contexts.
+      Could merge with met or keep as distinct (encounter implies less
+      relational depth than meet).
+
+# ============================================================================
+# Failure-mode patterns (for extractor to detect and reject before emit)
+# ============================================================================
+
+rejection_filters:
+
+  abstract_targets:
+    description: "Reject when target word is in this list"
+    list: [exposure, hypothetical, situation, the truth, the answer, knowledge,
+           the door, the entity, founding texts, schedule]
+    rationale: "These are concepts not nodes. Need item/place creation first."
+
+  generic_role_targets:
+    description: "Reject when target is a role keyword (not a faction)"
+    list: [ward-point, watcher, warden, operative, mage, retainer, clerk]
+    rationale: "Roles describe people, not relationships to. Use is_a / has_role separately."
+
+  pronoun_subjects:
+    description: "Skip sentences where subject is a pronoun without coref"
+    list: [he, she, they, it, him, her, them]
+    rationale: "Pronoun resolution out of scope for v1 deterministic. Flag for LLM fallback."
+
+  symmetric_dedup:
+    description: "For symmetric verbs, only emit one direction"
+    verbs: [met, allied_with, has_history_with, works_with]
+    rule: "Canonicalize by sorted entity ids"

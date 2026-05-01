@@ -120,6 +120,23 @@ pip3 install flask flask-cors numpy cryptography
 
 ---
 
+## Versioning & updates
+
+The skill tracks releases via a top-level `VERSION` file and per-release notes in [`CHANGELOG.md`](CHANGELOG.md). The current version is in `VERSION`; significant changes — new commands, new mechanics, behavior changes — get a CHANGELOG entry.
+
+**To check for updates:**
+
+```bash
+/dnd update --check    # shows local vs. remote version + commit diff, no pull
+/dnd update            # pulls if you're behind (fast-forward only; refuses on dirty tree)
+```
+
+The `--check` output now includes both sides' version strings so you can see at a glance whether you've fallen behind. After pulling, restart Claude Code so the new `SKILL.md` and command procedures load.
+
+The skill follows [semantic versioning](https://semver.org/): `MAJOR.MINOR.PATCH`. Breaking changes that require campaign-data migration bump MAJOR; new opt-in features bump MINOR; bug fixes bump PATCH. Active campaigns continue to work across MINOR/PATCH bumps without action.
+
+---
+
 ## Quick Start
 
 **Improvised campaign** — Claude builds the world and generates a narrative arc:
@@ -165,6 +182,9 @@ Once loaded, type naturally — no `/dnd` prefix needed. The DM interprets every
 | `/dnd tutor off` | Disable tutor / learning mode |
 | `/dnd data sync` | Rebuild bundled SRD dataset from upstream sources (only needed for new upstream content) |
 | `/dnd data status` | Show current dataset record counts and upstream SHA |
+| `/dnd update` | Pull latest skill changes from `origin/main` (refuses on dirty tree, fast-forward only) |
+| `/dnd update --check` | Show local-vs-remote version and commit-diff without pulling |
+| `/dnd path [<new>\|reset]` | View or relocate campaign storage via `DND_CAMPAIGN_ROOT` |
 
 ---
 

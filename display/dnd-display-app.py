@@ -268,6 +268,22 @@ _autorun_cycle: Optional[dict] = None
 _autorun_cycle_lock = threading.Lock()
 
 
+def _normalize_slot(slot: dict) -> None:
+    """Coerce a spell-slot entry to the canonical {used, max} shape in place.
+
+    Tolerates legacy/alt payloads that use `remaining` instead of `used`.
+    Without this, _slot_use/_slot_restore raise KeyError on a slot stored
+    under the alt schema (e.g. after a long-rest --spell-slots full-replace).
+    """
+    if "used" in slot:
+        return
+    mx = slot.get("max", 0)
+    if "remaining" in slot:
+        slot["used"] = max(mx - int(slot.get("remaining", 0)), 0)
+    else:
+        slot["used"] = 0
+
+
 def _staged_snapshot() -> dict:
     """Return a serialisable copy of the staged dict (no IP field)."""
     return {k: {"text": v["text"], "ready": v["ready"]} for k, v in _staged.items()}
@@ -1157,11 +1173,13 @@ def stats():
                             slots = match.setdefault("spell_slots", {})
                             lvl = str(val)
                             slot = slots.setdefault(lvl, {"used": 0, "max": 0})
+                            _normalize_slot(slot)
                             slot["used"] = min(slot["used"] + 1, slot.get("max", 99))
                         elif key == "_slot_restore":
                             slots = match.setdefault("spell_slots", {})
                             lvl = str(val)
                             slot = slots.setdefault(lvl, {"used": 0, "max": 0})
+                            _normalize_slot(slot)
                             slot["used"] = max(slot["used"] - 1, 0)
                         elif key == "_hd_use":
                             hd = match.setdefault("hit_dice", {"remaining": 0, "max": 0})
