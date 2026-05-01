@@ -150,6 +150,13 @@ def _edge_by_id(data: dict, edge_id: str) -> Optional[dict]:
 
 
 def _edge_active_at(edge: dict, session: Optional[int]) -> bool:
+    """Is the edge active at the given session?
+
+    Returns False if the edge was superseded (hard retcon) — superseded edges
+    stay in the graph for audit trail but never surface as 'active' state.
+    """
+    if edge.get("superseded_by"):
+        return False
     if session is None:
         return edge.get("until_session") is None
     since = edge.get("since_session", 0) or 0
@@ -226,6 +233,38 @@ def cmd_close_edge(args) -> int:
     return 0
 
 
+def cmd_supersede_edge(args) -> int:
+    """Mark an edge as superseded by another (hard retcon).
+
+    Use when canon explicitly contradicts a prior extraction — e.g. a session
+    log was corrected, or a relationship was misinterpreted. The old edge
+    stays in the graph for audit trail; scene-context filters it out, but
+    historical / subgraph queries can still surface it.
+
+    Distinct from `close-edge`: close-edge ends a state cleanly (the relationship
+    was real, then ended). supersede-edge says the original edge was wrong.
+    """
+    data = _load(args.campaign)
+    wrong = _edge_by_id(data, args.id)
+    if not wrong:
+        print(f"error: edge '{args.id}' not found.", file=sys.stderr)
+        return 1
+    correct = _edge_by_id(data, args.by) if args.by else None
+    if args.by and not correct:
+        print(f"error: superseding edge '{args.by}' not found.", file=sys.stderr)
+        return 1
+    if args.by:
+        wrong["superseded_by"] = args.by
+    else:
+        wrong["superseded_by"] = True  # contradicted with no replacement
+    if getattr(args, "reason", None):
+        wrong["supersede_reason"] = args.reason
+    _save(args.campaign, data)
+    target = f"by edge {args.by}" if args.by else "(no replacement)"
+    print(f"marked edge {args.id} as superseded {target}")
+    return 0
+
+
 def cmd_list(args) -> int:
     data = _load(args.campaign)
     nodes = data["nodes"]
@@ -238,11 +277,15 @@ def cmd_list(args) -> int:
         active = [e for e in data["edges"] if _edge_active_at(e, args.at_session)]
         print(f"# active edges at session {args.at_session}: {len(active)}")
     print()
+    def _plural(t: str) -> str:
+        if t and t.endswith("y"):
+            return t[:-1] + "ies"
+        return (t or "?") + "s"
     cur_type = None
     for n in nodes_sorted:
         if n.get("type") != cur_type:
             cur_type = n.get("type")
-            print(f"## {cur_type}s")
+            print(f"## {_plural(cur_type)}")
         tags = " [" + ",".join(n.get("tags", [])) + "]" if n.get("tags") else ""
         print(f"  {n['id']}  {n['name']}{tags}")
     return 0
@@ -356,24 +399,40 @@ def _emit_subgraph(sub: dict, at_session: Optional[int]) -> None:
     by_type: dict[str, list[dict]] = {}
     for n in sub["nodes"]:
         by_type.setdefault(n.get("type", "?"), []).append(n)
+
+    def _label(n: dict) -> str:
+        # Category nodes display with an "(unnamed)" marker so the GM
+        # remembers the player canonically doesn't have a name yet.
+        if n.get("category_node"):
+            return f"{n['name']} (unnamed)"
+        return n["name"]
+
+    # English-ish pluralization for the section header. Most node types end
+    # in a consonant where "+s" is fine; "category" wants "ies".
+    def _plural(t: str) -> str:
+        if t.endswith("y"):
+            return t[:-1] + "ies"
+        return t + "s"
     for t in sorted(by_type):
-        print(f"## {t}s ({len(by_type[t])})")
+        print(f"## {_plural(t)} ({len(by_type[t])})")
         for n in sorted(by_type[t], key=lambda x: x.get("name", "")):
             tags = " [" + ",".join(n.get("tags", [])) + "]" if n.get("tags") else ""
             summary = f" — {n['summary']}" if n.get("summary") else ""
-            print(f"  {n['id']}  {n['name']}{tags}{summary}")
+            print(f"  {n['id']}  {_label(n)}{tags}{summary}")
         print()
     if sub["edges"]:
         print(f"## relationships ({len(sub['edges'])})")
-        node_name = {n["id"]: n["name"] for n in sub["nodes"]}
+        node_label = {n["id"]: _label(n) for n in sub["nodes"]}
         for e in sub["edges"]:
-            f_name = node_name.get(e["from"], e["from"])
-            t_name = node_name.get(e["to"], e["to"])
+            f_name = node_label.get(e["from"], e["from"])
+            t_name = node_label.get(e["to"], e["to"])
             sess = []
             if e.get("since_session") is not None:
                 sess.append(f"s{e['since_session']}+")
             if e.get("until_session") is not None:
                 sess.append(f"closed s{e['until_session']}")
+            if e.get("superseded_by"):
+                sess.append(f"superseded by {e['superseded_by']}")
             sess_str = " (" + ", ".join(sess) + ")" if sess else ""
             note = f"  — {e['note']}" if e.get("note") else ""
             print(f"  {f_name} --[{e['type']}]--> {t_name}{sess_str}{note}")
@@ -602,10 +661,22 @@ def cmd_extract_apply(args) -> int:
         source = p.get("source") or {}
 
         # Resolve or create from/to nodes. Default node type = npc unless name matches an existing one.
-        def resolve_or_create(name: str) -> str:
+        def resolve_or_create(name: str, is_category: bool = False) -> str:
             existing_id = _resolve_node(data, name)
             if existing_id:
                 return existing_id
+            if is_category:
+                # Category nodes are auto-created with a distinct id prefix and flag
+                new_id = f"cat_{_slug(name)}"
+                data.setdefault("nodes", []).append({
+                    "id": new_id, "type": "category", "name": name,
+                    "tags": [], "summary": "",
+                    "category_node": True,
+                    "_auto_created_from_extract": True,
+                })
+                nonlocal applied_nodes
+                applied_nodes += 1
+                return new_id
             # No existing node — auto-create as a placeholder npc unless --no-auto-nodes
             if args.no_auto_nodes:
                 raise ValueError(f"node not found and --no-auto-nodes set: {name!r}")
@@ -614,13 +685,12 @@ def cmd_extract_apply(args) -> int:
                 "id": new_id, "type": "npc", "name": name, "tags": [], "summary": "",
                 "_auto_created_from_extract": True,
             })
-            nonlocal applied_nodes
             applied_nodes += 1
             return new_id
 
         try:
-            frm_id = resolve_or_create(frm_name)
-            to_id = resolve_or_create(to_name)
+            frm_id = resolve_or_create(frm_name, is_category=bool(p.get("category_from")))
+            to_id = resolve_or_create(to_name, is_category=bool(p.get("category_to")))
         except ValueError as e:
             print(f"  skip {i}: {e}", file=sys.stderr)
             skipped += 1
@@ -690,6 +760,15 @@ def main() -> int:
     sp.add_argument("--anchor",
         help="verbatim phrase from canon that justifies the closure (recorded as closed_anchor)")
     sp.set_defaults(func=cmd_close_edge)
+
+    sp = sub.add_parser("supersede-edge",
+        help="mark an edge as superseded (hard retcon) — preserves audit trail "
+             "but excludes from active queries")
+    add_camp(sp)
+    sp.add_argument("--id", required=True, help="edge id to mark wrong")
+    sp.add_argument("--by", help="optional id of the corrected edge that replaces it")
+    sp.add_argument("--reason", help="one-line explanation of the retcon")
+    sp.set_defaults(func=cmd_supersede_edge)
 
     sp = sub.add_parser("list")
     add_camp(sp)

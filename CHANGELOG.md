@@ -10,6 +10,59 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [1.7.2] — 2026-05-01
+
+Phase 2.5 — the two graph-feature follow-ups that needed real implementation rather than just design notes. Both ship behind the same opt-in pattern as Phase 2: existing campaigns and `graph.json` files keep working unchanged.
+
+### What's new
+
+- **`/dnd graph supersede-edge`** — mark an edge as superseded (hard retcon). Use when canon explicitly contradicts a prior extraction — a session log was corrected, or a relationship was misread. The wrong edge stays in the graph for audit trail; `scene-context` filters it out, but `subgraph` and `show` queries can still surface it for historical review. Optional `--by <correct-edge-id>` links to the replacement; `--reason "..."` records why. Distinct from `close-edge`: closing ends a real relationship cleanly; superseding says the original was wrong.
+
+  ```
+  /dnd graph supersede-edge --campaign havenfall --id e1 --by e9 \
+    --reason "S6 retcon: Halvard framed the mayor; Theodora's intel was wrong"
+  ```
+
+- **Category-node edges**. State-verbs flagged `category_object_ok: true` in the verb seed (currently `possessed_by`, `worships`, `cleric_of`, `cursed_by`, `fears`, `flagged_offlimits`) now extract proposals where the verb's object is a categorical noun phrase (`a ghost`, `the silver veil`, `some old spirit`) rather than a uniquely-named entity. `extract-apply` auto-creates a node with `category_node: true` and `type: category`; `scene-context` renders it with an `(unnamed)` marker so the GM remembers the player canonically doesn't have a name yet.
+
+  Example proposal:
+  ```
+  wraith --[possessed_by]--> Brother Halvard  (low) [X is category]
+  Issaly Wreth --[worships]--> silver veil    (medium) [Y is category]
+  ```
+
+  Categorical proposals start at lower confidence than entity-only matches — the captured noun ("ghost") is genuinely ambiguous in a way that named entities aren't.
+
+### Schema additions
+
+- **`superseded_by: <edge-id> | true`** — optional field on edges. Set by `supersede-edge`. `_edge_active_at()` excludes any edge with this field truthy.
+- **`supersede_reason: "..."`** — optional companion field with the human explanation.
+- **`closed_anchor`** (recap from v1.7.1) — verbatim phrase justifying a closure. Now also rendered in `scene-context` output when present.
+- **Node `category_node: true`** — flag on auto-created category nodes. Display layer renders these with an "(unnamed)" suffix.
+
+### Tests
+
+Suite is now **48 tests in ~2s**:
+- 12 verb-table sanity tests
+- 25 deterministic-extractor tests
+- 11 end-to-end CLI tests, including:
+  - `supersede-edge` marks the edge AND filters it out of `scene-context` at later sessions
+  - `supersede-edge` without `--by` (retcon with no replacement) records `superseded_by: true`
+  - `extract --deterministic` on a possession scene (`"Aldric is possessed by a ghost"`) produces a categorical proposal
+  - `extract-apply` auto-creates a `cat_*` node with `category_node: true`
+
+### Bug fixes
+
+- **Category target slot detection**: the deterministic extractor was picking the emit's `to` slot as the categorical target, but verbs like `possessed_by` emit `{from: Y, to: X}` — Y is the grammatical object, not the emit's `to`. The category slot is now resolved from the LAST `X/Y/Z` placeholder in the template (the verb's grammatical object in SVO), not from emit metadata.
+- **Section-header pluralization**. `## categorys` → `## categories`. One more node type and we'd have noticed eventually; cosmetic but caught it in the demo.
+
+### What stays deferred
+
+- Future-tense planning verbs (`plans_to`, `intends_to`, `scheduled_to`) — still need the DM session-prep corpus pass.
+- Hybrid Phase 3 mode (deterministic-first, Haiku-fallback on unmatched sentences).
+
+---
+
 ## [1.7.1] — 2026-05-01
 
 The Phase 2 deterministic extractor lands one day after the Phase 1 release. We had been planning to ship this as a separate v1.8 minor; on second look it's better framed as completing what v1.7.0 promised. The Haiku-backed `extract` is still there and unchanged — `--deterministic` is a new opt-in flag on the same subcommand.

@@ -202,11 +202,18 @@ def _build_entity_alternation(entities: set) -> str:
     return "|".join(re.escape(e) for e in ordered if e)
 
 
-def build_pattern_regex(template: str, entity_alt: str) -> Optional[re.Pattern]:
+def build_pattern_regex(template: str, entity_alt: str,
+                        category_target: Optional[str] = None) -> Optional[re.Pattern]:
     """Convert a verb-table pattern template (e.g. 'X sent Y to Z') to a regex.
 
     Placeholders X, Y, Z become named capture groups matching any known entity.
     All other whitespace becomes flexible (\\s+); other tokens stay literal.
+
+    If `category_target` is one of {'X','Y','Z'}, that slot matches a categorical
+    noun phrase ("a ghost", "the gods") instead of a named entity. The capture
+    group still has the name X/Y/Z but the matched text is the bare noun
+    ("ghost", "the gods"). Used for state-verbs with `category_object_ok: true`.
+
     Returns None on regex compile error.
     """
     if not entity_alt:
@@ -214,16 +221,21 @@ def build_pattern_regex(template: str, entity_alt: str) -> Optional[re.Pattern]:
     parts = re.split(r"\b([XYZ])\b", template)
     rebuilt = []
     seen = set()
+    # Categorical target: "a/an/the/some" + 1-2 lowercase nouns. Capture only
+    # the noun ("ghost" not "a ghost") so the category node name is clean.
     for tok in parts:
         if tok in {"X", "Y", "Z"}:
             if tok in seen:
-                # Backref to earlier group with the same letter (rare; prevents pattern bugs)
                 rebuilt.append(rf"(?P={tok})")
+            elif tok == category_target:
+                rebuilt.append(
+                    rf"(?:a|an|the|some)\s+(?P<{tok}>[a-z][a-z\-]*(?:\s+[a-z][a-z\-]*)?)"
+                )
+                seen.add(tok)
             else:
                 rebuilt.append(rf"(?P<{tok}>{entity_alt})")
                 seen.add(tok)
         else:
-            # Literal piece — escape regex metachars but make whitespace flexible
             tok_esc = re.escape(tok)
             tok_esc = re.sub(r"(?:\\\s)+", r"\\s+", tok_esc)
             rebuilt.append(tok_esc)
@@ -319,53 +331,79 @@ def extract_proposals(campaign_dir: pathlib.Path,
         edge_type = verb_entry.get("edge_type")
         confidence = verb_entry.get("confidence", "medium")
         symmetric = bool(verb_entry.get("symmetric"))
+        cat_ok = bool(verb_entry.get("category_object_ok"))
         for pattern_dict in verb_entry.get("patterns", []) or []:
             template = pattern_dict.get("template")
             if not template:
                 continue
-            pat_re = build_pattern_regex(template, entity_alt)
-            if pat_re is None:
-                continue
             emits = _coerce_emits(pattern_dict.get("emits"))
             if not emits:
                 continue
-            for src_file, src_text in sources:
-                for match in pat_re.finditer(src_text):
-                    sent_start = src_text.rfind(".", 0, match.start()) + 1
-                    sent_end = src_text.find(".", match.end())
-                    sent_end = len(src_text) if sent_end == -1 else sent_end + 1
-                    anchor = src_text[sent_start:sent_end].strip()
-                    if len(anchor) > 240:
-                        anchor = src_text[match.start():match.end()].strip()
-                    sess = session_for_offset(src_text, match.start())
-                    for emit in emits:
-                        frm = _resolve_slot(emit.get("from"), match)
-                        to = _resolve_slot(emit.get("to"), match)
-                        etype = emit.get("type") or edge_type
-                        if not frm or not to:
-                            continue
-                        # Canonicalize alias matches (e.g. "Aldric" → "Aldric Brandt")
-                        frm = aliases.get(frm, frm)
-                        to = aliases.get(to, to)
-                        if frm == to:
-                            continue
-                        if symmetric and frm > to:
-                            frm, to = to, frm
-                        key = (frm, to, etype, anchor)
-                        if key in seen:
-                            continue
-                        seen.add(key)
-                        proposal = {
-                            "from": frm,
-                            "to": to,
-                            "type": etype,
-                            "since_session": sess,
-                            "source": {"file": src_file, "session": sess, "anchor": anchor},
-                            "confidence": confidence,
-                        }
-                        if emit.get("note"):
-                            proposal["note"] = emit["note"]
-                        proposals.append(proposal)
+            # Build the pattern variants to try: (regex, category_slot_or_None).
+            # When category_object_ok is true, also try a category-target variant
+            # for the verb's grammatical object — the LAST X/Y/Z placeholder in
+            # the template (e.g. Y in "X is possessed by Y", Y in "X worships Y").
+            variants = [(build_pattern_regex(template, entity_alt), None)]
+            if cat_ok:
+                slot_order = re.findall(r"\b([XYZ])\b", template)
+                cat_slot = slot_order[-1] if slot_order else None
+                if cat_slot in {"X", "Y", "Z"}:
+                    cat_re = build_pattern_regex(template, entity_alt,
+                                                 category_target=cat_slot)
+                    if cat_re is not None:
+                        variants.append((cat_re, cat_slot))
+            for pat_re, cat_slot in variants:
+                if pat_re is None:
+                    continue
+                for src_file, src_text in sources:
+                    for match in pat_re.finditer(src_text):
+                        sent_start = src_text.rfind(".", 0, match.start()) + 1
+                        sent_end = src_text.find(".", match.end())
+                        sent_end = len(src_text) if sent_end == -1 else sent_end + 1
+                        anchor = src_text[sent_start:sent_end].strip()
+                        if len(anchor) > 240:
+                            anchor = src_text[match.start():match.end()].strip()
+                        sess = session_for_offset(src_text, match.start())
+                        for emit in emits:
+                            frm = _resolve_slot(emit.get("from"), match)
+                            to = _resolve_slot(emit.get("to"), match)
+                            etype = emit.get("type") or edge_type
+                            if not frm or not to:
+                                continue
+                            # Canonicalize alias matches (e.g. "Aldric" → "Aldric Brandt").
+                            # Skip canonicalization for the categorical slot — its
+                            # captured value is a category noun, not an entity.
+                            if emit.get("from") != cat_slot:
+                                frm = aliases.get(frm, frm)
+                            if emit.get("to") != cat_slot:
+                                to = aliases.get(to, to)
+                            if frm == to:
+                                continue
+                            if symmetric and frm > to:
+                                frm, to = to, frm
+                            key = (frm, to, etype, anchor)
+                            if key in seen:
+                                continue
+                            seen.add(key)
+                            proposal = {
+                                "from": frm,
+                                "to": to,
+                                "type": etype,
+                                "since_session": sess,
+                                "source": {"file": src_file, "session": sess, "anchor": anchor},
+                                "confidence": confidence,
+                            }
+                            if cat_slot is not None:
+                                # Mark which side of the edge is a category target
+                                if emit.get("from") == cat_slot:
+                                    proposal["category_from"] = True
+                                if emit.get("to") == cat_slot:
+                                    proposal["category_to"] = True
+                                # Categorical proposals start at lower confidence
+                                proposal["confidence"] = "low" if confidence == "high" else confidence
+                            if emit.get("note"):
+                                proposal["note"] = emit["note"]
+                            proposals.append(proposal)
 
     return proposals
 

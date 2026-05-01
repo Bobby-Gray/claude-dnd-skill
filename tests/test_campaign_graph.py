@@ -233,5 +233,117 @@ class GraphSubcommandTests(unittest.TestCase):
         self.assertEqual(edges[0]["type"], "met")
 
 
+    # ── supersede-edge (Phase 2.5) ──────────────────────────────────────────
+
+    def test_supersede_edge_marks_edge_and_excludes_from_active(self):
+        """Phase 2.5: superseded edges stay in the graph but never surface as active."""
+        for name in ("Aldric", "Mira"):
+            _run(["add-node", "--campaign", self.campaign,
+                  "--type", "npc", "--name", name], env_overrides=self.env)
+        _run(["add-node", "--campaign", self.campaign,
+              "--type", "place", "--name", "Hold"], env_overrides=self.env)
+        _run(["add-edge", "--campaign", self.campaign,
+              "--from", "Aldric", "--to", "Hold",
+              "--type", "lives_in", "--since", "1"], env_overrides=self.env)
+        # Wrong edge first: Aldric --serves--> Mira (later retconned)
+        _run(["add-edge", "--campaign", self.campaign,
+              "--from", "Aldric", "--to", "Mira",
+              "--type", "serves", "--since", "1"], env_overrides=self.env)
+        # Correct edge: Aldric --opposes--> Mira
+        _run(["add-edge", "--campaign", self.campaign,
+              "--from", "Aldric", "--to", "Mira",
+              "--type", "opposes", "--since", "1"], env_overrides=self.env)
+
+        edges = self._graph_json()["edges"]
+        wrong_id = next(e["id"] for e in edges if e["type"] == "serves")
+        correct_id = next(e["id"] for e in edges if e["type"] == "opposes")
+
+        rc, out, err = _run(
+            ["supersede-edge", "--campaign", self.campaign,
+             "--id", wrong_id, "--by", correct_id,
+             "--reason", "session-3 retcon: Aldric never served"],
+            env_overrides=self.env
+        )
+        self.assertEqual(rc, 0, msg=err)
+
+        # Read back graph; the wrong edge should have superseded_by set
+        wrong_edge = next(e for e in self._graph_json()["edges"] if e["id"] == wrong_id)
+        self.assertEqual(wrong_edge["superseded_by"], correct_id)
+        self.assertEqual(wrong_edge["supersede_reason"],
+                         "session-3 retcon: Aldric never served")
+
+        # scene-context shouldn't surface the superseded edge
+        rc, out, err = _run(
+            ["scene-context", "--campaign", self.campaign,
+             "--place", "Hold", "--at-session", "5"],
+            env_overrides=self.env
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("opposes", out)
+        self.assertNotIn("serves", out,
+                         msg=f"superseded edge leaked into scene-context: {out}")
+
+    def test_supersede_edge_without_replacement(self):
+        """Sometimes a retcon just deletes a relationship without a replacement."""
+        for name in ("Aldric", "Mira"):
+            _run(["add-node", "--campaign", self.campaign,
+                  "--type", "npc", "--name", name], env_overrides=self.env)
+        _run(["add-edge", "--campaign", self.campaign,
+              "--from", "Aldric", "--to", "Mira",
+              "--type", "knows", "--since", "1"], env_overrides=self.env)
+        edge_id = self._graph_json()["edges"][0]["id"]
+
+        rc, out, err = _run(
+            ["supersede-edge", "--campaign", self.campaign, "--id", edge_id],
+            env_overrides=self.env
+        )
+        self.assertEqual(rc, 0, msg=err)
+        edge = self._graph_json()["edges"][0]
+        self.assertEqual(edge["superseded_by"], True)
+
+    # ── category-node edges (Phase 2.5) ─────────────────────────────────────
+
+    def test_extract_deterministic_category_object_creates_category_node(self):
+        """Phase 2.5: state-verbs with category_object_ok extract category-target edges."""
+        (self.camp_dir / "session-log.md").write_text(textwrap.dedent("""\
+            # Session Log
+
+            ## Session 1
+
+            Aldric is possessed by a ghost. Mira fears the dark gods.
+        """))
+        # Run extract --deterministic
+        out_path = self.camp_dir / "props.json"
+        rc, out, err = _run(
+            ["extract", "--campaign", self.campaign,
+             "--deterministic", "--write", str(out_path)],
+            env_overrides=self.env
+        )
+        self.assertEqual(rc, 0, msg=err)
+        proposals = json.loads(out_path.read_text())
+        # We expect at least one categorical proposal
+        cat_proposals = [p for p in proposals if p.get("category_to") or p.get("category_from")]
+        self.assertGreater(len(cat_proposals), 0,
+                           f"no categorical proposals; all proposals: {proposals}")
+
+        # Apply via extract-apply
+        rc, out, err = _run(
+            ["extract-apply", "--campaign", self.campaign,
+             "--proposals", str(out_path)],
+            env_overrides=self.env
+        )
+        self.assertEqual(rc, 0, msg=err)
+
+        graph = self._graph_json()
+        cat_nodes = [n for n in graph["nodes"] if n.get("category_node")]
+        self.assertGreater(len(cat_nodes), 0,
+                           f"no category nodes auto-created; nodes: {[n['id'] for n in graph['nodes']]}")
+        # Category node ids should start with cat_
+        for n in cat_nodes:
+            self.assertTrue(n["id"].startswith("cat_"),
+                            f"category node has non-cat_ id: {n['id']}")
+            self.assertEqual(n["type"], "category")
+
+
 if __name__ == "__main__":
     unittest.main()
