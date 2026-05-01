@@ -1003,7 +1003,33 @@ def chunk():
     is_dice        = bool(data.get("dice"))
     is_tutor       = bool(data.get("tutor"))
     is_inspiration = bool(data.get("inspiration_award"))
+    is_milestone_award = bool(data.get("milestone_award"))
+    is_milestone_spend = bool(data.get("milestone_spend"))
     is_xp_award    = bool(data.get("xp_award"))
+
+    # ── Milestone award/spend (stack-based reward, distinct from binary Inspiration) ──
+    if is_milestone_award or is_milestone_spend:
+        name = str(data.get("milestone_award") or data.get("milestone_spend") or "").strip()[:80]
+        label = str(data.get("label") or "Milestone").strip()[:40]
+        if not name:
+            return "", 204
+        payload: dict = {
+            "milestone_award" if is_milestone_award else "milestone_spend": name,
+            "label": label,
+            "text": name,
+        }
+        log_entry: dict = dict(payload)
+        if is_milestone_award and data.get("reason"):
+            payload["reason"] = str(data["reason"]).strip()[:240]
+            log_entry["reason"] = payload["reason"]
+        with _text_log_lock:
+            _text_log.append(log_entry)
+        with _tail_lock:
+            _tail_buffer.append(log_entry)
+        _persist_log()
+        _persist_tail()
+        _broadcast(payload)
+        return "", 204
 
     # Inspiration and XP awards carry no text from stdin — build synthetic text.
     if is_inspiration:
@@ -1147,6 +1173,7 @@ def stats():
                     "_hd_use", "_hd_restore",
                     "_effect_start", "_effect_end",
                     "_sheet_spells",
+                    "_milestone_inc", "_milestone_dec",
                 }
                 if match:
                     for key, val in incoming.items():
@@ -1224,6 +1251,20 @@ def stats():
                             sheet["spells"] = val
                         elif key == "inspiration" and val is False:
                             match["inspiration"] = False
+                        elif key == "_milestone_inc":
+                            # Stack-based reward counter — Inspiration variants,
+                            # homebrew Hero Coins, Bardic Inspiration tokens, etc.
+                            # The label string is the value; per-label cap optional.
+                            label = str(val) or "Milestone"
+                            ms = match.setdefault("milestones", {})
+                            cap = match.get("milestone_caps", {}).get(label, 99)
+                            ms[label] = min(ms.get(label, 0) + 1, cap)
+                        elif key == "_milestone_dec":
+                            label = str(val) or "Milestone"
+                            ms = match.setdefault("milestones", {})
+                            ms[label] = max(ms.get(label, 0) - 1, 0)
+                            if ms.get(label, 0) == 0:
+                                ms.pop(label, None)
                         elif isinstance(val, dict) and isinstance(match.get(key), dict):
                             match[key].update(val)
                         else:

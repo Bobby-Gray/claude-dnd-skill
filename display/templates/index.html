@@ -981,6 +981,64 @@
     font-style: italic; margin-top: 2px;
   }
 
+  /* ── Milestones (sidebar — Bardic Inspiration / Hero Coin / Fate Token / etc.) ── */
+  .sb-milestones { margin-top: 6px; }
+  .sb-milestone-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 2px; gap: 6px;
+  }
+  .sb-milestone-label {
+    font-family: 'Cinzel', serif;
+    font-size: 8px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: rgba(220, 180, 90, 0.75);
+  }
+  .sb-milestone-count {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    color: #e0bf6e;
+    background: rgba(220, 180, 90, 0.18);
+    border: 1px solid rgba(220, 180, 90, 0.35);
+    padding: 0 5px;
+    border-radius: 7px;
+    min-width: 14px;
+    text-align: center;
+    box-shadow: 0 0 6px rgba(220, 180, 90, 0.18) inset;
+  }
+
+  /* ── Milestone award block (feed; stack-based reward, distinct from binary Inspiration) ── */
+  .milestone-block {
+    margin: 0.6em 0 1.6em;
+    opacity: 0;
+    animation: fadeIn 0.6s ease forwards;
+    text-align: center;
+    padding: 0.65em 1.1em 0.7em;
+    border-top: 1px solid rgba(220, 180, 90, 0.35);
+    border-bottom: 1px solid rgba(220, 180, 90, 0.35);
+    background: linear-gradient(180deg, rgba(60, 40, 10, 0.18), rgba(40, 30, 10, 0.1));
+    box-shadow: 0 0 22px rgba(220, 180, 90, 0.18);
+  }
+  .milestone-header {
+    font-family: 'Cinzel', serif;
+    color: #e0bf6e;
+    text-shadow: 0 0 12px rgba(220, 180, 90, 0.45);
+    letter-spacing: 1.5px;
+  }
+  .milestone-icon { margin-right: 0.4em; opacity: 0.85; }
+  .milestone-name { font-size: 13px; }
+  .milestone-label {
+    font-size: 11px; opacity: 0.75; margin-left: 0.6em;
+    text-transform: uppercase; letter-spacing: 2px;
+  }
+  .milestone-detail {
+    margin-top: 0.45em;
+    font-style: italic;
+    font-size: 12px;
+    color: #d2b76a;
+    opacity: 0.85;
+  }
+
   /* ── Spell slots (sidebar) ── */
   .sb-slots { margin-top: 5px; }
   .sb-slot-row { display: flex; align-items: center; gap: 3px; margin-bottom: 2px; }
@@ -2831,6 +2889,31 @@ function renderInspirationBlock(name, reason) {
   scrollToBottom();
 }
 
+// ── Milestone award block (stack-based reward — Bardic Inspiration die / Hero Coin / etc.) ──
+// Distinct from the binary D&D 5e Inspiration block above. Use the label arg to name what
+// kind of reward was earned.
+function renderMilestoneBlock(name, label, reason, isReplay) {
+  _flushForBlock();
+  const block = document.createElement('div');
+  block.className = 'milestone-block';
+  if (isReplay) block.style.opacity = '0.7';
+  const header = document.createElement('div');
+  header.className = 'milestone-header';
+  header.innerHTML = `<span class="milestone-icon">✦</span>` +
+                     `<span class="milestone-name">${name}</span>` +
+                     `<span class="milestone-label">${label}</span>`;
+  block.appendChild(header);
+  if (reason) {
+    const detail = document.createElement('div');
+    detail.className = 'milestone-detail';
+    detail.textContent = reason;
+    block.appendChild(detail);
+  }
+  textContent.appendChild(block);
+  _reanchorCursor();
+  scrollToBottom();
+}
+
 // ── XP award block ─────────────────────────────────────────────────────────
 function renderXpBlock(xpData) {
   _flushForBlock();
@@ -2864,6 +2947,10 @@ function renderReplayBatch(items) {
     if (!item) return;
     if (item.inspiration_award) {
       renderInspirationBlock(item.inspiration_award, item.reason || '');
+      return;
+    }
+    if (item.milestone_award) {
+      renderMilestoneBlock(item.milestone_award, item.label || 'Milestone', item.reason || '', true);
       return;
     }
     if (item.xp_award) {
@@ -3183,6 +3270,31 @@ function _buildPlayerCard(p, solo) {
       effEl.appendChild(pill);
     });
     card.appendChild(effEl);
+  }
+
+  // Milestones (stack-based reward — Bardic Inspiration / Hero Coin / etc.).
+  // Distinct from the binary `inspiration` boolean badge handled elsewhere.
+  if (p.milestones && Object.keys(p.milestones).length) {
+    const msEl = document.createElement('div');
+    msEl.className = 'sb-milestones';
+    msEl.dataset.role = 'milestones';
+    Object.entries(p.milestones)
+      .filter(([_, count]) => count > 0)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([label, count]) => {
+        const row = document.createElement('div');
+        row.className = 'sb-milestone-row';
+        const lbl = document.createElement('span');
+        lbl.className = 'sb-milestone-label';
+        lbl.textContent = label;
+        const pill = document.createElement('span');
+        pill.className = 'sb-milestone-count';
+        pill.textContent = count;
+        row.appendChild(lbl);
+        row.appendChild(pill);
+        msEl.appendChild(row);
+      });
+    if (msEl.children.length) card.appendChild(msEl);
   }
 
   // Spell slots
@@ -4568,10 +4680,14 @@ function connect() {
     if (payload.inspiration_award) {
       renderInspirationBlock(payload.inspiration_award, payload.reason || '');
     }
+    if (payload.milestone_award) {
+      renderMilestoneBlock(payload.milestone_award, payload.label || 'Milestone', payload.reason || '');
+    }
+    // milestone_spend: server processes the counter decrement; no feed block
     if (payload.xp_award) {
       renderXpBlock(payload.xp_award);
     }
-    if (payload.text && !payload.inspiration_award && !payload.xp_award) {
+    if (payload.text && !payload.inspiration_award && !payload.milestone_award && !payload.milestone_spend && !payload.xp_award) {
       if (payload.action) {
         renderActionBlock(payload.action, payload.text);
       } else if (payload.player) {

@@ -10,6 +10,47 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [1.7.4] — 2026-05-01 — Stack-based milestone counter (backport from open-tabletop-gm v0.9.0)
+
+A counted milestone counter for the rewards that don't fit Inspiration's binary shape — Bardic Inspiration dice, homebrew Hero Coins, Fate Tokens, alternate-system reward tokens, anything that *accumulates*. The existing Inspiration code is unchanged; the binary gold badge in the sidebar still works as before. This release adds a parallel, stack-based reward UI alongside it.
+
+### What's new
+
+- **`/dnd graph`-style send.py flags**:
+  - `send.py --milestone-award NAME [--reason "..."] [--label "Bardic Inspiration"]`
+  - `send.py --milestone-spend NAME [--label "..."]`
+
+  Default label is `"Milestone"`. Use the system-specific term in `--label`.
+
+- **Sidebar counter** — each player card renders one row per active milestone label with a gold count pill (`HERO COIN  3`). Empty labels don't render; a label is removed from the underlying `milestones` dict on decrement-to-zero.
+
+- **Server-side mutation ops** `_milestone_inc` and `_milestone_dec` — same pattern as `_conditions_add` / `_slot_use`. Increments respect optional per-label `milestone_caps` (set to `{"Bardic Inspiration": 1}` for an effectively-binary reward). Decrements floor-clamp at 0.
+
+- **Feed block** with gold-glow styling — `.milestone-block` rendered when an award fires. Persists to text_log + session tail; replays on browser reconnect.
+
+### Test suite (62 total, up from 55)
+
+`tests/test_milestone_counter.py` — 7 new tests covering increment, decrement, label removal at zero, cap enforcement, multi-label coexistence, decrement-below-zero clamping, and isolation from the existing binary `inspiration` boolean.
+
+### Compatibility
+
+- Existing campaigns: no change.
+- Existing `inspiration_award` flow: untouched. The binary badge and gold-glow inspiration block continue to work.
+- New `milestones` dict on player records: created on first award. No migration.
+
+### Why this and not just inspiration?
+
+D&D 5e's core Inspiration is binary — you have it or you don't. But many tables track *additional* reward currencies: Bardic Inspiration die counts, homebrew Hero Coins for great roleplay, Fate Tokens for cinematic moments, table-favorite "DM Coins" you can cash in for a reroll. The binary `inspiration` field can't represent these. Now you can:
+
+```
+$ python3 display/send.py --milestone-award "Aldric" --label "Bardic Inspiration" \
+    --reason "rallied the crew at the harbor"
+```
+
+Sidebar shows `BARDIC INSPIRATION  1`. Award twice more → `3`. Spend one → `2`. Spend remaining → row disappears.
+
+---
+
 ## [1.7.3] — 2026-05-01
 
 Future-tense planning verbs land in the seed. The recall gap from earlier today's research is closed — the deterministic extractor now picks up GM session-prep prose like *"Vedra plans to file the nomination Friday"* or *"Mira intends to confront Aldric at dawn"*, not just past-tense narrative.

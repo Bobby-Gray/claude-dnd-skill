@@ -312,6 +312,16 @@ def main() -> None:
              "(matches how --xp-award reason is rendered). Requires --inspiration-award.")
     parser.add_argument("--inspiration-spend", metavar="NAME",
         help="Spend/clear Inspiration: removes sidebar badge")
+    parser.add_argument("--milestone-award", metavar="NAME",
+        help="Award a stack-based reward token (Bardic Inspiration die, homebrew "
+             "Hero Coin, etc.). Use with --milestone-label / --milestone-reason.")
+    parser.add_argument("--milestone-spend", metavar="NAME",
+        help="Spend a stack-based reward token; decrements the sidebar counter")
+    parser.add_argument("--milestone-reason", metavar="TEXT",
+        help="Optional reason rendered inside the milestone-award block")
+    parser.add_argument("--milestone-label", metavar="TEXT",
+        help='Label for the reward type (default: "Milestone"). Examples: '
+             '"Bardic Inspiration", "Hero Coin", "Fate Token".')
     parser.add_argument("--xp-award", metavar="JSON",
         help='XP award block: \'{"names":["Aldric","Mira"],"xp":250,"reason":"Encounter resolved","total":"3250/6500"}\'')
 
@@ -350,6 +360,7 @@ def main() -> None:
     _has_content_flag = bool(args.player or args.npc or args.dice or args.tutor or args.action)
     _has_bodyless_flag = bool(
         args.inspiration_award or args.inspiration_spend or args.xp_award
+        or args.milestone_award or args.milestone_spend
         or _build_stats_payload(args)
     )
     text = sys.stdin.read() if (_has_content_flag or not _has_bodyless_flag) else ""
@@ -368,6 +379,32 @@ def main() -> None:
     if args.inspiration_spend:
         name = args.inspiration_spend.strip()
         _post(STATS_URL, json.dumps({"players": [{"name": name, "inspiration": False}]}).encode(), token)
+        return
+
+    # ── Milestone award/spend (stack-based reward — system-agnostic) ─────────
+    # Distinct from --inspiration-award: that one is the binary D&D 5e badge,
+    # this one is a count that accumulates. Use for Bardic Inspiration dice,
+    # homebrew Hero Coins, Fate Tokens, or alternate reward systems.
+    if args.milestone_award:
+        name = args.milestone_award.strip()
+        label = (args.milestone_label or "Milestone").strip()
+        body = {"milestone_award": name, "text": name, "label": label}
+        if args.milestone_reason:
+            body["reason"] = args.milestone_reason.strip()
+        _post(FLASK_URL, json.dumps(body).encode(), token)
+        _post(STATS_URL, json.dumps({
+            "players": [{"name": name, "_milestone_inc": label}]
+        }).encode(), token)
+        return
+
+    if args.milestone_spend:
+        name = args.milestone_spend.strip()
+        label = (args.milestone_label or "Milestone").strip()
+        body = {"milestone_spend": name, "text": name, "label": label}
+        _post(FLASK_URL, json.dumps(body).encode(), token)
+        _post(STATS_URL, json.dumps({
+            "players": [{"name": name, "_milestone_dec": label}]
+        }).encode(), token)
         return
 
     # ── XP award block ────────────────────────────────────────────────────────
