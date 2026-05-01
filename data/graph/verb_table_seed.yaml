@@ -1028,6 +1028,90 @@ borderline:
       v0.5 borderline. Pre-marriage state. Distinct from `married_to` (formal)
       and `in_love_with` (emotional). Common in political / dynastic plots.
 
+  # ── v0.6 additions: future-tense planning verbs ─────────────────────────
+  # These dispositional verbs appear heavily in DM session-prep notes,
+  # state.md "Open Threads", "Faction Moves", and "Current Situation"
+  # blocks — but rarely in past-tense story corpora, which is why they
+  # were deferred. Adding to borderline because patterns work but the
+  # GM should review before applying (intentions can change).
+
+  - verb_forms: [plans to, planning to, plans on, planning on]
+    edge_type: plans_to
+    lifetime: dispositional
+    symmetric: false
+    confidence: medium
+    patterns:
+      - template: "X plans to V Y"
+        emits: [{from: X, to: Y, type: plans_to, note: "verb V"}]
+    notes: |
+      v0.6 borderline. Future-tense intent. Pattern is loose (V matches any
+      verb) so the proposal anchor is the full sentence; review before apply.
+      Common in DM Open Threads ("Vedra plans to file the nomination Friday").
+
+  - verb_forms: [intends to, intending to]
+    edge_type: intends_to
+    lifetime: dispositional
+    symmetric: false
+    confidence: medium
+    patterns:
+      - template: "X intends to V Y"
+        emits: [{from: X, to: Y, type: intends_to, note: "verb V"}]
+    notes: |
+      v0.6 borderline. Stronger commitment than `plans_to` but still mutable.
+      Useful for naming antagonist objectives in faction notes.
+
+  - verb_forms: [scheduled to, set to, slated to]
+    edge_type: scheduled_to
+    lifetime: state
+    symmetric: false
+    confidence: medium
+    patterns:
+      - template: "X is scheduled to V Y"
+        emits: [{from: X, to: Y, type: scheduled_to, note: "verb V"}]
+      - template: "X is set to V Y"
+        emits: [{from: X, to: Y, type: scheduled_to, note: "verb V"}]
+    notes: |
+      v0.6 borderline. Calendar-anchored — typically has a session or in-world
+      date. Distinct from `plans_to` (mutable intent) and `prepares_for`
+      (already in seed; covers preparation-state).
+
+  - verb_forms: [aims to, aiming to]
+    edge_type: aims_to
+    lifetime: dispositional
+    symmetric: false
+    confidence: medium
+    patterns:
+      - template: "X aims to V Y"
+        emits: [{from: X, to: Y, type: aims_to, note: "verb V"}]
+    notes: |
+      v0.6 borderline. Goal-oriented; often appears in faction goals listings.
+
+  - verb_forms: [expected to, expecting to]
+    edge_type: expected_to
+    lifetime: dispositional
+    symmetric: false
+    confidence: medium
+    patterns:
+      - template: "X is expected to V Y"
+        emits: [{from: X, to: Y, type: expected_to, note: "verb V"}]
+    notes: |
+      v0.6 borderline. External-perspective intent — what onlookers anticipate
+      X will do. Often appears in NPC dispositions and rumour blocks.
+
+  - verb_forms: [targets, targeting]
+    edge_type: targets
+    lifetime: dispositional
+    symmetric: false
+    confidence: medium
+    patterns:
+      - template: "X targets Y"
+        emits: [{from: X, to: Y, type: targets}]
+      - template: "X is targeting Y"
+        emits: [{from: X, to: Y, type: targets}]
+    notes: |
+      v0.6 borderline. Active hostile-intent. Often appears in threat-arc
+      summaries and faction-move notes.
+
 
 # ============================================================================
 # EXCLUSION — patterns that consistently fail; do NOT auto-emit

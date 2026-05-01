@@ -218,7 +218,11 @@ def build_pattern_regex(template: str, entity_alt: str,
     """
     if not entity_alt:
         return None
-    parts = re.split(r"\b([XYZ])\b", template)
+    # Recognize X/Y/Z as entity slots and V as a verb-phrase wildcard.
+    # V is used in future-tense templates like "X plans to V Y" where the
+    # verb between the modal phrase and the object varies across sentences
+    # ("plans to file", "plans to meet", "plans to attack the city").
+    parts = re.split(r"\b([XYZV])\b", template)
     rebuilt = []
     seen = set()
     # Categorical target: "a/an/the/some" + 1-2 lowercase nouns. Capture only
@@ -235,6 +239,12 @@ def build_pattern_regex(template: str, entity_alt: str,
             else:
                 rebuilt.append(rf"(?P<{tok}>{entity_alt})")
                 seen.add(tok)
+        elif tok == "V":
+            # Wildcard for variable verb phrases — match 1 to 4 short LOWERCASE
+            # words. The (?-i:...) inline flag disables IGNORECASE for this
+            # group only, so V can't accidentally consume a capitalized
+            # entity prefix (e.g. eating "Aldric" before reaching "Brandt").
+            rebuilt.append(r"(?-i:(?:[a-z\'\-]+\s+){0,3}[a-z\'\-]+)")
         else:
             tok_esc = re.escape(tok)
             tok_esc = re.sub(r"(?:\\\s)+", r"\\s+", tok_esc)

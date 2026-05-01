@@ -196,6 +196,82 @@ class SessionForOffsetTests(unittest.TestCase):
         self.assertIsNone(det.session_for_offset(text, 5))
 
 
+class FutureTenseVerbTests(unittest.TestCase):
+    """v0.6 additions — future-tense planning verbs in DM session-prep prose."""
+
+    def setUp(self):
+        self.ents = {"Vedra", "Aldric Brandt", "Mira", "Voss"}
+        self.alt = det._build_entity_alternation(
+            set(det.build_alias_index(self.ents).keys())
+        )
+
+    def _match(self, template, sent):
+        pat = det.build_pattern_regex(template, self.alt)
+        return pat.search(sent) if pat else None
+
+    def test_v_wildcard_matches_variable_verb_phrase(self):
+        m = self._match("X plans to V Y", "Vedra plans to meet Aldric Brandt at dawn.")
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group("X"), "Vedra")
+        self.assertEqual(m.group("Y"), "Aldric Brandt")
+
+    def test_v_wildcard_does_not_consume_capitalized_entity(self):
+        """V must be lowercase-only so it can't eat 'Aldric' before reaching 'Brandt'."""
+        m = self._match("X plans to V Y", "Mira plans to track Aldric Brandt all night.")
+        self.assertIsNotNone(m)
+        # Y should be the FULL canonical, not just the surname
+        self.assertEqual(m.group("Y"), "Aldric Brandt")
+
+    def test_intends_to_pattern(self):
+        m = self._match("X intends to V Y", "Mira intends to confront Voss before dusk.")
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group("X"), "Mira")
+        self.assertEqual(m.group("Y"), "Voss")
+
+    def test_scheduled_to_pattern(self):
+        m = self._match("X is scheduled to V Y",
+                        "Vedra is scheduled to meet Aldric Brandt next session.")
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group("X"), "Vedra")
+
+    def test_targets_pattern(self):
+        m = self._match("X targets Y", "Vedra targets Mira at the harbor.")
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group("X"), "Vedra")
+        self.assertEqual(m.group("Y"), "Mira")
+
+    def test_aims_to_pattern(self):
+        m = self._match("X aims to V Y", "Voss aims to capture Mira before sundown.")
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group("X"), "Voss")
+        self.assertEqual(m.group("Y"), "Mira")
+
+    def test_extract_finds_future_tense_relationships_end_to_end(self):
+        """Full extractor pipeline picks up future-tense edges from a session-log."""
+        with tempfile.TemporaryDirectory() as td:
+            campaign = pathlib.Path(td)
+            (campaign / "npcs.md").write_text(textwrap.dedent("""\
+                | Vedra | x |
+                | Aldric Brandt | y |
+                | Mira | z |
+            """))
+            (campaign / "session-log.md").write_text(textwrap.dedent("""\
+                # Session Log
+
+                ## Session 1
+
+                Vedra plans to meet Aldric Brandt at dawn. Mira intends to confront Vedra. Vedra targets Mira.
+            """))
+            proposals = det.extract_proposals(campaign)
+            edges = {(p["from"], p["to"], p["type"]) for p in proposals}
+            self.assertIn(("Vedra", "Aldric Brandt", "plans_to"), edges,
+                          f"missing plans_to edge; got {edges}")
+            self.assertIn(("Mira", "Vedra", "intends_to"), edges,
+                          f"missing intends_to edge; got {edges}")
+            self.assertIn(("Vedra", "Mira", "targets"), edges,
+                          f"missing targets edge; got {edges}")
+
+
 class ExtractEndToEndTests(unittest.TestCase):
 
     def _build_campaign(self, td: str):

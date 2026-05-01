@@ -10,6 +10,41 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [1.7.3] — 2026-05-01
+
+Future-tense planning verbs land in the seed. The recall gap from earlier today's research is closed — the deterministic extractor now picks up GM session-prep prose like *"Vedra plans to file the nomination Friday"* or *"Mira intends to confront Aldric at dawn"*, not just past-tense narrative.
+
+### What's new
+
+- **Six new borderline verb entries**: `plans_to`, `intends_to`, `scheduled_to`, `aims_to`, `expected_to`, `targets`. All `lifetime: dispositional` (intentions can change). All medium-confidence by default — the GM should review before applying because the patterns are looser than past-tense SVO.
+- **`V` wildcard in pattern templates** — represents a variable verb phrase (1–4 lowercase tokens) between a fixed modal phrase and an entity. Lets one template like `"X plans to V Y"` match `"plans to file"`, `"plans to meet"`, `"plans to ambush before dawn"` against the same regex. Implemented with `(?-i:...)` so the wildcard never accidentally consumes a capitalized entity prefix.
+
+### Test suite (now 55 tests)
+
+- Seven new `FutureTenseVerbTests` — V-wildcard captures the full canonical entity, doesn't consume capitalized names, all six new patterns match expected sentences, end-to-end extraction picks up `plans_to` / `intends_to` / `targets` edges from a synthetic session-log.
+
+### Demo verification
+
+A session 7 added to the Havenfall demo:
+
+```
+$ /dnd graph extract --deterministic --last-session-only
+Captain Renna Voss --[plans_to]--> Mira Solveig    (medium)
+  "Captain Renna Voss plans to ambush Mira Solveig at the docks."
+Mira Solveig --[intends_to]--> Issaly Wreth        (medium)
+  "Mira intends to flip Issaly Wreth before the harvest."
+Brother Halvard --[targets]--> Mayor Aldric Brandt  (medium)
+  "Brother Halvard targets Mayor Aldric Brandt in his sermons."
+```
+
+All three captured with verbatim source-anchors.
+
+### What stays deferred
+
+- **Phase 3 hybrid mode** (deterministic-first, LLM-fallback). Still on the design board, still unbuilt.
+
+---
+
 ## [1.7.2] — 2026-05-01
 
 Phase 2.5 — the two graph-feature follow-ups that needed real implementation rather than just design notes. Both ship behind the same opt-in pattern as Phase 2: existing campaigns and `graph.json` files keep working unchanged.
