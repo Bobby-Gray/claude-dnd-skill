@@ -53,6 +53,7 @@ If you're on Claude Code, you're in the right place.
 - <img src="display/icons/scroll.png" height="18"> **Persistent campaigns** — state, NPCs, quests, and characters survive across sessions in plain markdown files
 - <img src="display/icons/dragon.png" height="18"> **Two campaign modes** — improvised (Claude generates world + dynamic arc) or structured (import pre-written material and enforce its beats)
 - <img src="display/icons/crystal_ball.png" height="18"> **Dynamic narrative arc** — auto-generated at `/dnd new` from the world's threat, factions, and setting; three acts, six beats defined by consequence not event; arc tracked across sessions, revised when players redirect the story, continued into a new arc when complete
+- <img src="display/icons/spellbook.png" height="18"> **Campaign relationship graph** — typed-edge graph alongside the markdown campaign files, with verbatim source-anchors on every edge; `scene-context` query auto-pulled at `/dnd load` to surface who-knows-whom in the current scene without re-reading full NPC files; designed to hold long-session continuity when context compaction strips files out of scope. Background research and the A/B replay study that motivated it: [`docs/research/graph/`](docs/research/graph/)
 - <img src="display/icons/pack.png" height="18"> **Campaign import** — `/dnd import` accepts PDF, markdown, DOCX, or plain text; extracts structure type, acts, chapters, key beats, telegraph scenes, NPCs, factions, and quest hooks; builds all campaign files automatically
 - <img src="display/icons/helmet.png" height="18"> **Portable characters** — bring your character into any campaign; level up, grow your stat tree, and carry your inventory and loot — or start fresh each time
 - <img src="display/icons/attack.png" height="18"> **Full D&D 5e mechanics** — initiative, attacks, saving throws, spell slots, XP, levelling up, short/long rests
@@ -185,6 +186,11 @@ Once loaded, type naturally — no `/dnd` prefix needed. The DM interprets every
 | `/dnd update` | Pull latest skill changes from `origin/main` (refuses on dirty tree, fast-forward only) |
 | `/dnd update --check` | Show local-vs-remote version and commit-diff without pulling |
 | `/dnd path [<new>\|reset]` | View or relocate campaign storage via `DND_CAMPAIGN_ROOT` |
+| `/dnd graph init` | Initialize the campaign relationship graph (proposes seed nodes + edges; asks for approval) |
+| `/dnd graph scene-context --place <id> [--present id1,id2]` | Focused subgraph for the current scene; primary in-session query |
+| `/dnd graph add-edge --from <id> --to <id> --type T --since N` | Record a relationship shift mid-session |
+| `/dnd graph close-edge --id <id> --at-session N` | Mark an edge as ended (alliance broke, NPC moved away, etc.) |
+| `/dnd graph extract [--last-session-only]` | Run a Haiku pass over session-log to propose new edges (review-then-apply) |
 
 ---
 

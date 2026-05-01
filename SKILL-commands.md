@@ -140,8 +140,33 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
    python3 ~/.claude/skills/dnd/display/push_stats.py --quests '[...]'
    ```
    The quest panel only appears when at least one quest is present — do not skip this push.
-5. Deliver one in-character paragraph recapping current situation — where the party is, what's at stake, what was last happening.
-6. Enter active DM mode — no `/dnd` prefix needed from this point.
+5. **Pull scene-context from the campaign graph.** Always run, even if you suspect `graph.json` doesn't exist — the script exits cleanly with a notice when uninitialized.
+   ```bash
+   python3 ~/.claude/skills/dnd/scripts/campaign_graph.py scene-context \
+     --campaign <campaign-name> \
+     --place "<current-location-name-or-id>" \
+     --present "<comma-separated-NPC-names-likely-present>" \
+     --hops 2 \
+     --at-session <current-session-N>
+   ```
+   Identify `<current-location>` from `state.md → ## World State → location` (or the most recent location in `## Recent Events`). Identify `<present>` from the NPCs likely on-scene per `state.md` / `session-log.md`. `<current-session-N>` is `state.md → ## Session Count`.
+
+   Output is a focused subgraph (nodes by type + relationships block). **Internalize this subgraph before delivering the recap** — it is the authoritative source for who-relates-to-whom in the current scene. Do not re-read `npcs-full.md` for relationships you can answer from the subgraph.
+
+   If output reads `# graph not initialized` — graph hasn't been seeded for this campaign yet. Offer the DM the auto-init flow before delivering the recap:
+
+   > "This campaign doesn't have a relationship graph yet. I can initialize one now — it improves long-session continuity recall when `npcs-full.md` falls out of context. As a safety precaution, I'll back up the campaign first to `~/.claude/dnd/campaigns/<name>.backup-YYYYMMDD-HHMMSS/`. Proceed? [y/n]"
+
+   - `y` → run a snapshot copy of the campaign directory:
+     ```bash
+     cp -R ~/.claude/dnd/campaigns/<name> \
+           ~/.claude/dnd/campaigns/<name>.backup-$(date +%Y%m%d-%H%M%S)
+     ```
+     Then run `/dnd graph init <name>` (which proposes seed nodes/edges and asks for DM approval before writing). After init completes, re-run scene-context.
+   - `n` → continue without graph for this session; do not re-prompt this session. The DM can run `/dnd graph init` later at their convenience.
+
+6. Deliver one in-character paragraph recapping current situation — where the party is, what's at stake, what was last happening.
+7. Enter active DM mode — no `/dnd` prefix needed from this point.
 
 ---
 
@@ -276,6 +301,24 @@ session-log.md keeps only the **2 most recent full session entries**. Older entr
 ```
 
 The continuity summary is what stays hot in context. The full verbose log is in the archive, readable on `/dnd recap` or explicit request. When a past detail surfaces mid-scene, check `## Continuity Archive` first, then read session-log-archive.md if more depth is needed.
+
+**Campaign-graph relationship-shift sweep:** before completing the save, scan this session's narration for relationship shifts that weren't captured live via `/dnd graph add-edge` / `close-edge`. Look for moments matching these patterns:
+
+- New alliance, betrayal, or rivalry between named NPCs / factions ("Velkyn now serves the Pale Court")
+- An NPC moving into / out of a location ("Mira fled the Citadel for the Lowmarket")
+- A faction taking control of (or losing) a place ("House Tarn lost the silver mine")
+- A character learning a secret ("the party now knows Velkyn was the spy")
+- A quest / thread ending or being blocked
+
+For each candidate, draft an `add-edge` or `close-edge` call. Then **present the batch to the DM as a numbered list** and ask: *"Apply all? [y / pick / skip]"*
+
+- `y` → run all proposed calls via `python3 ~/.claude/skills/dnd/scripts/campaign_graph.py ...`
+- `pick` → DM names the numbers to apply (e.g. `1, 3, 5`); skip the rest
+- `skip` → don't apply any
+
+Always supply `--since <current-session-N>` from state.md. Never write proposed edges silently.
+
+If `graph.json` doesn't exist yet for this campaign, skip the sweep entirely (no proposal block) — graph isn't seeded.
 
 ---
 
@@ -536,6 +579,57 @@ Manage the dynamic campaign arc. Active only when `state.md → ## Campaign Arc`
   4. Append to `revision_log`: `"<date>: <what changed and why — one sentence>"`
   5. Update `steering_notes`.
   6. Confirm what was revised.
+
+---
+
+## `/dnd graph <subcommand>` — campaign relationship graph
+
+Local-only typed-edge relationship graph supplementing markdown. Stored at `~/.claude/dnd/campaigns/<name>/graph.json`. Supplements `npcs-full.md` / `session-log.md` — does not replace them. Edges are time-stamped (`since_session` / `until_session`), so historical state is recoverable.
+
+**Auto-pulled at `/dnd load` step 5** (scene-context) and **swept at `/dnd save`** (relationship-shift extraction). The DM also uses `/dnd graph scene-context` on demand mid-session, especially before heavy social or political scenes.
+
+For background reading on the design and the A/B replay study that motivated it, see `docs/research/graph/`.
+
+All subcommands invoke `python3 ~/.claude/skills/dnd/scripts/campaign_graph.py <subcommand> --campaign <name> [args]`.
+
+### `/dnd graph init [campaign-name]`
+First-time bootstrap. Read existing `npcs.md` / `world.md` / `state.md` for the campaign. Propose a node list (NPCs as `npc_*`, factions as `faction_*`, key locations as `place_*`) and a starter edge list (faction membership from npcs.md tables, NPC location from "Lives in / Based at" fields, faction relationships from world.md). Display the proposed list to the DM and **ask for approval** before writing — do not silently extract. After approval, run `add-node` and `add-edge` for each. Use `--since` matching state.md's current session count.
+
+For existing campaigns being initialized for the first time, the `/dnd load` flow offers to back the campaign directory up first; honour that flow rather than running init from a cold prompt.
+
+### `/dnd graph add-node --type T --name N [--tags ...] [--summary ...]`
+Add a single node. Type is open vocab; suggested: `npc`, `faction`, `place`, `item`, `thread`. Default id is `<type>_<name-slug>`.
+
+### `/dnd graph add-edge --from <id> --to <id> --type T [--since N] [--note ...]`
+Add a typed edge between two existing nodes. Edge type is open vocab; common: `loyal_to`, `opposes`, `allied_with`, `member_of`, `lives_in`, `controls`, `knows_about`, `friends_with`, `lover_of`, `owes`, `rules`, `related_by_blood`, `advances_thread`, `blocks_thread`. Always supply `--since` (the current session number from state.md) so historical replay works.
+
+### `/dnd graph close-edge --id <edge-id> --at-session N`
+Mark an edge as ended at session N (e.g. when an alliance breaks). Original edge is preserved with `until_session` set; it remains visible in historical queries but is excluded from "active at session ≥ N" results.
+
+### `/dnd graph list [--type T] [--at-session N]`
+Print a compact node table grouped by type. With `--at-session`, also reports active edge count at that session.
+
+### `/dnd graph show --id <node-id>`
+Print one node with all incoming and outgoing edges.
+
+### `/dnd graph scene-context --place <id> [--present id1,id2] [--threads id1,id2] [--hops H] [--at-session N]`
+**Primary query for in-session use.** Returns a focused subgraph from the current scene (place + present NPCs + active threads) bounded by hop count, optionally filtered to edges active at a given session. Output is grouped: nodes by type, then a relationships block. Default `--hops 2`. Use this when you need to recall who-relates-to-whom in the current scene without re-reading `npcs-full.md` or session-log archives.
+
+### `/dnd graph subgraph --seed <id> [--seed <id>] [--hops H] [--at-session N]`
+Lower-level traversal — same as `scene-context` but with arbitrary seed nodes. Use when the scene framing doesn't fit (e.g. tracing faction politics independent of any specific place).
+
+### `/dnd graph extract [campaign-name] [--last-session-only]`
+Run a Haiku pass over the campaign's session-log to propose new edges with verbatim source-anchors. Outputs a proposal JSON to `~/.claude/dnd/campaigns/<name>/graph-proposals-<date>.json` for human review. Does **not** write to graph.json — that's the apply step.
+
+### `/dnd graph extract-apply --proposals <file> [--pick N1,N2,...]`
+Apply previously-extracted proposals. Without `--pick`, prompts interactively. With `--pick`, applies only the listed proposal indices.
+
+### Suggested DM workflow
+
+1. **First session after install:** `/dnd load` will offer to initialize the graph (with a backup-first prompt). Accept; review the proposed seed; approve.
+2. **During session:** when a relationship shifts in narration, run `/dnd graph add-edge` (or `close-edge`) with `--since` set to the current session number. Don't batch this — record at the moment of the narrative change so you don't forget.
+3. **Before a heavy social/political scene:** run `/dnd graph scene-context --place <current-place> --present <key-NPCs>` to refresh which relationships matter right now.
+4. **At `/dnd save`:** review the session log and add any edges you missed during play (the save flow runs an automatic sweep and presents proposals for approval).
 
 ---
 

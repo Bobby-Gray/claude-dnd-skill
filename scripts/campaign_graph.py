@@ -1,0 +1,673 @@
+"""
+campaign_graph.py — typed-edge relationship graph over campaign nodes.
+
+Subcommand `extract` (sandbox addition) — Haiku pass over session-log-archive.md
++ session-log.md to propose backstory edges with source-anchor provenance. Writes
+proposals to stdout (and optionally to a JSON file) for DM review. Apply with
+`extract-apply --proposals FILE [--pick N1,N2,...]`.
+
+
+Sandbox experiment (Phase 1). Supplements markdown — npcs-full.md and
+session-log.md remain authoritative. Graph is an *index over* canonical
+sources used to extract scene-relevant subgraphs at lower token cost than
+loading the full npcs.md index at /dnd load.
+
+Storage: <campaign-dir>/graph.json
+  {
+    "version": 1,
+    "nodes": [
+      {"id": "npc_velkyn", "type": "npc", "name": "Velkyn", "tags": [...], "summary": "..."}
+    ],
+    "edges": [
+      {"id": "e1", "from": "<id>", "to": "<id>", "type": "loyal_to",
+       "since_session": 1, "until_session": null, "note": "..."}
+    ]
+  }
+
+Node types (open vocab, suggested): npc, faction, place, item, thread.
+Edge types (open vocab, common): loyal_to, opposes, allied_with, member_of,
+  lives_in, controls, knows_about, friends_with, lover_of, owes, rules,
+  related_by_blood, advances_thread, blocks_thread.
+
+Edges are time-stamped. An edge is "active at session N" iff:
+  since_session <= N AND (until_session is null OR until_session > N).
+Use close-edge to set until_session when a relationship ends.
+
+Usage:
+  python3 campaign_graph.py <subcommand> --campaign <name> [args]
+
+Subcommands:
+  add-node       --type T --name N [--id ID] [--tags t1,t2] [--summary S]
+  add-edge       --from FROM --to TO --type T [--since N] [--until N] [--note S]
+  close-edge     --id EDGE_ID [--at-session N]
+  list           [--type T] [--at-session N]
+  show           --id ID
+  scene-context  --place ID [--present ID,ID] [--threads ID,ID] [--hops H]
+                 [--at-session N]
+  subgraph       --seed ID [--seed ID ...] [--hops H] [--at-session N]
+"""
+import argparse
+import json
+import pathlib
+import sys
+from typing import Optional
+
+from paths import find_campaign
+
+
+# -------- IO --------
+
+def _graph_path(campaign: str):
+    return find_campaign(campaign) / "graph.json"
+
+
+def _load(campaign: str) -> dict:
+    p = _graph_path(campaign)
+    if not p.exists():
+        return {"version": 1, "nodes": [], "edges": []}
+    with open(p) as f:
+        data = json.load(f)
+    data.setdefault("version", 1)
+    data.setdefault("nodes", [])
+    data.setdefault("edges", [])
+    return data
+
+
+def _save(campaign: str, data: dict) -> None:
+    p = _graph_path(campaign)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+# -------- helpers --------
+
+def _slug(s: str) -> str:
+    return "".join(c if c.isalnum() else "_" for c in s.lower()).strip("_")
+
+
+def _next_edge_id(edges: list) -> str:
+    n = 1
+    existing = {e["id"] for e in edges if e.get("id", "").startswith("e")}
+    while f"e{n}" in existing:
+        n += 1
+    return f"e{n}"
+
+
+def _node_by_id(data: dict, node_id: str) -> Optional[dict]:
+    for n in data["nodes"]:
+        if n["id"] == node_id:
+            return n
+    return None
+
+
+def _resolve_node(data: dict, ref: str) -> Optional[str]:
+    """Resolve a user-supplied ref to a node id. Tries exact id, then
+    case-insensitive name, then name prefix. Raises ValueError on ambiguity."""
+    if not ref:
+        return None
+    if _node_by_id(data, ref):
+        return ref
+    ref_low = ref.lower()
+    exact = [n for n in data["nodes"] if n.get("name", "").lower() == ref_low]
+    if len(exact) == 1:
+        return exact[0]["id"]
+    if len(exact) > 1:
+        ids = ", ".join(n["id"] for n in exact)
+        raise ValueError(f"name '{ref}' matches multiple nodes: {ids}. use id directly.")
+    prefix = [n for n in data["nodes"] if n.get("name", "").lower().startswith(ref_low)]
+    if len(prefix) == 1:
+        return prefix[0]["id"]
+    if len(prefix) > 1:
+        ids = ", ".join(n["id"] for n in prefix)
+        raise ValueError(f"name prefix '{ref}' matches multiple nodes: {ids}. use id directly.")
+    return None
+
+
+def _resolve_or_die(data: dict, ref: str, label: str) -> str:
+    try:
+        node_id = _resolve_node(data, ref)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
+    if node_id is None:
+        print(f"error: {label} '{ref}' not found (no id or name match).", file=sys.stderr)
+        sys.exit(1)
+    return node_id
+
+
+def _resolve_csv(data: dict, csv: str, label: str) -> list:
+    if not csv:
+        return []
+    return [_resolve_or_die(data, ref.strip(), label) for ref in csv.split(",") if ref.strip()]
+
+
+def _edge_by_id(data: dict, edge_id: str) -> Optional[dict]:
+    for e in data["edges"]:
+        if e.get("id") == edge_id:
+            return e
+    return None
+
+
+def _edge_active_at(edge: dict, session: Optional[int]) -> bool:
+    if session is None:
+        return edge.get("until_session") is None
+    since = edge.get("since_session", 0) or 0
+    until = edge.get("until_session")
+    if since > session:
+        return False
+    if until is not None and until <= session:
+        return False
+    return True
+
+
+# -------- subcommands --------
+
+def cmd_add_node(args) -> int:
+    data = _load(args.campaign)
+    node_id = args.id or f"{args.type}_{_slug(args.name)}"
+    if _node_by_id(data, node_id):
+        print(f"error: node id '{node_id}' already exists. use --id to override.",
+              file=sys.stderr)
+        return 1
+    node = {
+        "id": node_id,
+        "type": args.type,
+        "name": args.name,
+    }
+    if args.tags:
+        node["tags"] = [t.strip() for t in args.tags.split(",") if t.strip()]
+    if args.summary:
+        node["summary"] = args.summary
+    data["nodes"].append(node)
+    _save(args.campaign, data)
+    print(f"added node {node_id}  ({args.type}: {args.name})")
+    return 0
+
+
+def cmd_add_edge(args) -> int:
+    data = _load(args.campaign)
+    from_id = _resolve_or_die(data, args.from_id, "source")
+    to_id = _resolve_or_die(data, args.to_id, "target")
+    edge = {
+        "id": _next_edge_id(data["edges"]),
+        "from": from_id,
+        "to": to_id,
+        "type": args.type,
+        "since_session": args.since,
+        "until_session": args.until,
+    }
+    if args.note:
+        edge["note"] = args.note
+    data["edges"].append(edge)
+    _save(args.campaign, data)
+    sess = f" since:{args.since}" if args.since is not None else ""
+    print(f"added edge {edge['id']}  {from_id} --[{args.type}]--> {to_id}{sess}")
+    return 0
+
+
+def cmd_close_edge(args) -> int:
+    data = _load(args.campaign)
+    edge = _edge_by_id(data, args.id)
+    if not edge:
+        print(f"error: edge '{args.id}' not found.", file=sys.stderr)
+        return 1
+    if edge.get("until_session") is not None:
+        print(f"warning: edge {args.id} was already closed at session "
+              f"{edge['until_session']}; overwriting.", file=sys.stderr)
+    edge["until_session"] = args.at_session
+    _save(args.campaign, data)
+    print(f"closed edge {args.id} at session {args.at_session}")
+    return 0
+
+
+def cmd_list(args) -> int:
+    data = _load(args.campaign)
+    nodes = data["nodes"]
+    if args.type:
+        nodes = [n for n in nodes if n.get("type") == args.type]
+    nodes_sorted = sorted(nodes, key=lambda n: (n.get("type", ""), n.get("name", "")))
+    print(f"# {args.campaign} graph — {len(data['nodes'])} nodes, "
+          f"{len(data['edges'])} edges")
+    if args.at_session is not None:
+        active = [e for e in data["edges"] if _edge_active_at(e, args.at_session)]
+        print(f"# active edges at session {args.at_session}: {len(active)}")
+    print()
+    cur_type = None
+    for n in nodes_sorted:
+        if n.get("type") != cur_type:
+            cur_type = n.get("type")
+            print(f"## {cur_type}s")
+        tags = " [" + ",".join(n.get("tags", [])) + "]" if n.get("tags") else ""
+        print(f"  {n['id']}  {n['name']}{tags}")
+    return 0
+
+
+def cmd_show(args) -> int:
+    data = _load(args.campaign)
+    node_id = _resolve_or_die(data, args.id, "node")
+    n = _node_by_id(data, node_id)
+    print(f"{n['id']}  ({n.get('type', '?')})  {n.get('name', '')}")
+    if n.get("tags"):
+        print(f"  tags: {', '.join(n['tags'])}")
+    if n.get("summary"):
+        print(f"  summary: {n['summary']}")
+    print()
+    incoming = [e for e in data["edges"] if e["to"] == node_id]
+    outgoing = [e for e in data["edges"] if e["from"] == node_id]
+    if outgoing:
+        print("outgoing:")
+        for e in outgoing:
+            _print_edge(e, data, direction="out")
+    if incoming:
+        print("incoming:")
+        for e in incoming:
+            _print_edge(e, data, direction="in")
+    return 0
+
+
+def _print_edge(e: dict, data: dict, direction: str = "out") -> None:
+    other_id = e["to"] if direction == "out" else e["from"]
+    other = _node_by_id(data, other_id)
+    other_name = other["name"] if other else other_id
+    arrow = "-->" if direction == "out" else "<--"
+    sess = []
+    if e.get("since_session") is not None:
+        sess.append(f"since s{e['since_session']}")
+    if e.get("until_session") is not None:
+        sess.append(f"until s{e['until_session']}")
+    sess_str = " (" + ", ".join(sess) + ")" if sess else ""
+    note = f"  — {e['note']}" if e.get("note") else ""
+    print(f"  [{e.get('id', '?')}] {arrow} {e['type']}: {other_name}{sess_str}{note}")
+
+
+def cmd_subgraph(args) -> int:
+    data = _load(args.campaign)
+    if not data["nodes"]:
+        print(f"# graph not initialized for campaign '{args.campaign}' — skipping.")
+        return 0
+    seeds = [_resolve_or_die(data, s, "seed") for s in args.seed if s]
+    sub = _expand(data, seeds, args.hops, args.at_session)
+    _emit_subgraph(sub, args.at_session)
+    return 0
+
+
+def cmd_scene_context(args) -> int:
+    data = _load(args.campaign)
+    if not data["nodes"]:
+        # Graph not yet initialized for this campaign. Print a brief notice and
+        # exit 0 so this is safe to call unconditionally during /dnd load.
+        print(f"# graph not initialized for campaign '{args.campaign}' — skipping scene-context.")
+        return 0
+    seeds: list = []
+    if args.place:
+        seeds.append(_resolve_or_die(data, args.place, "place"))
+    if args.present:
+        seeds.extend(_resolve_csv(data, args.present, "present"))
+    if args.threads:
+        seeds.extend(_resolve_csv(data, args.threads, "thread"))
+    if not seeds:
+        print("error: scene-context needs at least --place, --present, or --threads.",
+              file=sys.stderr)
+        return 1
+    sub = _expand(data, seeds, args.hops, args.at_session)
+    print(f"# scene context — seeds: {', '.join(seeds)}, hops: {args.hops}"
+          + (f", at session {args.at_session}" if args.at_session is not None else ""))
+    print()
+    _emit_subgraph(sub, args.at_session)
+    return 0
+
+
+def _expand(data: dict, seeds: list[str], hops: int,
+            at_session: Optional[int]) -> dict:
+    """BFS from seeds, hops bounded, only traversing edges active at at_session."""
+    visited_nodes = set(seeds)
+    frontier = set(seeds)
+    visited_edges: list[dict] = []
+    edges_by_node: dict[str, list[dict]] = {}
+    for e in data["edges"]:
+        if at_session is not None and not _edge_active_at(e, at_session):
+            continue
+        edges_by_node.setdefault(e["from"], []).append(e)
+        edges_by_node.setdefault(e["to"], []).append(e)
+    for _ in range(hops):
+        next_frontier = set()
+        for node_id in frontier:
+            for e in edges_by_node.get(node_id, []):
+                if e not in visited_edges:
+                    visited_edges.append(e)
+                other = e["to"] if e["from"] == node_id else e["from"]
+                if other not in visited_nodes:
+                    next_frontier.add(other)
+                    visited_nodes.add(other)
+        frontier = next_frontier
+        if not frontier:
+            break
+    nodes = [n for n in data["nodes"] if n["id"] in visited_nodes]
+    return {"nodes": nodes, "edges": visited_edges}
+
+
+def _emit_subgraph(sub: dict, at_session: Optional[int]) -> None:
+    by_type: dict[str, list[dict]] = {}
+    for n in sub["nodes"]:
+        by_type.setdefault(n.get("type", "?"), []).append(n)
+    for t in sorted(by_type):
+        print(f"## {t}s ({len(by_type[t])})")
+        for n in sorted(by_type[t], key=lambda x: x.get("name", "")):
+            tags = " [" + ",".join(n.get("tags", [])) + "]" if n.get("tags") else ""
+            summary = f" — {n['summary']}" if n.get("summary") else ""
+            print(f"  {n['id']}  {n['name']}{tags}{summary}")
+        print()
+    if sub["edges"]:
+        print(f"## relationships ({len(sub['edges'])})")
+        node_name = {n["id"]: n["name"] for n in sub["nodes"]}
+        for e in sub["edges"]:
+            f_name = node_name.get(e["from"], e["from"])
+            t_name = node_name.get(e["to"], e["to"])
+            sess = []
+            if e.get("since_session") is not None:
+                sess.append(f"s{e['since_session']}+")
+            if e.get("until_session") is not None:
+                sess.append(f"closed s{e['until_session']}")
+            sess_str = " (" + ", ".join(sess) + ")" if sess else ""
+            note = f"  — {e['note']}" if e.get("note") else ""
+            print(f"  {f_name} --[{e['type']}]--> {t_name}{sess_str}{note}")
+
+
+# -------- argparse --------
+
+_EXTRACTION_SYSTEM = """You extract relationship facts from D&D campaign session text.
+
+Output ONLY a JSON array (no prose, no preamble). Each element is an edge object:
+{
+  "from":       "<exact entity name>",
+  "to":         "<exact entity name>",
+  "type":       "<relationship verb>",
+  "since_session": <int>,
+  "source": { "file": "<filename>", "session": <int>, "anchor": "<verbatim phrase from text>" },
+  "note":       "<optional 1-line clarification>"
+}
+
+Rules:
+- Use exact entity names as they appear in the text (e.g. "Captain Voss", "Northwall Compact", "The Wharf").
+- One edge per discrete fact. Don't compound.
+- Capture relational SHIFTS or STRUCTURAL relationships only — not generic ambient action ("Ben walked into the room").
+- The `anchor` MUST be a verbatim phrase (or near-verbatim) copied from the source text — short enough to grep for, long enough to be unique.
+- Skip self-edges, hypotheticals, hearsay-only claims, DM-meta commentary marked "(DM-side)" or "DM Calibration".
+- Common edge types: met, knows, fears, owes, opposes, allied_with, member_of, lives_in, based_at, holds, controls, watches, hunts, referred, introduced_to, committed_to, flagged_offlimits, has_history_with, originates_from, advances_thread, blocks_thread.
+- Capture both endpoints of an introduction chain (e.g. "X sent Y to Z" → edge `X → referred_to_Z → Y` AND edge `Y → met → Z`).
+- Output [] if no relationships found in the input.
+"""
+
+
+def _build_extraction_prompt(sources: list) -> str:
+    parts = []
+    parts.append("Extract relationship edges from the following session-log content. Output a single JSON array of edge objects per the system prompt schema.\n")
+    for fname, text in sources:
+        parts.append(f"=== FILE: {fname} ===\n{text}\n")
+    return "\n".join(parts)
+
+
+def _parse_extraction_output(raw: str) -> list:
+    """Parse Haiku output. Tolerates fenced code blocks and stray prose."""
+    s = raw.strip()
+    # Strip markdown fences if present
+    if s.startswith("```"):
+        lines = s.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        s = "\n".join(lines).strip()
+    # Find first '[' and matching ']'
+    start = s.find("[")
+    end = s.rfind("]")
+    if start < 0 or end < 0 or end <= start:
+        raise ValueError("no JSON array found in output")
+    return json.loads(s[start:end + 1])
+
+
+def _existing_edge_match(data: dict, frm_id: str, to_id: str, etype: str) -> bool:
+    """True if an active edge with same from/to/type already exists."""
+    for e in data.get("edges", []):
+        if e["from"] == frm_id and e["to"] == to_id and e["type"] == etype and e.get("until_session") is None:
+            return True
+    return False
+
+
+def cmd_extract(args) -> int:
+    import subprocess
+    campaign_dir = find_campaign(args.campaign)
+    archive = campaign_dir / "session-log-archive.md"
+    log = campaign_dir / "session-log.md"
+
+    sources = []
+    if archive.exists():
+        sources.append((archive.name, archive.read_text()))
+    if log.exists():
+        sources.append((log.name, log.read_text()))
+    if not sources:
+        print(f"no session-log files in {campaign_dir}", file=sys.stderr)
+        return 1
+
+    prompt = _build_extraction_prompt(sources)
+    print(f"# Calling Haiku — input chars: {len(prompt)} from {len(sources)} files", file=sys.stderr)
+
+    result = subprocess.run(
+        [
+            "claude", "-p",
+            "--model", "claude-haiku-4-5-20251001",
+            "--system-prompt", _EXTRACTION_SYSTEM,
+            prompt,
+        ],
+        capture_output=True, text=True, timeout=420,
+    )
+    if result.returncode != 0:
+        print(f"claude returned {result.returncode}: {result.stderr}", file=sys.stderr)
+        return 1
+
+    try:
+        proposals = _parse_extraction_output(result.stdout)
+    except (ValueError, json.JSONDecodeError) as e:
+        print(f"failed to parse output: {e}", file=sys.stderr)
+        print("raw output follows:", file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
+        return 1
+
+    # Dedupe against existing graph
+    data = _load(args.campaign)
+    deduped: list = []
+    skipped = 0
+    for p in proposals:
+        # Resolve from/to to ids if they exist; otherwise leave as names (apply step will handle creation)
+        frm_id = _resolve_node(data, p.get("from", "")) or p.get("from", "")
+        to_id = _resolve_node(data, p.get("to", "")) or p.get("to", "")
+        if _existing_edge_match(data, frm_id, to_id, p.get("type", "")):
+            skipped += 1
+            continue
+        p["_resolved_from"] = frm_id
+        p["_resolved_to"] = to_id
+        deduped.append(p)
+
+    print(f"# {len(proposals)} extracted, {skipped} already in graph, {len(deduped)} new")
+    print()
+    for i, p in enumerate(deduped, 1):
+        src = p.get("source", {}) or {}
+        anchor = (src.get("anchor") or "")[:90]
+        print(f"{i:3}. {p['_resolved_from']} --[{p['type']}]--> {p['_resolved_to']} (s{p.get('since_session','?')}+)")
+        if anchor:
+            print(f"      src: {src.get('file','?')} s{src.get('session','?')} — \"{anchor}\"")
+        if p.get("note"):
+            print(f"      note: {p['note']}")
+        print()
+
+    if args.write:
+        out = pathlib.Path(args.write).expanduser()
+        out.write_text(json.dumps(deduped, indent=2))
+        print(f"# wrote {len(deduped)} proposals to {out}", file=sys.stderr)
+
+    return 0
+
+
+def cmd_extract_apply(args) -> int:
+    """Apply edge proposals from a JSON file produced by extract --write."""
+    proposals_path = pathlib.Path(args.proposals).expanduser()
+    if not proposals_path.exists():
+        print(f"proposals file not found: {proposals_path}", file=sys.stderr)
+        return 1
+    proposals = json.loads(proposals_path.read_text())
+    pick = None
+    if args.pick:
+        pick = set(int(x.strip()) for x in args.pick.split(",") if x.strip())
+
+    data = _load(args.campaign)
+    applied_nodes = 0
+    applied_edges = 0
+    skipped = 0
+    for i, p in enumerate(proposals, 1):
+        if pick is not None and i not in pick:
+            continue
+        frm_name = p.get("from", "")
+        to_name = p.get("to", "")
+        etype = p.get("type", "")
+        since = p.get("since_session")
+        note = p.get("note") or ""
+        source = p.get("source") or {}
+
+        # Resolve or create from/to nodes. Default node type = npc unless name matches an existing one.
+        def resolve_or_create(name: str) -> str:
+            existing_id = _resolve_node(data, name)
+            if existing_id:
+                return existing_id
+            # No existing node — auto-create as a placeholder npc unless --no-auto-nodes
+            if args.no_auto_nodes:
+                raise ValueError(f"node not found and --no-auto-nodes set: {name!r}")
+            new_id = f"npc_{_slug(name)}"
+            data.setdefault("nodes", []).append({
+                "id": new_id, "type": "npc", "name": name, "tags": [], "summary": "",
+                "_auto_created_from_extract": True,
+            })
+            nonlocal applied_nodes
+            applied_nodes += 1
+            return new_id
+
+        try:
+            frm_id = resolve_or_create(frm_name)
+            to_id = resolve_or_create(to_name)
+        except ValueError as e:
+            print(f"  skip {i}: {e}", file=sys.stderr)
+            skipped += 1
+            continue
+
+        if _existing_edge_match(data, frm_id, to_id, etype):
+            skipped += 1
+            continue
+
+        edge = {
+            "id": _next_edge_id(data["edges"]),
+            "from": frm_id,
+            "to": to_id,
+            "type": etype,
+            "since_session": since,
+            "until_session": None,
+            "note": note,
+        }
+        if source:
+            edge["source"] = source
+        data["edges"].append(edge)
+        applied_edges += 1
+        print(f"  applied {edge['id']}  {frm_id} --[{etype}]--> {to_id} (s{since}+)")
+
+    _save(args.campaign, data)
+    print(f"# done: +{applied_nodes} nodes, +{applied_edges} edges, {skipped} skipped")
+    return 0
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="campaign_graph")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    def add_camp(sp):
+        sp.add_argument("--campaign", required=True)
+
+    sp = sub.add_parser("add-node")
+    add_camp(sp)
+    sp.add_argument("--type", required=True,
+                    help="node type (npc, faction, place, item, thread, ...)")
+    sp.add_argument("--name", required=True)
+    sp.add_argument("--id", help="explicit id (default: <type>_<name-slug>)")
+    sp.add_argument("--tags", help="comma-separated")
+    sp.add_argument("--summary", help="one-line summary")
+    sp.set_defaults(func=cmd_add_node)
+
+    sp = sub.add_parser("add-edge")
+    add_camp(sp)
+    sp.add_argument("--from", dest="from_id", required=True)
+    sp.add_argument("--to", dest="to_id", required=True)
+    sp.add_argument("--type", required=True,
+                    help="edge type (loyal_to, opposes, lives_in, ...)")
+    sp.add_argument("--since", dest="since", type=int, default=None,
+                    help="session number when edge became active")
+    sp.add_argument("--until", dest="until", type=int, default=None,
+                    help="session number when edge ended (rare on add)")
+    sp.add_argument("--note")
+    sp.set_defaults(func=cmd_add_edge)
+
+    sp = sub.add_parser("close-edge")
+    add_camp(sp)
+    sp.add_argument("--id", required=True, help="edge id to close")
+    sp.add_argument("--at-session", dest="at_session", type=int, required=True)
+    sp.set_defaults(func=cmd_close_edge)
+
+    sp = sub.add_parser("list")
+    add_camp(sp)
+    sp.add_argument("--type", help="filter by node type")
+    sp.add_argument("--at-session", dest="at_session", type=int, default=None)
+    sp.set_defaults(func=cmd_list)
+
+    sp = sub.add_parser("show")
+    add_camp(sp)
+    sp.add_argument("--id", required=True)
+    sp.set_defaults(func=cmd_show)
+
+    sp = sub.add_parser("subgraph")
+    add_camp(sp)
+    sp.add_argument("--seed", action="append", required=True,
+                    help="repeat for multiple seeds")
+    sp.add_argument("--hops", type=int, default=2)
+    sp.add_argument("--at-session", dest="at_session", type=int, default=None)
+    sp.set_defaults(func=cmd_subgraph)
+
+    sp = sub.add_parser("scene-context")
+    add_camp(sp)
+    sp.add_argument("--place")
+    sp.add_argument("--present", help="comma-separated node ids in scene")
+    sp.add_argument("--threads", help="comma-separated thread node ids")
+    sp.add_argument("--hops", type=int, default=2)
+    sp.add_argument("--at-session", dest="at_session", type=int, default=None)
+    sp.set_defaults(func=cmd_scene_context)
+
+    sp = sub.add_parser("extract",
+        help="Haiku pass over session-log to propose backstory edges with source anchors (sandbox)")
+    add_camp(sp)
+    sp.add_argument("--write", metavar="FILE",
+        help="also write proposals as JSON for later --apply review")
+    sp.set_defaults(func=cmd_extract)
+
+    sp = sub.add_parser("extract-apply",
+        help="Apply edge proposals from a JSON file produced by extract --write")
+    add_camp(sp)
+    sp.add_argument("--proposals", required=True, metavar="FILE",
+        help="proposals JSON file path")
+    sp.add_argument("--pick", metavar="N1,N2,...",
+        help="apply only the listed proposal numbers (1-indexed); default: apply all")
+    sp.add_argument("--no-auto-nodes", action="store_true",
+        help="error on edges referencing unknown nodes instead of auto-creating npc placeholders")
+    sp.set_defaults(func=cmd_extract_apply)
+
+    args = p.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

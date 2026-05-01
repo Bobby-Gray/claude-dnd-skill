@@ -10,6 +10,43 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-05-01
+
+Earlier than expected. The v1.6.0 notes said *"the implementation lands in v1.7+"*, which framed the work as somewhere on the horizon. After looking at it again the morning after — the implementation has been running in our own live campaigns for weeks, the A/B study showed clear and bounded behaviour, and the risk profile of holding it back was higher than the risk of shipping it. So it ships now.
+
+The campaign relationship graph is no longer a research preview. It is a feature.
+
+### What's new
+
+- **`scripts/campaign_graph.py`** — full extractor + query engine in the canonical skill. Subcommands: `init`, `add-node`, `add-edge`, `close-edge`, `list`, `show`, `subgraph`, `scene-context`, `extract`, `extract-apply`. Local-only, time-stamped (`since_session` / `until_session`), with verbatim source-anchors on every edge.
+- **Auto-pull at `/dnd load`.** The scene-context query runs as part of the load flow, before the recap, so Claude has the active subgraph in scope before it speaks. If the graph isn't initialized yet, the load flow offers an auto-init with a backup-first prompt — see below.
+- **Sweep at `/dnd save`.** The save flow scans the session for relationship shifts that weren't recorded live and presents them to the DM as a numbered list (`y / pick / skip`) before writing.
+- **`/dnd graph` command suite** documented end-to-end in `SKILL-commands.md`. The README command table covers the most common subcommands.
+
+### Backwards-compatible auto-init
+
+Existing campaigns don't have a graph. The `/dnd load` flow now handles this gracefully:
+
+> *"This campaign doesn't have a relationship graph yet. I can initialize one now — it improves long-session continuity recall when `npcs-full.md` falls out of context. As a safety precaution, I'll back up the campaign first to `~/.claude/dnd/campaigns/<name>.backup-YYYYMMDD-HHMMSS/`. Proceed? [y/n]"*
+
+`y` runs a `cp -R` snapshot before anything touches the campaign, then proposes seed nodes and edges from the existing markdown for DM approval. `n` continues without the graph for that session and doesn't re-prompt. No silent extraction, no auto-write — the same review-then-apply discipline that's been in the sandbox since Phase 1.
+
+### What stays in `docs/research/graph/`
+
+- **`phase-2-3-plan.md`** — design for the deterministic verb-table extractor (Phase 2) and hybrid path (Phase 3). Phase 2 ships when the three schema additions (`closed`, `lifetime`, `category_object_ok`) and `--review` interactive apply land.
+- **`ab-experiment-findings.md`**, **`verb-gap-categories.md`** — the research record. Useful background reading for anyone running into similar continuity-gap issues; not required to use the feature.
+- **`discussion-post-draft.md`** — community write-up draft for GitHub Discussions.
+
+### What's next
+
+- Phase 2 deterministic extractor (zero LLM cost, ports cleanly to the LLM-agnostic [open-tabletop-gm](https://github.com/Bobby-Gray/open-tabletop-gm) fork).
+- Schema additions: `closed` field on state edges, `lifetime` column on verbs, `category_object_ok` flag for state-verbs whose object is often categorical.
+- A separate corpus pass on DM session-prep documents to capture future-tense planning verbs (`plans_to`, `intends_to`).
+
+Thanks again to [@ethros19](https://github.com/ethros19) (Ethan Piper) for the issue #7 thread and the months of long-campaign feedback that made the case for shipping this rather than holding it.
+
+---
+
 ## [1.6.0] — 2026-04-30
 
 Today's update is a quiet but meaningful one, and it lands on a problem that's been with us — and the broader LLM-RPG community — since very early on. [@ethros19](https://github.com/ethros19) (Ethan Piper) first surfaced it in [issue #7](https://github.com/Bobby-Gray/claude-dnd-skill/issues/7) back in v1.4 days, and has been the most consistent voice keeping us honest about the long-context failure modes ever since. The shape of the problem: after enough sessions, the DM voice will sometimes treat a known character as a fresh contact — *"go see the chandler, tell him I sent you"* — when the player and that character were introduced sessions ago. The relationship facts are always in the canon. They've just fallen out of scope after compaction.
