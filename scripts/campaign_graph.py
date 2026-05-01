@@ -216,8 +216,13 @@ def cmd_close_edge(args) -> int:
         print(f"warning: edge {args.id} was already closed at session "
               f"{edge['until_session']}; overwriting.", file=sys.stderr)
     edge["until_session"] = args.at_session
+    if getattr(args, "anchor", None):
+        edge["closed_anchor"] = args.anchor
     _save(args.campaign, data)
-    print(f"closed edge {args.id} at session {args.at_session}")
+    msg = f"closed edge {args.id} at session {args.at_session}"
+    if getattr(args, "anchor", None):
+        msg += f' — "{args.anchor[:60]}"'
+    print(msg)
     return 0
 
 
@@ -438,6 +443,24 @@ def _existing_edge_match(data: dict, frm_id: str, to_id: str, etype: str) -> boo
 def cmd_extract(args) -> int:
     import subprocess
     campaign_dir = find_campaign(args.campaign)
+
+    # Deterministic mode — pattern-match against verb_table_seed.yaml. No LLM.
+    if getattr(args, "deterministic", False):
+        from graph_extract_deterministic import extract_proposals as _det_extract
+        proposals = _det_extract(
+            campaign_dir,
+            last_session_only=getattr(args, "last_session_only", False),
+        )
+        out_json = json.dumps(proposals, indent=2, ensure_ascii=False)
+        print(f"# Deterministic extraction — {len(proposals)} proposals from "
+              f"{campaign_dir.name}", file=sys.stderr)
+        if getattr(args, "write", None):
+            pathlib.Path(args.write).write_text(out_json)
+            print(f"# wrote proposals to {args.write}", file=sys.stderr)
+        else:
+            print(out_json)
+        return 0
+
     archive = campaign_dir / "session-log-archive.md"
     log = campaign_dir / "session-log.md"
 
@@ -520,13 +543,57 @@ def cmd_extract_apply(args) -> int:
     if args.pick:
         pick = set(int(x.strip()) for x in args.pick.split(",") if x.strip())
 
+    review = bool(getattr(args, "review", False))
+    if review and pick is not None:
+        print("error: --review and --pick are mutually exclusive", file=sys.stderr)
+        return 2
+
     data = _load(args.campaign)
     applied_nodes = 0
     applied_edges = 0
     skipped = 0
+    review_skipped = 0
+
+    def _review_prompt(idx: int, total: int, p: dict) -> str:
+        """Show one proposal and prompt y/n/q. Returns 'y' / 'n' / 'q'."""
+        src = p.get("source", {}) or {}
+        anchor = (src.get("anchor") or "")[:140]
+        conf = p.get("confidence", "?")
+        print(f"\n[{idx}/{total}] {p.get('from','?')} --[{p.get('type','?')}]--> {p.get('to','?')}"
+              f"  (s{p.get('since_session','?')}+, confidence={conf})")
+        if anchor:
+            print(f"    src: {src.get('file','?')} s{src.get('session','?')} — \"{anchor}\"")
+        if p.get("note"):
+            print(f"    note: {p['note']}")
+        while True:
+            try:
+                a = input("    apply? [y]es / [n]o / [q]uit: ").strip().lower()
+            except EOFError:
+                return "q"
+            if a in {"y", "yes", ""}:
+                return "y"
+            if a in {"n", "no", "s", "skip"}:
+                return "n"
+            if a in {"q", "quit", "exit"}:
+                return "q"
+            print("    please enter y / n / q")
+
+    quit_review = False
     for i, p in enumerate(proposals, 1):
+        if quit_review:
+            review_skipped += 1
+            continue
         if pick is not None and i not in pick:
             continue
+        if review:
+            decision = _review_prompt(i, len(proposals), p)
+            if decision == "q":
+                quit_review = True
+                review_skipped += 1
+                continue
+            if decision == "n":
+                review_skipped += 1
+                continue
         frm_name = p.get("from", "")
         to_name = p.get("to", "")
         etype = p.get("type", "")
@@ -579,7 +646,10 @@ def cmd_extract_apply(args) -> int:
         print(f"  applied {edge['id']}  {frm_id} --[{etype}]--> {to_id} (s{since}+)")
 
     _save(args.campaign, data)
-    print(f"# done: +{applied_nodes} nodes, +{applied_edges} edges, {skipped} skipped")
+    msg = f"# done: +{applied_nodes} nodes, +{applied_edges} edges, {skipped} skipped"
+    if review_skipped:
+        msg += f", {review_skipped} declined in review"
+    print(msg)
     return 0
 
 
@@ -617,6 +687,8 @@ def main() -> int:
     add_camp(sp)
     sp.add_argument("--id", required=True, help="edge id to close")
     sp.add_argument("--at-session", dest="at_session", type=int, required=True)
+    sp.add_argument("--anchor",
+        help="verbatim phrase from canon that justifies the closure (recorded as closed_anchor)")
     sp.set_defaults(func=cmd_close_edge)
 
     sp = sub.add_parser("list")
@@ -648,10 +720,14 @@ def main() -> int:
     sp.set_defaults(func=cmd_scene_context)
 
     sp = sub.add_parser("extract",
-        help="Haiku pass over session-log to propose backstory edges with source anchors (sandbox)")
+        help="Pattern-based or Haiku-backed extraction over session-log to propose edges with source anchors")
     add_camp(sp)
     sp.add_argument("--write", metavar="FILE",
         help="also write proposals as JSON for later --apply review")
+    sp.add_argument("--deterministic", action="store_true",
+        help="use the verb-table seed to pattern-match (no LLM, ~50%% recall, ~95%% precision)")
+    sp.add_argument("--last-session-only", action="store_true",
+        help="only scan the last session block of session-log.md (skip the archive)")
     sp.set_defaults(func=cmd_extract)
 
     sp = sub.add_parser("extract-apply",
@@ -661,6 +737,8 @@ def main() -> int:
         help="proposals JSON file path")
     sp.add_argument("--pick", metavar="N1,N2,...",
         help="apply only the listed proposal numbers (1-indexed); default: apply all")
+    sp.add_argument("--review", action="store_true",
+        help="walk proposals one at a time with y/n/q prompts; mutually exclusive with --pick")
     sp.add_argument("--no-auto-nodes", action="store_true",
         help="error on edges referencing unknown nodes instead of auto-creating npc placeholders")
     sp.set_defaults(func=cmd_extract_apply)

@@ -90,6 +90,7 @@ inclusion:
 
   - verb_forms: [met, meets, meeting]
     edge_type: met
+    lifetime: event
     patterns:
       - template: "X met Y"
         emits: [{from: X, to: Y, type: met}]
@@ -103,6 +104,7 @@ inclusion:
 
   - verb_forms: [watches, watching, watched]
     edge_type: watches
+    lifetime: state
     patterns:
       - template: "X watches Y"
         emits: [{from: X, to: Y, type: watches}]
@@ -114,6 +116,7 @@ inclusion:
 
   - verb_forms: [committed, commits, consents, consented, agreed]
     edge_type: committed_to
+    lifetime: dispositional
     patterns:
       - template: "X committed to Y"
         emits: [{from: X, to: Y, type: committed_to}]
@@ -127,6 +130,7 @@ inclusion:
 
   - verb_forms: [shelters, shelter, sheltering, sheltered]
     edge_type: shelters
+    lifetime: state
     patterns:
       - template: "X sheltered Y"
         emits: [{from: X, to: Y, type: shelters}]
@@ -137,6 +141,7 @@ inclusion:
 
   - verb_forms: [arrived, arrives]
     edge_type: arrived_at
+    lifetime: event
     patterns:
       - template: "X arrived at Y"
         emits: [{from: X, to: Y, type: arrived_at}]
@@ -147,6 +152,7 @@ inclusion:
 
   - verb_forms: [stayed, stays]
     edge_type: stayed_at
+    lifetime: event
     patterns:
       - template: "X stayed at Y"
         emits: [{from: X, to: Y, type: stayed_at}]
@@ -155,6 +161,7 @@ inclusion:
 
   - verb_forms: [led, leads, leading]
     edge_type: led
+    lifetime: state
     patterns:
       - template: "X led Y to Z"
         emits:
@@ -167,6 +174,7 @@ inclusion:
 
   - verb_forms: [told, telling, said]
     edge_type: told
+    lifetime: event
     patterns:
       - template: "X told Y"
         emits: [{from: X, to: Y, type: told}]
@@ -180,6 +188,7 @@ inclusion:
 
   - verb_forms: [freed, frees, freeing]
     edge_type: frees
+    lifetime: event
     patterns:
       - template: "X freed Y"
         emits: [{from: X, to: Y, type: frees}]
@@ -188,6 +197,7 @@ inclusion:
 
   - verb_forms: [works for, work for, employed by, hired by]
     edge_type: works_for
+    lifetime: state
     patterns:
       - template: "X works for Y"
         emits: [{from: X, to: Y, type: works_for}]
@@ -198,6 +208,7 @@ inclusion:
 
   - verb_forms: [recognized, recognizes, recognising]
     edge_type: recognized
+    lifetime: event
     patterns:
       - template: "X recognized Y"
         emits: [{from: X, to: Y, type: recognized}]
@@ -208,6 +219,7 @@ inclusion:
 
   - verb_forms: [foresaw, foreseen, foresees]
     edge_type: foresaw
+    lifetime: event
     patterns:
       - template: "X foresaw Y"
         emits: [{from: X, to: Y, type: foresaw}]
@@ -216,6 +228,7 @@ inclusion:
 
   - verb_forms: [sought, seeks, looking for, searching for]
     edge_type: sought
+    lifetime: event
     patterns:
       - template: "X sought Y"
         emits: [{from: X, to: Y, type: sought}]
@@ -229,6 +242,7 @@ inclusion:
 
   - verb_forms: [avoiding, avoids, avoided]
     edge_type: has_been_avoiding
+    lifetime: dispositional
     patterns:
       - template: "X has been avoiding Y"
         emits: [{from: X, to: Y, type: has_been_avoiding}]
@@ -239,6 +253,7 @@ inclusion:
 
   - verb_forms: [founded, founds]
     edge_type: founded
+    lifetime: event
     patterns:
       - template: "X founded Y"
         emits: [{from: X, to: Y, type: founded}]
@@ -247,6 +262,7 @@ inclusion:
 
   - verb_forms: [visited, visits, visiting]
     edge_type: visited
+    lifetime: event
     patterns:
       - template: "X visited Y"
         emits: [{from: X, to: Y, type: visited}]
@@ -255,6 +271,7 @@ inclusion:
 
   - verb_forms: [seeks out, seeks, seeking out]
     edge_type: seeks_out
+    lifetime: dispositional
     patterns:
       - template: "X seeks out Y"
         emits: [{from: X, to: Y, type: seeks_out}]
@@ -266,6 +283,7 @@ inclusion:
 
   - verb_forms: [based at, based out of, headquartered at, lives at]
     edge_type: based_at
+    lifetime: state
     patterns:
       - template: "X is based at Y"
         emits: [{from: X, to: Y, type: based_at}]
@@ -274,6 +292,7 @@ inclusion:
 
   - verb_forms: [saved, saves, saving]
     edge_type: saves
+    lifetime: event
     patterns:
       - template: "X saved Y"
         emits: [{from: X, to: Y, type: saves}]
@@ -282,6 +301,7 @@ inclusion:
 
   - verb_forms: [referred, refers, referring, sent ... to, directed ... to]
     edge_type: referred_to
+    lifetime: event
     patterns:
       - template: "X sent Y to Z"
         emits:
@@ -303,6 +323,7 @@ inclusion:
 
   - verb_forms: [knows, knew, known]
     edge_type: knows
+    lifetime: dispositional
     patterns:
       - template: "X knows Y"
         emits: [{from: X, to: Y, type: knows}]
@@ -318,6 +339,7 @@ inclusion:
 
   - verb_forms: [parent_of, mother_of, father_of, mom of, dad of]
     edge_type: parent_of
+    lifetime: state
     patterns:
       - template: "X is the mother of Y"
         emits: [{from: X, to: Y, type: parent_of, note: "mother"}]
@@ -342,6 +364,7 @@ inclusion:
 
   - verb_forms: [sibling_of, brother_of, sister_of, twin_of]
     edge_type: sibling_of
+    lifetime: state
     patterns:
       - template: "X's brother Y"
         emits: [{from: X, to: Y, type: sibling_of}]
@@ -353,6 +376,7 @@ inclusion:
 
   - verb_forms: [married to, wife of, husband of, wed]
     edge_type: married_to
+    lifetime: state
     patterns:
       - template: "X is married to Y"
         emits: [{from: X, to: Y, type: married_to}]
@@ -365,6 +389,7 @@ inclusion:
 
   - verb_forms: [serves, served, serving]
     edge_type: serves
+    lifetime: state
     patterns:
       - template: "X serves Y"
         emits: [{from: X, to: Y, type: serves}]
@@ -378,6 +403,7 @@ inclusion:
 
   - verb_forms: [leads, led by, leader of]
     edge_type: leads
+    lifetime: state
     patterns:
       - template: "X leads Y"
         emits: [{from: X, to: Y, type: leads}]
@@ -390,6 +416,7 @@ inclusion:
 
   - verb_forms: [commands, commanded, commanding]
     edge_type: commands
+    lifetime: state
     patterns:
       - template: "X commands Y"
         emits: [{from: X, to: Y, type: commands}]
@@ -402,6 +429,7 @@ inclusion:
 
   - verb_forms: [killed, slew, murdered, slaughtered]
     edge_type: killed
+    lifetime: event
     patterns:
       - template: "X killed Y"
         emits: [{from: X, to: Y, type: killed}]
@@ -415,6 +443,7 @@ inclusion:
 
   - verb_forms: [imprisoned, captured, captive of, held by]
     edge_type: imprisoned
+    lifetime: state
     patterns:
       - template: "X imprisoned Y"
         emits: [{from: X, to: Y, type: imprisoned}]
@@ -431,6 +460,7 @@ inclusion:
 
   - verb_forms: [abducted, kidnapped, taken]
     edge_type: abducted
+    lifetime: event
     patterns:
       - template: "X abducted Y"
         emits: [{from: X, to: Y, type: abducted}]
@@ -443,6 +473,7 @@ inclusion:
 
   - verb_forms: [possesses, has, owns, carries]
     edge_type: possesses
+    lifetime: state
     patterns:
       - template: "X possesses Y"
         emits: [{from: X, to: Y, type: possesses}]
@@ -457,6 +488,7 @@ inclusion:
 
   - verb_forms: [neighbors, neighboring, adjacent to, borders]
     edge_type: neighbors
+    lifetime: state
     patterns:
       - template: "X's closest neighbors are Y"
         emits: [{from: X, to: Y, type: neighbors}]
@@ -470,6 +502,7 @@ inclusion:
 
   - verb_forms: [escaped from, escapes, escaping]
     edge_type: escaped_from
+    lifetime: event
     patterns:
       - template: "X escaped from Y"
         emits: [{from: X, to: Y, type: escaped_from}]
@@ -481,6 +514,7 @@ inclusion:
 
   - verb_forms: [told, tells, telling]
     edge_type: told
+    lifetime: event
     patterns:
       - template: "X told Y"
         emits: [{from: X, to: Y, type: told}]
@@ -496,6 +530,7 @@ inclusion:
 
   - verb_forms: [asked, asks, asking]
     edge_type: asked
+    lifetime: event
     patterns:
       - template: "X asked Y"
         emits: [{from: X, to: Y, type: asked}]
@@ -511,6 +546,7 @@ inclusion:
 
   - verb_forms: [attacked, attacks, attacking]
     edge_type: attacked
+    lifetime: event
     patterns:
       - template: "X attacked Y"
         emits: [{from: X, to: Y, type: attacked}]
@@ -522,6 +558,7 @@ inclusion:
 
   - verb_forms: [gave, gives, giving]
     edge_type: gave
+    lifetime: event
     patterns:
       - template: "X gave Y to Z"
         emits:
@@ -538,6 +575,7 @@ inclusion:
 
   - verb_forms: [convinced, convinces, convincing]
     edge_type: convinced
+    lifetime: event
     patterns:
       - template: "X convinced Y"
         emits: [{from: X, to: Y, type: convinced}]
@@ -550,6 +588,7 @@ inclusion:
 
   - verb_forms: [offered, offers, offering]
     edge_type: offered
+    lifetime: event
     patterns:
       - template: "X offered Y to Z"
         emits: [{from: X, to: Z, type: offered, note: "offered Y"}]
@@ -562,6 +601,7 @@ inclusion:
 
   - verb_forms: [lured, lures, luring]
     edge_type: lured
+    lifetime: event
     patterns:
       - template: "X lured Y"
         emits: [{from: X, to: Y, type: lured}]
@@ -576,6 +616,7 @@ inclusion:
 
   - verb_forms: [sent, sends, sending]
     edge_type: sent
+    lifetime: event
     patterns:
       - template: "X sent Y to Z"
         emits:
@@ -592,6 +633,7 @@ inclusion:
 
   - verb_forms: [refused, refuses, refusing]
     edge_type: refused
+    lifetime: event
     patterns:
       - template: "X refused Y"
         emits: [{from: X, to: Y, type: refused}]
@@ -606,6 +648,7 @@ inclusion:
 
   - verb_forms: [fight, fights, fighting, fought]
     edge_type: fight
+    lifetime: event
     patterns:
       - template: "X fight Y"
         emits: [{from: X, to: Y, type: fight}]
@@ -620,6 +663,7 @@ inclusion:
 
   - verb_forms: [steal, steals, stole, stolen, stealing]
     edge_type: stole
+    lifetime: event
     patterns:
       - template: "X stole Y from Z"
         emits:
@@ -635,6 +679,7 @@ inclusion:
 
   - verb_forms: [trained, trains, training, train]
     edge_type: trained_by
+    lifetime: dispositional
     patterns:
       - template: "X trained Y"
         emits: [{from: Y, to: X, type: trained_by}]
@@ -648,6 +693,7 @@ inclusion:
 
   - verb_forms: [defended, defends, defending, defend]
     edge_type: defended
+    lifetime: event
     patterns:
       - template: "X defended Y"
         emits: [{from: X, to: Y, type: defended}]
@@ -662,6 +708,7 @@ inclusion:
 
   - verb_forms: [helped, helps, helping]
     edge_type: helped
+    lifetime: event
     patterns:
       - template: "X helped Y"
         emits: [{from: X, to: Y, type: helped}]
@@ -675,6 +722,7 @@ inclusion:
 
   - verb_forms: [invited, invites, inviting]
     edge_type: invited
+    lifetime: event
     patterns:
       - template: "X invited Y"
         emits: [{from: X, to: Y, type: invited}]
@@ -687,6 +735,7 @@ inclusion:
 
   - verb_forms: [tamed, tames, taming, tame]
     edge_type: tamed
+    lifetime: event
     patterns:
       - template: "X tamed Y"
         emits: [{from: X, to: Y, type: tamed}]
@@ -697,6 +746,7 @@ inclusion:
 
   - verb_forms: [challenged, challenges, challenging]
     edge_type: challenged
+    lifetime: event
     patterns:
       - template: "X challenged Y"
         emits: [{from: X, to: Y, type: challenged}]
@@ -710,6 +760,7 @@ inclusion:
 
   - verb_forms: [followed, follows, following]
     edge_type: followed
+    lifetime: event
     patterns:
       - template: "X followed Y"
         emits: [{from: X, to: Y, type: followed}]
@@ -720,6 +771,7 @@ inclusion:
 
   - verb_forms: [turned_on, turns_on, turning_on, betrayed, betrays, betraying]
     edge_type: betrayed
+    lifetime: event
     patterns:
       - template: "X turned on Y"
         emits: [{from: X, to: Y, type: betrayed}]
@@ -732,6 +784,7 @@ inclusion:
 
   - verb_forms: [kissed, kisses, kissing]
     edge_type: kissed
+    lifetime: event
     patterns:
       - template: "X kissed Y"
         emits: [{from: X, to: Y, type: kissed}]
@@ -743,6 +796,7 @@ inclusion:
 
   - verb_forms: [confessed, confesses, confessing]
     edge_type: confessed
+    lifetime: event
     patterns:
       - template: "X confessed to Y"
         emits: [{from: X, to: Y, type: confessed}]
@@ -755,6 +809,7 @@ inclusion:
 
   - verb_forms: [flirted, flirts, flirting]
     edge_type: flirted
+    lifetime: event
     patterns:
       - template: "X flirted with Y"
         emits: [{from: X, to: Y, type: flirted}]
@@ -844,6 +899,7 @@ borderline:
 
   - verb_forms: [member of, members of, belongs to]
     edge_type: member_of
+    lifetime: state
     patterns:
       - template: "X is a member of Y"
         emits: [{from: X, to: Y, type: member_of}]
@@ -859,6 +915,7 @@ borderline:
 
   - verb_forms: [allied with, allies with, ally to]
     edge_type: allied_with
+    lifetime: state
     patterns:
       - template: "X allied with Y"
         emits: [{from: X, to: Y, type: allied_with}]
@@ -873,6 +930,7 @@ borderline:
 
   - verb_forms: [has history with, history with, knew ... long]
     edge_type: has_history_with
+    lifetime: state
     patterns:
       - template: "X has history with Y"
         emits: [{from: X, to: Y, type: has_history_with}]
@@ -884,6 +942,7 @@ borderline:
 
   - verb_forms: [controls, control, controlling]
     edge_type: controls
+    lifetime: state
     patterns:
       - template: "X controls Y"
         emits: [{from: X, to: Y, type: controls}]
@@ -895,6 +954,7 @@ borderline:
 
   - verb_forms: [fears, feared, fearing, dreads]
     edge_type: fears
+    lifetime: dispositional
     patterns:
       - template: "X fears Y"
         emits: [{from: X, to: Y, type: fears}]
@@ -982,48 +1042,57 @@ exclusion:
 
   - verb_forms: [hunted, hunts, hunting]
     edge_type: hunted
+    lifetime: state
     reason: |
       2/2 at 0%. When the action completed, "killed" is sharper. When ongoing,
       "pursues" or "tracks" fits better. Avoid "hunted" — too ambiguous.
 
   - verb_forms: [advancing thread, advances thread]
     edge_type: advancing_thread
+    lifetime: state
     reason: |
       2/2 at 0%. Meta-narrative term, not a relationship. Use specific verbs
       ("orchestrates", "manages", "prepares").
 
   - verb_forms: [protects]
     edge_type: protects
+    lifetime: state
     reason: |
       1/1 at 0%. Subject is usually unnamed faction (Protection Network).
       Filter: subject must be canonical entity.
 
   - verb_forms: [studies]
     edge_type: studies
+    lifetime: state
     reason: 1/1 at 0%. Target usually documents/abstractions, not graph nodes.
 
   - verb_forms: [explored, explores]
     edge_type: explored
+    lifetime: event
     reason: |
       1/1 at 0%. Action verb, not relationship state. Often overstates
       ("found a door" ≠ "explored the place").
 
   - verb_forms: [carries lineage from, lineage from]
     edge_type: carries_lineage_from
+    lifetime: state
     reason: |
       1/1 at 0%. Custom verb that compresses too many concepts. Decompose
       into "descendant_of" or "inherits".
 
   - verb_forms: [prepares for, prepares]
     edge_type: prepares_for
+    lifetime: state
     reason: 1/1 at 0%. Action, not relationship. Skip.
 
   - verb_forms: [triggered, triggers]
     edge_type: triggered
+    lifetime: event
     reason: 1/1 at 0%. Action verb. Targets unresolved.
 
   - verb_forms: [holds]
     edge_type: holds
+    lifetime: state
     reason: |
       1/1 at 0%. Item-target failure (manuscript). Could become inclusion
       if scoped to "X holds [item-node]" with proper item resolution.
@@ -1033,38 +1102,45 @@ exclusion:
 
   - verb_forms: [travels with]
     edge_type: travels_with
+    lifetime: state
     reason: |
       1/1 at 0%. Target was generic ("wolves"). Could become inclusion
       if entity resolution is strict.
 
   - verb_forms: [influences]
     edge_type: influences
+    lifetime: state
     reason: 1/1 at 0%. Vague; unresolved subject.
 
   - verb_forms: [seeks]
     edge_type: seeks
+    lifetime: dispositional
     reason: |
       1/1 at 0% (vs seeks_out which apply'd). Distinguish: "seeks Y" wants
       possession; "seeks_out Y" wants encounter. Latter is cleaner.
 
   - verb_forms: [protecting]
     edge_type: protecting
+    lifetime: state
     reason: 1/1 at 0%. Wrong directionality issue.
 
   - verb_forms: [introduced to, introduces to]
     edge_type: introduced_to
+    lifetime: event
     reason: |
       1/1 at 0%. Confused with "referred". Default to "referred_to" for
       X-introduces-Y-to-Z pattern.
 
   - verb_forms: [impersonated, impersonates]
     edge_type: impersonated
+    lifetime: event
     reason: |
       1/1 at 0%. Specific failure mode: "posed as colleague of X" vs "posed
       as X" — disambiguation needed.
 
   - verb_forms: [flagged offlimits]
     edge_type: flagged_offlimits
+    lifetime: state
     reason: |
       1/1 at 0%. Direction inversion + custom semantics. Replace with
       "warned_against" or simpler "fears".
@@ -1079,6 +1155,7 @@ candidates:
 
   - verb_forms: [killed, slew, murdered]
     edge_type: killed
+    lifetime: event
     patterns:
       - template: "X killed Y"
         emits: [{from: X, to: Y, type: killed}]
@@ -1088,114 +1165,133 @@ candidates:
 
   - verb_forms: [is a fragment of, fragment of]
     edge_type: is_fragment_of
+    lifetime: state
     rationale: |
       <a horror-leaning campaign>: 3+ NPCs are fragments of the entity. Identity
       relationship not captured by member_of. Custom-but-justified verb.
 
   - verb_forms: [designated successor, named successor, unnamed successor]
     edge_type: designated_successor_to
+    lifetime: event
     rationale: |
       a deep-ally NPC → an elder-NPC relationship. Specific governance/inheritance role
       that has_history_with is too vague for.
 
   - verb_forms: [governs, rules, mayor of]
     edge_type: governs
+    lifetime: state
     rationale: |
       <a family-fantasy campaign>: a town authority → the town. Authority over place.
       Distinct from based_at (resides) and member_of (faction).
 
   - verb_forms: [grandmother of, grandfather of, father of, mother of, sibling of]
     edge_type: family_of
+    lifetime: state
     rationale: |
       <a family-fantasy campaign>: an elder-NPC → a young NPC; an elder-NPC → a magic-craft NPC.
       Family relations are common; current table has no family verb.
 
   - verb_forms: [created, made, built]
     edge_type: created
+    lifetime: event
     rationale: |
       <a family-fantasy campaign>: a magic-craft NPC created a sealing object seal.
       Origin/authorship relation.
 
   - verb_forms: [polymorphed, transformed, cursed]
     edge_type: transformed_by
+    lifetime: event
     rationale: |
       <a published one-shot>: a polymorphed NPC was polymorphed by an arcane-craft NPC.
       Magical/curse relation that produces persistent state.
 
   - verb_forms: [hunts, pursuing, chasing]
     edge_type: hunts
+    lifetime: state
     rationale: |
       Active version (vs deprecated "hunted"). <a published one-shot>: a hunter-NPC hunts
       a polymorphed NPC. Distinct from killed (completion) and tracks (passive).
 
   - verb_forms: [possesses, has, owns, carries]
     edge_type: possesses
+    lifetime: state
     rationale: |
       <a published one-shot>: an arcane-craft NPC possesses a powerful magical item.
       Item ownership; needs item nodes.
 
   - verb_forms: [located at, currently at, in]
     edge_type: located_at
+    lifetime: state
     rationale: |
       <a published one-shot>: party located at the current location (current location).
       Distinct from based_at (permanent residence).
 
   - verb_forms: [identified, named, exposed]
     edge_type: identified
+    lifetime: event
     rationale: |
       <a horror-leaning campaign>: a researcher-NPC → identified a hidden-operative NPC. Intel/investigation
       relation. Common in mystery campaigns.
 
   - verb_forms: [witnessed, observed, saw]
     edge_type: witnessed
+    lifetime: event
     rationale: |
       <a faction-driven campaign>: Han-Ulish witnessed Iren turning her head. Distinct
       from watches (ongoing) — this is a singular event.
 
   - verb_forms: [pays, paid]
     edge_type: pays
+    lifetime: state
     rationale: |
       <a faction-driven campaign>: Velka Orne pays Coble Ashen stipend. Economic relation
       distinct from works_for.
 
   - verb_forms: [employs, hired]
     edge_type: employs
+    lifetime: state
     rationale: |
       Reverse of works_for from the employer side. <a faction-driven campaign>: Velka
       employs Doss as retainer.
 
   - verb_forms: [leads, led by, headed by]
     edge_type: leads
+    lifetime: state
     rationale: |
       Faction leadership. <a test campaign>: a faction-leader leads an institutional faction.
       Distinct from led (past action of leading-someone-to-place).
 
   - verb_forms: [resides at, lives at, residence]
     edge_type: resides_at
+    lifetime: state
     rationale: |
       <a family-fantasy campaign>: a wizard-NPC resides at a wizard's tower. Distinct
       from based_at (which can include workplaces).
 
   - verb_forms: [dreamed of, had a dream about]
     edge_type: dreamed_of
+    lifetime: event
     rationale: |
       <a faction-driven campaign>: Bob dreamed of Iren before meeting. Foreshadowing/
       mystical connection.
 
   - verb_forms: [wary of, suspicious of, distrusts]
     edge_type: wary_of
+    lifetime: dispositional
     rationale: |
       <a faction-driven campaign> npcs-full.md: Velka Orne wary of Han-Ulish. Distinct
       from fears (lower intensity).
 
   - verb_forms: [destroyed, demolished]
     edge_type: destroyed
+    lifetime: event
     rationale: |
       <a faction-driven campaign>: Bob destroyed all 49 seed-vessels. Complete-action
       relation against an item/object class.
 
   - verb_forms: [examined, inspected]
     edge_type: examined
+    lifetime: event
     rationale: |
       <a test campaign>: an NPC examined the a magical artifact. Single-event interaction
       with item, distinct from holds (possession).
@@ -1204,74 +1300,89 @@ candidates:
 
   - verb_forms: [accused, accuses]
     edge_type: accused
+    lifetime: event
     rationale: 2 Reddit, 50% concrete. Interpersonal conflict / blame relation.
 
   - verb_forms: [argued, argues, arguing]
     edge_type: argued
+    lifetime: event
     rationale: 2 Reddit, 100% concrete. Disagreement event; symmetric.
 
   - verb_forms: [forgave, forgives]
     edge_type: forgave
+    lifetime: event
     rationale: 2 Reddit, 50% concrete. Reconciliation; counter to accused/betrayed.
 
   - verb_forms: [assassinated, assassinates]
     edge_type: assassinated
+    lifetime: event
     rationale: |
       2 Reddit, 50% concrete. More specific than `killed` (planned, deliberate).
       Worth distinguishing in mystery/intrigue campaigns.
 
   - verb_forms: [corrected, corrects]
     edge_type: corrected
+    lifetime: event
     rationale: 2 Reddit, 100% concrete. Critique/clarification relation.
 
   - verb_forms: [suggested, suggests]
     edge_type: suggested
+    lifetime: event
     rationale: 2 Reddit, 100% concrete. Proposal-of-action; lighter than `offered`.
 
   - verb_forms: [rejected, rejects]
     edge_type: rejected
+    lifetime: event
     rationale: |
       2 Reddit, 100% concrete + 1 PDF (Curse of Strahd: Strahd rejected
       Priests of Osybus). Confirmed multi-source candidate.
 
   - verb_forms: [sabotaged, sabotages]
     edge_type: sabotaged
+    lifetime: event
     rationale: 2 Reddit, 100% concrete. Covert opposition; useful for intrigue arcs.
 
   - verb_forms: [interrupted, interrupts]
     edge_type: interrupted
+    lifetime: event
     rationale: 2 Reddit, 100% concrete. Disruption event; common in scene transitions.
 
   - verb_forms: [blocked, blocks]
     edge_type: blocked
+    lifetime: event
     rationale: |
       2 Reddit, 50% concrete. Obstruction relation. Better than `opposes`
       (more concrete). Could substitute for opposes in many cases.
 
   - verb_forms: [tasked, tasks, tasking]
     edge_type: tasked
+    lifetime: event
     rationale: |
       2 Reddit, 100% concrete. Assignment/quest-giving relation. Useful
       for explicit quest-hook authorship (NPC X tasks party with Y).
 
   - verb_forms: [shared, shares, sharing]
     edge_type: shared
+    lifetime: event
     rationale: |
       2 Reddit, 100% concrete. Disclosure relation distinct from `told`
       (more bilateral). Useful when both parties know.
 
   - verb_forms: [removed, removes, removing]
     edge_type: removed
+    lifetime: event
     rationale: 2 Reddit, 100% concrete. Exclusion-from-group relation.
 
   - verb_forms: [joined, joins, joining]
     edge_type: joined
+    lifetime: event
     rationale: |
       3 Reddit, 0% concrete. Concrete% low because target is usually a group
       not a single named entity. Promote with note: target must be faction.
 
   - verb_forms: [encountered, encounters]
     edge_type: encountered
+    lifetime: event
     rationale: |
       2 Reddit, 50% concrete. Synonym of `met` for hostile contexts.
       Could merge with met or keep as distinct (encounter implies less

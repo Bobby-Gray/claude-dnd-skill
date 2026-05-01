@@ -10,6 +10,46 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-05-01
+
+The Phase 2 deterministic extractor lands one day after the Phase 1 release. We had been planning to ship this as a separate v1.8 minor; on second look it's better framed as completing what v1.7.0 promised. The Haiku-backed `extract` is still there and unchanged — `--deterministic` is a new opt-in flag on the same subcommand.
+
+This release also adds a test suite (45 tests across three files) so future changes to the graph extractor don't regress what was just shipped.
+
+### What's new
+
+- **`extract --deterministic`** — pattern-matches sentences against `data/graph/verb_table_seed.yaml` instead of calling Haiku. Output format is identical to the LLM extractor; `extract-apply` accepts proposals from either path. Zero LLM cost. Estimated recall ~50%, precision ~95% on clean SVO and SVO-with-prep relationships. The Haiku path stays the default until your campaigns have run with the deterministic extractor for a while.
+- **`extract --last-session-only`** — narrow extraction to the most recent `## Session N` block of `session-log.md` (skip the archive). Useful for end-of-session sweeps.
+- **`extract-apply --review`** — interactive proposal-by-proposal walkthrough with `y / n / q` prompts. Each prompt shows the verbatim source anchor and confidence. Mutually exclusive with `--pick`. Quitting (`q`) honours edges already accepted but stops processing further proposals.
+- **`close-edge --anchor "..."`** — record the verbatim phrase that justifies the closure as a new `closed_anchor` field on the edge. The original since-anchor in `source.anchor` is preserved; closure history is now also auditable. Optional and backwards-compatible.
+
+### Schema additions to the verb-table seed
+
+- **`lifetime: event | state | dispositional`** annotated on every inclusion + borderline entry (119 entries). Distinguishes immutable past occurrences (`killed`, `told`) from ongoing relationships (`serves`, `married_to`) from drift-over-time stances (`fears`, `committed_to`). The deterministic extractor uses this to scope future state-end logic.
+- **`category_object_ok: true`** flag on state-verbs whose object is often a category rather than a unique entity (`possessed_by a ghost`, `worships the gods`). Currently informational; consumed by Phase 2.5 work on category-node edges.
+
+### Test suite
+
+- **`tests/test_verb_table.py`** (12 tests) — sanity checks on the seed: YAML parses, every entry has `lifetime`, lifetime values valid, spot-checks against known event/state/dispositional verbs, `category_object_ok` only on state/dispositional.
+- **`tests/test_deterministic_extract.py`** (25 tests) — entity recognizer (npcs.md / npcs-full.md / world.md), sentence splitter, pattern regex builder, alias index (first-word / surname / middle-subsequence aliases, stop-word rejection, ambiguity skipping, canonical precedence), session-number resolution, end-to-end on a synthetic campaign, dedup, `--last-session-only` behavior, empty-campaign handling.
+- **`tests/test_campaign_graph.py`** (8 tests) — end-to-end against the actual CLI: `add-node` / `add-edge` / `close-edge` (with and without `--anchor`), `scene-context` filtering by `--at-session` (closed edges hidden), uninitialized-graph notice, `extract --deterministic` write, `extract-apply --pick` subset application.
+
+Run from repo root: `python3 -m unittest discover tests -v`
+
+### Bug fixes
+
+- **`build_alias_index` now generates surname / middle-subsequence aliases** in addition to the first-word alias, so a session-log saying "Aldric Brandt" or just "Brandt" still resolves to the canonical "Mayor Aldric Brandt". The previous first-word-only behaviour caused the deterministic extractor to miss most of a real campaign's relationships.
+- **Stop words never become aliases**. `### The Council` in `world.md` was previously generating a `"The"` alias that case-insensitively matched every "the" in any sentence, producing edges like `Drave Cors --[met]--> the`. Articles, prepositions, and conjunctions are now excluded from alias promotion.
+- **Verb-table loader handles both repo layouts.** `data/graph/verb_table_seed.yaml` (public repo) and `data/verb_table_seed.yaml` (live skill) are both checked, so the deterministic extractor works in either location without manual configuration.
+
+### What stays deferred
+
+- **Phase 2.5 schema additions** — `closed: {session, anchor}` as an object (the lightweight `closed_anchor` field is shipped instead), category-node edges via `category_object_ok` consumption, hard-retcon `superseded_by` field. Documented in `docs/research/graph/phase-2-3-plan.md`.
+- **Hybrid mode (Phase 3)** — pattern-first then Haiku-fallback on unmatched sentences. Defer until Phase 2 has soaked.
+- **Future-tense planning verbs** — `plans_to`, `intends_to`, `scheduled_to`. Need a separate corpus pass on DM session-prep documents (Reddit narrative is past-tense).
+
+---
+
 ## [1.7.0] — 2026-05-01
 
 Earlier than expected. The v1.6.0 notes said *"the implementation lands in v1.7+"*, which framed the work as somewhere on the horizon. After looking at it again the morning after — the implementation has been running in our own live campaigns for weeks, the A/B study showed clear and bounded behaviour, and the risk profile of holding it back was higher than the risk of shipping it. So it ships now.
