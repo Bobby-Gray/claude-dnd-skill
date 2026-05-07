@@ -155,17 +155,31 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 
    Output is a focused subgraph (nodes by type + relationships block). **Internalize this subgraph before delivering the recap** — it is the authoritative source for who-relates-to-whom in the current scene. Do not re-read `npcs-full.md` for relationships you can answer from the subgraph.
 
-   If output reads `# graph not initialized` — graph hasn't been seeded for this campaign yet. Offer the DM the auto-init flow before delivering the recap:
+   If output reads `# graph not initialized` — graph hasn't been seeded for this campaign yet. **Graph init is a hard requirement, not deferrable.** The continuity-archive compression rule (step 6 below + `/dnd save`) assumes graph.json is present and canonical for relational state; deferring init creates state-archive drift that compounds session-over-session. Run the init flow before delivering the recap:
 
-   > "This campaign doesn't have a relationship graph yet. I can initialize one now — it improves long-session continuity recall when `npcs-full.md` falls out of context. As a safety precaution, I'll back up the campaign first to `~/.claude/dnd/campaigns/<name>.backup-YYYYMMDD-HHMMSS/`. Proceed? [y/n]"
+   1. **Detect legacy.** A campaign is "legacy" if any of: `Session count > 1` in state.md header, OR `## Continuity Archive` has at least one `### Session N` entry, OR session-log.md is > 100 lines. A freshly-created campaign at `/dnd new` time fails all three signals — do NOT classify it as legacy.
 
-   - `y` → run a snapshot copy of the campaign directory:
-     ```bash
-     cp -R ~/.claude/dnd/campaigns/<name> \
-           ~/.claude/dnd/campaigns/<name>.backup-$(date +%Y%m%d-%H%M%S)
-     ```
-     Then run `/dnd graph init <name>` (which proposes seed nodes/edges and asks for DM approval before writing). After init completes, re-run scene-context.
-   - `n` → continue without graph for this session; do not re-prompt this session. The DM can run `/dnd graph init` later at their convenience.
+   2. **Backup the campaign directory** (always — both fresh and legacy):
+      ```bash
+      cp -R ~/.claude/dnd/campaigns/<name> \
+            ~/.claude/dnd/campaigns/<name>.backup-$(date +%Y%m%d-%H%M%S)
+      ```
+      Tell the DM the backup path explicitly so they can revert if needed.
+
+   3. **Run `/dnd graph init <name>`** — propose seed nodes/edges from `npcs.md`, `world.md`, and `state.md` (Live State Flags + Active Quests + recent NPC dispositions). Show the DM a single approval block (counts by type + named entries) and ask for one go/no-go. After approval, batch-execute the `add-node` and `add-edge` calls. Use `--since N` matching when each node/edge first became canon (use `1` for foundational; the actual session number for newer NPCs/edges).
+
+   4. **Validate** with a `scene-context` query at the current location to confirm the subgraph is reachable.
+
+   5. **(Legacy only)** Offer the one-time Continuity Archive compression pass:
+
+      > "This campaign is legacy ({session_count} sessions, {archive_count} archive entries). Now that `graph.json` is the canonical source for faction memberships, NPC dispositions, and typed-edge relationships, I can do a one-time pass to trim the existing `## Continuity Archive` entries of relational restatements that the graph now answers. Mechanical changes, plot beats, atmospheric/decision moments, and disclosed information stay in full. Estimated reduction: 5–30% of archive bytes (varies by how relational vs. content-heavy your existing entries are). Backup is already at `<backup-path>`. Proceed? [y/n]"
+
+      - `y` → trim each archive entry surgically; keep the bullet structure; remove ONLY pure-relational restatements (e.g. "X is allied with Y", "Z saw the party's faces", "W is a member of faction F") that have a corresponding edge in the just-initialized graph. Preserve: XP/level/items/HP, plot beats ("Beat 2a sealed"), atmospheric moments, disclosed content, calibration material, off-screen world events. Add a one-line note at the top of `## Continuity Archive`: *"Compressed YYYY-MM-DD (graph init pass). Relational state is canonical in graph.json — entries below preserve mechanical changes, plot beats, disclosed content, atmospheric/decision moments, and calibration material."*
+      - `n` → leave the archive untouched. The going-forward compression rule (per `/dnd save`) still applies to NEW entries from this session forward.
+
+      For fresh (non-legacy) campaigns: skip the offer entirely — there's nothing to compress yet, and the going-forward rule covers all future entries.
+
+   6. Re-run scene-context (now populated). Then proceed to step 6 (recap).
 
 6. Deliver one in-character paragraph recapping current situation — where the party is, what's at stake, what was last happening.
 7. Enter active DM mode — no `/dnd` prefix needed from this point.
@@ -306,10 +320,28 @@ session-log.md keeps only the **2 most recent full session entries**. Older entr
 - [Key fact that may resurface as a callback]
 - [NPC revelation, exact wording of something important, decision that has consequences]
 - [Roll outcome that changed the fiction]
-- [Relationship shift, attitude change, item acquired with story significance]
+- [Item acquired with story significance, plot beat, atmospheric/decision moment]
 ```
 
-The continuity summary is what stays hot in context. The full verbose log is in the archive, readable on `/dnd recap` or explicit request. When a past detail surfaces mid-scene, check `## Continuity Archive` first, then read session-log-archive.md if more depth is needed.
+**Going-forward Continuity Archive compression rule (from 2026-05-07; applies when `graph.json` exists for the campaign):** When `graph.json` is present, the Continuity Archive bullets must NOT restate relational state that the graph holds canonically. Specifically, **omit** bullets/clauses that say:
+- "X is allied with Y" / "X is hostile to Y" / "X is friendly with Y" — already a typed edge with `--since N` and source-anchor
+- "X is a member of faction F" / "X works for Y" / "X reports to Y" — already a `member_of` / `works_for` / `reports_on` edge
+- "Z saw the party's faces" / "K is now in the Kept profile" — already a `hostile_to` / `surveils` edge with `--since`
+- Faction memberships and NPC dispositions that haven't changed this session
+- Restated NPC profiles (job title, age, location) that already live as node tags + summary
+
+**Keep** in archive bullets:
+- Mechanical changes (XP awarded, level-ups, items gained/spent, slots burned, HP deltas at session end)
+- Plot beats (arc beat completions, "Beat 2a sealed", "Beat 2b LANDED")
+- Atmospheric / decision moments that have no graph edge ("Mira ate the bread — first food in 800 years", "Kat squeezed her hand")
+- Disclosed content (the WHAT was learned — "fragment / anchor / host", "three acceleration factors") even when the relational fact is in graph
+- Off-screen world events / faction moves
+- Calibration / DM Notes
+- Cliffhangers and pause-points
+
+Treat each bullet as one sentence with one job. If the only job is "restate a graph edge", drop it. If it carries content + edge, keep the content half. The graph is queried at `/dnd load` step 5; the archive is queried for chronological narrative + mechanical state — they should not overlap.
+
+The continuity summary is what stays hot in context. The full verbose log is in the archive, readable on `/dnd recap` or explicit request. When a past detail surfaces mid-scene, check `## Continuity Archive` first, then `/dnd graph scene-context` for relational context, then read session-log-archive.md if more depth is needed.
 
 **Campaign-graph relationship-shift sweep:** before completing the save, scan this session's narration for relationship shifts that weren't captured live via `/dnd graph add-edge` / `close-edge`. Look for moments matching these patterns:
 
