@@ -92,8 +92,54 @@ def random_name(taken_slugs: set[str]) -> str:
 # ── File-set discovery ────────────────────────────────────────────────────
 
 _TEXT_FILES_ALWAYS = ["npcs.md", "npcs-full.md", "state.md",
-                      "session-log.md", "world.md"]
+                      "session-log.md", "world.md",
+                      "session_tail.json"]  # display companion's last-N events
 _TEXT_FILES_OPTIONAL = ["session-log-archive.md"]
+
+# Honorific prefixes to strip when computing title-stripped variants.
+# When renaming "Brother Calshen Drey" we ALSO want to match bare
+# "Calshen Drey" references in the same files. Only strips when the
+# remaining tail is ≥ 2 words and ≥ 6 characters (avoids "Brother John"
+# stripping to ambiguous "John").
+_HONORIFICS = {
+    "brother", "sister", "father", "mother", "lord", "lady", "sir", "dame",
+    "captain", "master", "mistress", "miss", "mr", "mr.", "mrs", "mrs.",
+    "ms", "ms.", "dr", "dr.", "king", "queen", "prince", "princess",
+    "duke", "duchess", "count", "countess", "baron", "baroness", "doctor",
+    "professor", "elder", "abbot", "abbess",
+}
+
+
+def _title_stripped(name: str) -> str | None:
+    """Return the name without leading honorific, or None if not eligible.
+
+    Only returns a stripped form when:
+      - first word is in _HONORIFICS
+      - remaining tail has ≥ 2 words AND ≥ 6 characters total
+    """
+    parts = name.strip().split()
+    if len(parts) < 3:
+        return None
+    if parts[0].lower().rstrip(".") not in _HONORIFICS:
+        return None
+    tail = " ".join(parts[1:])
+    if len(tail) < 6:
+        return None
+    return tail
+
+
+def _name_variants(name: str) -> list[str]:
+    """Return all variants of a name to search/replace.
+
+    First the full name, then the title-stripped form if eligible.
+    Order matters — the full form must be replaced first so the stripped
+    form doesn't accidentally swap inside the already-replaced text.
+    """
+    variants = [name]
+    stripped = _title_stripped(name)
+    if stripped:
+        variants.append(stripped)
+    return variants
 
 
 def _files_to_scan(camp_dir: pathlib.Path,
@@ -127,8 +173,14 @@ def _whole_word_pattern(name: str) -> re.Pattern:
 
 def find_hits(camp_dir: pathlib.Path, old: str,
               include_archive: bool) -> dict[pathlib.Path, list[tuple[int, str]]]:
-    """Scan all relevant files; return {file: [(line_num, line), ...]}."""
-    pat = _whole_word_pattern(old)
+    """Scan all relevant files; return {file: [(line_num, line), ...]}.
+
+    Searches both the full name AND the title-stripped variant (e.g.
+    'Calshen Drey' for 'Brother Calshen Drey'). Each hit line is reported
+    once even if both variants match it.
+    """
+    variants = _name_variants(old)
+    patterns = [_whole_word_pattern(v) for v in variants]
     hits: dict[pathlib.Path, list[tuple[int, str]]] = {}
     for f in _files_to_scan(camp_dir, include_archive):
         try:
@@ -136,9 +188,11 @@ def find_hits(camp_dir: pathlib.Path, old: str,
         except OSError:
             continue
         matches: list[tuple[int, str]] = []
+        seen_lines: set[int] = set()
         for n, line in enumerate(text.splitlines(), start=1):
-            if pat.search(line):
+            if any(p.search(line) for p in patterns) and n not in seen_lines:
                 matches.append((n, line.rstrip()))
+                seen_lines.add(n)
         if matches:
             hits[f] = matches
     return hits
@@ -147,13 +201,35 @@ def find_hits(camp_dir: pathlib.Path, old: str,
 # ── Apply ─────────────────────────────────────────────────────────────────
 
 def apply_text_rename(path: pathlib.Path, old: str, new: str) -> int:
-    """Whole-word replace old → new in path. Returns replacement count."""
-    pat = _whole_word_pattern(old)
+    """Replace each variant of `old` with the corresponding variant of `new`.
+
+    Variant pairing:
+      - full(old) → full(new)
+      - stripped(old) → stripped(new) if stripped(new) exists, else full(new)
+
+    Order: full first (longest match wins), then stripped — so we don't
+    accidentally double-replace inside an already-substituted string.
+    Returns total replacement count across all variants.
+    """
     text = path.read_text(errors="replace")
-    new_text, n = pat.subn(new, text)
-    if n > 0:
-        path.write_text(new_text)
-    return n
+    total = 0
+
+    old_full = old
+    new_full = new
+    pat_full = _whole_word_pattern(old_full)
+    text, n = pat_full.subn(new_full, text)
+    total += n
+
+    old_stripped = _title_stripped(old)
+    if old_stripped:
+        new_stripped = _title_stripped(new) or new_full
+        pat_stripped = _whole_word_pattern(old_stripped)
+        text, n = pat_stripped.subn(new_stripped, text)
+        total += n
+
+    if total > 0:
+        path.write_text(text)
+    return total
 
 
 def apply_graph_rename(graph_path: pathlib.Path, old: str, new: str) -> bool:

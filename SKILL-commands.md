@@ -456,7 +456,13 @@ Read `~/.claude/dnd/campaigns/*/state.md`, print summary table: campaign name | 
 ---
 
 ## `/dnd character new [campaign-name]`
-1. Ask: name, race, class, background
+1. Ask: name, race, class, background.
+
+   **Name uniqueness check (added 2026-05-07):** after the player gives a name, run `python3 ~/.claude/skills/dnd/scripts/name_registry.py check "<name>"`. If exit code is 1 (duplicate), the script prints which prior campaign / session used the name; surface that to the player as a non-blocking warning:
+
+   > *"That name was first used in `<first_campaign>` S`<first_session>`. Reuse if it's intentional, or pick a different name. Continue with `<name>`?"*
+
+   If the player confirms, proceed. If they want to change, return to the name prompt. After the character is fully created (step 9, after global-roster mirror), call `name_registry.py add --name "<name>" --type pc --campaign <name> --session <current>` to record it.
 2. Ask: *"In a sentence, what should the DM know about [Name]?"*
    - If answered: derive ONE pillar — **Bond**, **Flaw**, **Ideal**, or **Goal** (whichever fits best). Store both the raw sentence and derived pillar in `## Character Pillar`.
    - If skipped: leave `## Character Pillar` blank. Do not invent one. Do not re-prompt.
@@ -522,6 +528,10 @@ Read `characters/<name>.md`, display cleanly. If name omitted and one character 
 - Existing → read full entry from npcs-full.md (search by name), portray in character with voice/quirk
 - New → generate full entry: role, CR-appropriate stats, demeanor, motivation, secret, speech quirk, faction (or "independent"), current goal, schedule, all four personality axes, ≥2 relationships to existing NPCs. Default attitude neutral. Append full entry to npcs-full.md; add one-line summary row to npcs.md index.
 
+  **Name uniqueness check (added 2026-05-07):** before generating, run `python3 ~/.claude/skills/dnd/scripts/name_registry.py check "<proposed-name>"`. If duplicate (exit 1), surface the prior use to the DM and offer either: (a) proceed with the duplicate (some scenarios want recurring names — a Voss reference can be deliberate); or (b) regenerate with a different name. Whichever path is chosen, after the NPC is added to npcs.md / npcs-full.md, call `name_registry.py add --name "<name>" --type npc --campaign <name> --session <current>` to record the entry.
+
+  When **/dnd new** generates a batch of NPCs during world-gen, run the check on each generated name in the same loop: if duplicate, regenerate that name (re-prompt the LLM with the prior name added to a "do-not-pick" exclusion list). After world-gen completes, batch-call `name_registry.py add` for every accepted NPC.
+
 ## `/dnd npc attitude <name> <shift>`
 Find NPC in npcs.md, shift attitude one step (hostile → unfriendly → neutral → friendly → allied), log reason and date.
 
@@ -546,13 +556,19 @@ View and manage the cross-campaign name registry at `~/.claude/dnd/.name_registr
 
 Maps to: `python3 ~/.claude/skills/dnd/scripts/name_registry.py <subcommand> [args]`.
 
-- `/dnd registry rebuild` — scan every campaign's `npcs.md`, `npcs-full.md`, `characters/*.md`, and `graph.json` (node names); rebuild the registry from canonical sources. Preserves any existing `retired_from` history. Run once on install, then ad hoc when desired.
-- `/dnd registry list [--campaign C] [--type npc|pc]` — print all registry entries; filter by campaign-currently-active or by type.
+- `/dnd registry rebuild [--include-prose]` — scan every campaign's `npcs.md`, `npcs-full.md`, `characters/*.md`, and `graph.json` (node names); rebuild the registry from canonical sources. Preserves any existing `retired_from` history. Run once on install, then ad hoc when desired.
+
+  **`--include-prose` (added 2026-05-07, opt-in):** also scan `session-log.md` and `session-log-archive.md` for capitalized 2–3-word sequences (likely-name patterns). Filtered against a stopword list (places, factions, mechanic words like "Ben Stealth", sentence starts) but **regex-based extraction is inherently noisy** — typically 5–15× more entries than canonical, with maybe 10–20% real catches. Tagged `source: prose` to distinguish; query with `/dnd registry list --source prose` to manually review and prune. For high-quality prose extraction, the future move is LLM-backed (similar to `/dnd graph extract`).
+
+- `/dnd registry list [--campaign C] [--type npc|pc] [--source canonical|prose]` — print all registry entries; filter by campaign-currently-active, type, or source.
 - `/dnd registry lookup <name>` — case-insensitive lookup; prints the full entry as JSON.
-- `/dnd registry add --name N --type npc|pc --campaign C --session N` — record a new entry manually (auto-called by `/dnd npc rename`).
+- `/dnd registry check <name> [--json]` — check whether a proposed name collides with the registry. Exit 0 if unique, 1 if duplicate. Severity (`warn` default, `strict` opt-in via `<DND_CAMPAIGN_ROOT>/.name_registry_config.json`) controls whether duplicates are reported as warnings or hard refusals. Used by `/dnd new`, `/dnd character new`, `/dnd npc <new>` procedures.
+- `/dnd registry add --name N --type npc|pc --campaign C --session N` — record a new entry manually (auto-called by `/dnd npc rename` and the creation-time uniqueness hooks).
 - `/dnd registry retire --name N --campaign C [--replaced-by NEW]` — mark a name as no longer active in a campaign (auto-called by `/dnd npc rename`).
 
-The registry captures **canonical** characters (those in `npcs.md` / `npcs-full.md` / `characters/`). Names that appear only in session-log prose (one-off mentions, throwaway NPCs) are NOT registered — that's deliberate, to avoid banning common names because of incidental use. A future `--include-prose` flag can extend the scan if needed.
+The registry by default captures **canonical** characters (those in `npcs.md` / `npcs-full.md` / `characters/` / graph.json node names). Names that appear only in session-log prose (one-off mentions, throwaway NPCs, skill-check labels) are NOT registered by default — that's deliberate, to avoid banning common names because of incidental use. The `--include-prose` flag is opt-in for users who want the broader (noisier) view.
+
+**Severity config:** create `~/.claude/dnd/.name_registry_config.json` with `{"severity": "strict"}` to make all duplicate detections refuse-by-default rather than warn-and-allow. Set to `"none"` to disable checks entirely (registry rebuild and rename still work).
 
 ---
 
