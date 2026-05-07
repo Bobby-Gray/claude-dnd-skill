@@ -525,6 +525,35 @@ Read `characters/<name>.md`, display cleanly. If name omitted and one character 
 ## `/dnd npc attitude <name> <shift>`
 Find NPC in npcs.md, shift attitude one step (hostile → unfriendly → neutral → friendly → allied), log reason and date.
 
+## `/dnd npc rename "Old Name" <"New Name" | random> [flags]`
+Rename a character across an entire campaign — `npcs.md`, `npcs-full.md`, `state.md` (every section), `session-log.md`, `graph.json` (node + edges preserved), and `characters/<slug>.md` if `--type pc`. Backs up the campaign first.
+
+Maps to: `python3 ~/.claude/skills/dnd/scripts/npc_rename.py --campaign <current> --old "..." --new "..." [flags]`. Use the currently loaded campaign by default; for explicit-campaign use, pass `--campaign <name>` directly.
+
+Flags:
+- `--random` — pick a name from the bundled fantasy-name corpus (~4800 unique combinations) that isn't already in `~/.claude/dnd/.name_registry.json`. Mutually exclusive with explicit "New Name".
+- `--type npc | pc` (default `npc`) — `pc` also moves the character file and updates the global roster.
+- `--dry-run` — show all hits across files without writing. Always run first for sanity.
+- `--yes` — skip the confirmation prompt.
+- `--include-archive` — also rename in `session-log-archive.md`. **Default is to leave the archive untouched** for historical accuracy and add a one-line audit note at the top: *"`<old>` renamed to `<new>` at S<N>; historical entries below preserve the original name."*
+
+The script always backs up the campaign to `<name>.backup-rename-<old-slug>-YYYYMMDD-HHMMSS/` before any writes. Revert command is printed at the end.
+
+After rename, the name registry is updated: old name marked `retired_from` this campaign with `replaced_by` pointing at the new slug; new name added with this campaign's current session as `first_session`.
+
+## `/dnd registry <subcommand>`
+View and manage the cross-campaign name registry at `~/.claude/dnd/.name_registry.json`. Used by `/dnd npc rename --random` to never reuse a name and (in a follow-up) by `/dnd new` / `/dnd character new` / `/dnd npc <new>` to flag duplicates at creation time.
+
+Maps to: `python3 ~/.claude/skills/dnd/scripts/name_registry.py <subcommand> [args]`.
+
+- `/dnd registry rebuild` — scan every campaign's `npcs.md`, `npcs-full.md`, `characters/*.md`, and `graph.json` (node names); rebuild the registry from canonical sources. Preserves any existing `retired_from` history. Run once on install, then ad hoc when desired.
+- `/dnd registry list [--campaign C] [--type npc|pc]` — print all registry entries; filter by campaign-currently-active or by type.
+- `/dnd registry lookup <name>` — case-insensitive lookup; prints the full entry as JSON.
+- `/dnd registry add --name N --type npc|pc --campaign C --session N` — record a new entry manually (auto-called by `/dnd npc rename`).
+- `/dnd registry retire --name N --campaign C [--replaced-by NEW]` — mark a name as no longer active in a campaign (auto-called by `/dnd npc rename`).
+
+The registry captures **canonical** characters (those in `npcs.md` / `npcs-full.md` / `characters/`). Names that appear only in session-log prose (one-off mentions, throwaway NPCs) are NOT registered — that's deliberate, to avoid banning common names because of incidental use. A future `--include-prose` flag can extend the scan if needed.
+
 ---
 
 ## `/dnd characters`
