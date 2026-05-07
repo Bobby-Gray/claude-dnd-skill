@@ -102,6 +102,47 @@ def get_campaign_state(campaign: str) -> str:
     return "\n\n".join(parts)
 
 
+def get_graph_context(campaign: str) -> str:
+    """
+    Pull a focused subgraph from the campaign graph for the current scene.
+
+    Reads state.md for current location and session count, then shells out to
+    campaign_graph.py scene-context. Returns the subgraph text, or "" when the
+    graph isn't initialized or location can't be resolved.
+
+    Sandbox / experimental: degrades silently — never blocks hint generation.
+    """
+    state_path = _find_campaign(campaign) / "state.md"
+    if not state_path.exists():
+        return ""
+    text = state_path.read_text()
+    loc_match = re.search(r"^- \*\*Location:\*\*\s*(.+)$", text, re.MULTILINE)
+    sess_match = re.search(r"\*\*Session count:\*\*\s*(\d+)", text)
+    if not loc_match:
+        return ""
+    location = loc_match.group(1).strip()
+    if not location or location.startswith("<"):
+        return ""
+    cmd = [
+        sys.executable,
+        str(pathlib.Path(__file__).resolve().parent.parent / "scripts" / "campaign_graph.py"),
+        "scene-context",
+        "--campaign", campaign,
+        "--place", location,
+        "--hops", "2",
+    ]
+    if sess_match:
+        cmd += ["--at-session", sess_match.group(1)]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    except Exception:
+        return ""
+    out = (result.stdout or "").strip()
+    if not out or "graph not initialized" in out:
+        return ""
+    return out
+
+
 def get_arc_context(campaign: str) -> str:
     """
     Extract the current beat's 'what_changes' from the Campaign Arc YAML block in state.md.
@@ -210,7 +251,7 @@ def get_session_context(campaign: str) -> str:
     return "\n".join(lines)
 
 
-def call_claude(display: str, state: str, session: str, arc: str) -> str:
+def call_claude(display: str, state: str, session: str, arc: str, graph: str = "") -> str:
     """Call claude -p (non-interactive print mode) — uses Claude Code's own auth."""
     system = (
         "You are a D&D 5e Dungeon Master generating a brief in-character DM hint. "
@@ -244,6 +285,8 @@ def call_claude(display: str, state: str, session: str, arc: str) -> str:
         prompt_parts.append(f"ARC CONTEXT (DM-only — shape tone only, never reveal):\n{arc}")
     if state:
         prompt_parts.append(f"CAMPAIGN STATE:\n{state}")
+    if graph:
+        prompt_parts.append(f"RELATIONSHIP GRAPH (active edges in current scene):\n{graph}")
     if session:
         prompt_parts.append(f"CURRENT SESSION (authoritative — trust over campaign state):\n{session}")
     if display:
@@ -289,11 +332,12 @@ def main() -> None:
         state   = get_campaign_state(args.campaign)
         session = get_session_context(args.campaign)
         arc     = get_arc_context(args.campaign)
+        graph   = get_graph_context(args.campaign)
 
         if not display and not state and not session:
             return
 
-        hint = call_claude(display, state, session, arc)
+        hint = call_claude(display, state, session, arc, graph)
         if hint.strip().upper() == "SKIP":
             return
 
