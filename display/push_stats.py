@@ -179,7 +179,11 @@ def main() -> None:
     parser.add_argument("--autorun-threshold", metavar="N", type=int,
                         help="Set min players needed to auto-fire (0 or omit to reset to player count)")
     parser.add_argument("--set-campaign", metavar="NAME",
-                        help="Set the active campaign name (written to .campaign for dm_help.py)")
+                        help="Set the active campaign name (written to .campaign for dm_help.py). "
+                             "Server auto-resolves ruleset from the campaign's state.md.")
+    parser.add_argument("--ruleset", metavar="2014|2024",
+                        help="Override the ruleset badge displayed in the sidebar. "
+                             "Normally the server resolves this from the campaign on --set-campaign.")
     args = parser.parse_args()
 
     payload: dict = {}
@@ -340,6 +344,13 @@ def main() -> None:
 
     if args.set_campaign:
         payload["campaign"] = args.set_campaign
+
+    if args.ruleset:
+        rs = args.ruleset.strip()
+        if rs not in ("2014", "2024"):
+            print(f"--ruleset must be 2014 or 2024 (got {rs!r})", file=sys.stderr)
+            sys.exit(2)
+        payload["ruleset"] = rs
 
     # ── Clear display ─────────────────────────────────────────────────────────
     if args.clear:

@@ -80,3 +80,73 @@ def find_campaign(name: str) -> pathlib.Path:
     )
     shutil.copytree(str(legacy), str(configured))
     return configured
+
+
+# ── Ruleset selection ─────────────────────────────────────────────────────
+# A campaign declares its ruleset on the state.md header line,
+# e.g.: "**Ruleset:** 2024". When unset (legacy campaigns) we default
+# to 2014 — the historical ruleset of this skill.
+
+import re as _re
+
+VALID_RULESETS = ("2014", "2024")
+DEFAULT_RULESET = "2014"
+
+_RULESET_PAT = _re.compile(r"\*\*Ruleset:\*\*\s*(\d{4})", _re.IGNORECASE)
+
+
+def campaign_ruleset(name: str) -> str:
+    """Return the campaign's declared ruleset (e.g. '2014', '2024').
+
+    Reads the state.md header. Falls back to DEFAULT_RULESET when the
+    file is missing or the field is unset (legacy campaigns predating
+    the ruleset field — they were 2014 by definition).
+    """
+    state = find_campaign(name) / "state.md"
+    if not state.exists():
+        return DEFAULT_RULESET
+    try:
+        text = state.read_text(errors="replace")
+    except OSError:
+        return DEFAULT_RULESET
+    m = _RULESET_PAT.search(text)
+    if not m:
+        return DEFAULT_RULESET
+    val = m.group(1).strip()
+    return val if val in VALID_RULESETS else DEFAULT_RULESET
+
+
+def srd_path(ruleset=None):
+    """Return path to the SRD JSON for the given ruleset.
+
+    `ruleset=None` returns the default (2014) path. The 2024 path is
+    `dnd5e_srd_2024.json`. Caller is responsible for handling missing
+    files (e.g. a campaign declares 2024 but the dataset hasn't been
+    built yet — in that case, suggest `/dnd data sync --ruleset 2024`).
+    """
+    rs = ruleset or DEFAULT_RULESET
+    if rs not in VALID_RULESETS:
+        rs = DEFAULT_RULESET
+    skill_data = pathlib.Path("~/.claude/skills/dnd/data").expanduser()
+    fname = "dnd5e_srd_2024.json" if rs == "2024" else "dnd5e_srd.json"
+    return skill_data / fname
+
+
+# ── CLI passthrough ───────────────────────────────────────────────────────
+# A few helpers are useful from shell too. Keep this minimal — paths.py is
+# primarily an import surface.
+if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "campaign-ruleset":
+        print(campaign_ruleset(sys.argv[2]))
+        sys.exit(0)
+    if len(sys.argv) >= 2 and sys.argv[1] == "srd-path":
+        rs = sys.argv[2] if len(sys.argv) >= 3 else None
+        print(srd_path(rs))
+        sys.exit(0)
+    print(
+        "usage:\n"
+        "  python3 paths.py campaign-ruleset <campaign-name>\n"
+        "  python3 paths.py srd-path [2014|2024]",
+        file=sys.stderr,
+    )
+    sys.exit(2)

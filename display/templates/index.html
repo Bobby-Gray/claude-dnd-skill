@@ -1225,6 +1225,30 @@
     margin-top: 1px;
   }
 
+  /* ── Ruleset badge (near world clock, top-right) ── */
+  /* 5e 2014 = subdued, 5e 2024 = amber/gold accent so the DM notices at a glance */
+  #ruleset-badge {
+    display: none;
+    margin-top: 6px;
+    padding: 2px 7px;
+    font-family: 'Cinzel', serif;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border: 1px solid rgba(180,140,60,0.35);
+    border-radius: 2px;
+    color: rgba(180,140,60,0.55);
+    background: rgba(20,12,4,0.45);
+    line-height: 1.4;
+  }
+  #ruleset-badge.has-data { display: inline-block; }
+  #ruleset-badge.rs-2024 {
+    color: rgba(245,200,90,0.92);
+    border-color: rgba(245,200,90,0.55);
+    background: rgba(50,30,4,0.55);
+    box-shadow: 0 0 6px rgba(245,200,90,0.25);
+  }
+
   /* ── Audio toggle controls ── */
   #audio-controls {
     position: fixed;
@@ -1652,6 +1676,8 @@
   <div id="wc-icon">☀</div>
   <div id="wc-date"></div>
   <div id="wc-sub"></div>
+  <!-- Ruleset badge — '5e 2014' or '5e 2024'; populated from stats.ruleset -->
+  <div id="ruleset-badge"></div>
 </div>
 
 <!-- Audio toggle controls — SFX triggered by narration text -->
@@ -4556,6 +4582,22 @@ function updateWorldClock(wt) {
   skyRenderer.setState(wt);
 }
 
+// Ruleset badge — '5e 2014' (subdued) or '5e 2024' (amber/gold accent)
+function updateRulesetBadge(ruleset) {
+  const el = document.getElementById('ruleset-badge');
+  if (!el) return;
+  const rs = String(ruleset || '').trim();
+  if (rs !== '2014' && rs !== '2024') {
+    el.classList.remove('has-data', 'rs-2014', 'rs-2024');
+    el.textContent = '';
+    return;
+  }
+  el.textContent = '5e ' + rs;
+  el.classList.add('has-data');
+  el.classList.toggle('rs-2024', rs === '2024');
+  el.classList.toggle('rs-2014', rs === '2014');
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // SIDEBAR TOGGLE
 // ═══════════════════════════════════════════════════════════════════
@@ -4608,6 +4650,9 @@ function connect() {
       }
       if (payload.stats.world_time) {
         updateWorldClock(payload.stats.world_time);
+      }
+      if (payload.stats.ruleset) {
+        updateRulesetBadge(payload.stats.ruleset);
       }
     }
     if (payload.staged_inputs !== undefined) {

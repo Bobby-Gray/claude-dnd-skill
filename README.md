@@ -1,5 +1,6 @@
 # Unofficial D&D Claude Dungeon Master
 ### *with Cinematic Display Companion — Couch Co-op Edition*
+> **Ruleset:** D&D 5e — **2014 (SRD 5.1)** by default; **2024 (SRD 5.2)** opt-in per campaign. Choose at `/dnd new` time; legacy campaigns are auto-prompted to migrate (with backup) on first load. See the [Ruleset section](#ruleset) for mechanic differences and dataset details.
 
 <div align="center">
   <img src="display/icons/logo_primary_fullcolor.png" width="280" alt="D20 Neural Core">
@@ -7,7 +8,7 @@
 
 > Claude runs the game. You play. The TV shows the story. Your phone is your controller.
 
-An unofficial D&D 5e Dungeon Master skill for [Claude Code](https://claude.ai/code) — persistent campaigns, full 5e mechanics, and an optional cinematic display companion that streams typewriter narration, dice rolls, and live character stats to any screen — TV via Chromecast, tablet, phone, or second monitor — while players submit their actions from a phone or tablet.
+An unofficial D&D 5e (2014 ruleset / SRD 5.1) Dungeon Master skill for [Claude Code](https://claude.ai/code) — persistent campaigns, full 5e mechanics, and an optional cinematic display companion that streams typewriter narration, dice rolls, and live character stats to any screen — TV via Chromecast, tablet, phone, or second monitor — while players submit their actions from a phone or tablet.
 
 Built for groups who want a real DM experience without needing one at the table.
 
@@ -742,6 +743,53 @@ The skill is designed around a set of hard constraints, not aspirational notes:
 - **The arc bends, never breaks** — when players redirect the story, beats revise to fit the new direction; the committed shape is a guide, not a cage
 - **Calibrates to this specific player across sessions** — DM Style Notes accumulate table-specific patterns from calibration feedback; what lands for this party, what splits the table, what to lean into; read at every session load and updated at every end
 - **The world moves between sessions** — factions act while the party is occupied; NPCs pursue their own goals; doors that were kicked in stay broken; the player arrives to a world with weight, not a scene that was paused waiting for them
+
+---
+
+## Ruleset
+
+Each campaign declares its ruleset on the `state.md` header line: `**Ruleset:** 2014` (SRD 5.1) or `**Ruleset:** 2024` (SRD 5.2). `/dnd new` asks for the ruleset at creation time; `/dnd load` reads the field on every session. Legacy campaigns (predating the field) default to **2014** and are offered a one-time migration with a timestamped backup.
+
+### 2014 dataset (default)
+
+`data/dnd5e_srd.json` — built from `5e-bits/5e-database` (`main` branch, 2014 SRD) and `foundryvtt/dnd5e` (`master` branch). 1,453 records: 319 spells, 237 equipment, 362 magic items, 15 conditions, 334 monsters, 186 features.
+
+### 2024 dataset (opt-in)
+
+`data/dnd5e_srd_2024.json` — built from `5e-bits/5e-database` (`src/2024/en/`), `foundryvtt/dnd5e` (`packs/_source/spells24/`, `packs/_source/actors24/`, `packs/_source/classfeatures24/`). All foundry content is CC-BY-4.0, with `_source` and `_license` provenance preserved on every record. Approximately 1,420+ records: 341 native 2024 spells, 376 native 2024 monsters, 8 weapon mastery properties, 9 species, 24 subspecies, 17 origin/general/fighting-style feats, 4 backgrounds, plus equipment / magic items / features. Build with `python3 scripts/build_srd.py --ruleset 2024` (one-time, ~3 min).
+
+### Mechanic differences applied at the table
+
+| Mechanic | 2014 | 2024 |
+|---|---|---|
+| Subclass timing | varies by class (1/2/3) | level 3 universally |
+| ASI source | race | background |
+| Origin feat | n/a | granted at level 1 by background |
+| Weapon mastery | n/a | 8 properties (Vex, Topple, Sap, Cleave, Graze, Nick, Push, Slow) |
+| Exhaustion | 6-level table with varied effects | 1 stack = -2 to all d20 rolls (cumulative); death at level 6 |
+| Stealth disadvantage on heavy armor | yes | yes (unchanged) |
+| Healing word range | 60 ft | 60 ft (unchanged) |
+
+Combat resolution, dice rolling, initiative, AC/HP derivation, XP tables, cantrip damage scaling, and rest recovery are identical between editions and require no per-ruleset branching in the engine.
+
+### Backwards compatibility
+
+Existing campaigns continue to load unchanged. The first time a legacy campaign is loaded under the new code path, `migrate_ruleset.py` detects the missing `**Ruleset:**` field and prompts the DM. The migrator:
+
+- Backs up `state.md` to `state.md.backup-pre-ruleset-<timestamp>` before any write
+- Injects the chosen ruleset into the header line
+- Is idempotent — re-running on a migrated campaign is a clean no-op
+- Has a `--check` mode for non-mutating detection (used by `/dnd load`)
+
+Character files inherit ruleset from their campaign at runtime via `paths.campaign_ruleset()`; no per-character migration is required. The display companion auto-detects the campaign's ruleset and surfaces it as a small badge in the world-clock cluster.
+
+If you want to switch a legacy campaign to 2024, run the migrator manually:
+
+```bash
+python3 scripts/migrate_ruleset.py <campaign-name> --ruleset 2024 --yes
+```
+
+Note: switching an in-progress 2014 campaign to 2024 mid-arc is not recommended — character builds (origin feats, background ASIs, weapon mastery for martial classes) were locked in under 2014 rules. The migrator simply stamps the field; rebuilding characters under 2024 is a separate manual exercise.
 
 ---
 

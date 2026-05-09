@@ -1498,6 +1498,26 @@ def stats():
             _load_tail()
         except Exception:
             pass
+        # Resolve and stash the ruleset for this campaign so the sidebar badge
+        # can render. Defaults to '2014' for legacy campaigns predating the
+        # ruleset field. Wrapped in try/except so a missing paths import or
+        # malformed state.md never breaks the stats endpoint.
+        try:
+            from paths import campaign_ruleset as _campaign_ruleset
+            _rs = _campaign_ruleset(str(data["campaign"]).strip())
+            with _stats_lock:
+                _current_stats["ruleset"] = _rs
+            current = dict(_current_stats)
+        except Exception:
+            pass
+
+    # Explicit ruleset override (e.g. push_stats.py --ruleset 2024)
+    if "ruleset" in data:
+        rs_in = str(data.get("ruleset") or "").strip()
+        if rs_in in ("2014", "2024"):
+            with _stats_lock:
+                _current_stats["ruleset"] = rs_in
+            current = dict(_current_stats)
 
     _persist_stats()
     _broadcast({"stats": current})

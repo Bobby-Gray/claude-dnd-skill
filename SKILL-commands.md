@@ -11,22 +11,25 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
      - LAN **no** → `bash ~/.claude/skills/dnd/display/start-display.sh`, print URL, set `_display_running = true`
      - Then: `python3 ~/.claude/skills/dnd/display/push_stats.py --clear`
    - If display **no** → continue without display
-2. `mkdir -p ~/.claude/dnd/campaigns/<name>/characters`
-3. Copy and populate templates from `~/.claude/skills/dnd/templates/` — state.md, world.md, npcs.md, session-log.md
-4. Ask: **party size** and **starting level**
-5. **Tone/Genre Wizard** — present all four in one message:
+2. **Ruleset selection (added 2026-05-08).** Ask: *"D&D 5e ruleset for this campaign? **2014** (SRD 5.1, default — full mechanics, classic Player's Handbook structure) or **2024** (SRD 5.2, weapon mastery + origin feats + background ASIs + revised exhaustion)?"* Default to `2014` if no answer or ambiguous. Write the chosen value to `state.md` header line as `**Ruleset:** 2014` or `**Ruleset:** 2024`.
+
+   If 2024 was chosen: verify the dataset exists with `ls ~/.claude/skills/dnd/data/dnd5e_srd_2024.json`. If missing, run `python3 ~/.claude/skills/dnd/scripts/build_srd.py --ruleset 2024` (one-time, ~3 min). Until the dataset exists, lookup-based features will fall back to 2014.
+3. `mkdir -p ~/.claude/dnd/campaigns/<name>/characters`
+4. Copy and populate templates from `~/.claude/skills/dnd/templates/` — state.md, world.md, npcs.md, session-log.md. The state.md header keeps the `**Ruleset:**` field set in step 2.
+5. Ask: **party size** and **starting level**
+6. **Tone/Genre Wizard** — present all four in one message:
    - Tone: `grimdark / dark fantasy / heroic / horror / political / swashbuckling / cosmic`
    - Magic level: `none / low / medium / high`
    - Setting type: `medieval / renaissance / ancient / nautical / underground`
    - Danger level: `lethal / gritty / standard / heroic`
    *(If `[theme]` supplied, pre-fill Tone and ask remaining three. Randomise any blank via dice.py and log `"d6=N → [result]"` in world.md.)*
-6. **World Foundations** — geography/biome/climate, magic system, pantheon (2–3 active deities), calendar. Write to `## World Foundations` in world.md. Seed `state.md → ## World State → In-world date`.
-7. **Three Truths** — one settlement, one nearby threat, one mystery (with clue trail). Write to respective sections in world.md.
-8. **Threat Escalation Arc** — fill the five-stage table in world.md immediately after threat generation. Set current stage to 1. Write `Threat arc stage: 1 — Now` to `state.md → ## World State`.
-9. **2 Factions** — archetype, all fields including current activity. Write to `## Factions` in world.md. Write one-line faction states to `state.md → ## World State`.
-10. **3 NPCs with relationship web** — full entries (role, stats, demeanor, motivation, secret, speech quirk, faction, current goal, schedule, personality axes). Generate all three first, then fill Relationships (every NPC needs ≥2 links to others). Update index table.
-11. **3–5 Quest Seeds** from threat, factions, mystery, NPC motivations. Write to `## Quest Seed Bank` in world.md.
-12. **Dynamic Campaign Arc** — auto-generate the arc from all world data just created. Use Opus for this step. Ask: *"Generate a committed narrative arc? [y/n — recommended]"*
+7. **World Foundations** — geography/biome/climate, magic system, pantheon (2–3 active deities), calendar. Write to `## World Foundations` in world.md. Seed `state.md → ## World State → In-world date`.
+8. **Three Truths** — one settlement, one nearby threat, one mystery (with clue trail). Write to respective sections in world.md.
+9. **Threat Escalation Arc** — fill the five-stage table in world.md immediately after threat generation. Set current stage to 1. Write `Threat arc stage: 1 — Now` to `state.md → ## World State`.
+10. **2 Factions** — archetype, all fields including current activity. Write to `## Factions` in world.md. Write one-line faction states to `state.md → ## World State`.
+11. **3 NPCs with relationship web** — full entries (role, stats, demeanor, motivation, secret, speech quirk, faction, current goal, schedule, personality axes). Generate all three first, then fill Relationships (every NPC needs ≥2 links to others). Update index table.
+12. **3–5 Quest Seeds** from threat, factions, mystery, NPC motivations. Write to `## Quest Seed Bank` in world.md.
+13. **Dynamic Campaign Arc** — auto-generate the arc from all world data just created. Use Opus for this step. Ask: *"Generate a committed narrative arc? [y/n — recommended]"*
 
    **If yes:** Drawing from theme, threat arc stages, factions, Three Truths, NPC motivations, and quest seeds, derive:
    - **`theme`** — one sentence: what is this story ultimately about? Not the threat — its meaning.
@@ -48,8 +51,8 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 
    **If no:** Write `type: sandbox` to `## Campaign Arc`. The story remains open-ended with no arc tracking.
 
-13. Write state.md with session count 0, starting location.
-14. Confirm creation, offer `/dnd character new`.
+14. Write state.md with session count 0, starting location.
+15. Confirm creation, offer `/dnd character new`.
 
 ---
 
@@ -74,13 +77,34 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
    - If autorun **yes** → write `autorun: true` to `state.md → ## Session Flags`; enter the autorun wait after the recap paragraph.
    - If autorun **no** → continue without autorun; DM drives turns manually.
 
-2. Read SKILL-scripts.md (for script syntax this session)
-3. Read state.md, world.md, npcs.md (index only), and all characters/*.md
+2. **Backwards-compat: ruleset migration check.** Before reading state.md, run:
+
+   ```bash
+   python3 ~/.claude/skills/dnd/scripts/migrate_ruleset.py <campaign-name> --check
+   ```
+
+   - Exit code `0` (`migrated`) → proceed to step 3.
+   - Exit code `1` (`needs-migration`) → this is a legacy campaign predating the ruleset field. Surface to DM exactly once: *"Campaign predates ruleset versioning. Stamp as **2014** (recommended for legacy campaigns) or **2024**? state.md will be backed up to `state.md.backup-pre-ruleset-<timestamp>` before any write. [2014/2024/skip]"*. On answer, run:
+
+     ```bash
+     python3 ~/.claude/skills/dnd/scripts/migrate_ruleset.py <campaign-name> --ruleset 2014 --yes
+     # or --ruleset 2024
+     ```
+
+     Migrator is idempotent and creates a timestamped backup. On `skip`, do not migrate; `paths.campaign_ruleset()` will return `2014` as the safety default at read time, but the field stays unstamped (DM will be re-prompted next load).
+   - Exit code `2` (`missing`) → state.md not found; do not proceed with /dnd load. Surface error to DM.
+
+   Future migrations (e.g. when 2026 ruleset arrives) follow the same pattern: a small migrator script under `scripts/migrate_<topic>.py` invoked here as a `--check` then `--yes` pair.
+
+3. **Read campaign ruleset** for this session: `python3 ~/.claude/skills/dnd/scripts/paths.py campaign-ruleset <name>` (or import `campaign_ruleset` directly). Stash the result; pass `--ruleset <value>` to `lookup.py`, `build_supplemental.py`, and `combat.py` mastery calls so they route to the correct dataset. The display companion picks up the same value automatically via `push_stats.py --set-campaign`.
+
+4. Read SKILL-scripts.md (for script syntax this session)
+5. Read state.md, world.md, npcs.md (index only), and all characters/*.md
    - **state.md contains `## DM Style Notes`** — read and internalize before narrating anything. These are table-specific calibration patterns that override default DM instincts.
    - **world.md:** Load in full — World Foundations and active Adventure Nodes both inform narration and faction moves. Do NOT read `world-seeds.md` at load (generation artifact, not live reference).
    - **npcs.md:** Index row only at load. **Before writing substantive dialogue or decisions for any named NPC, read their full entry in `npcs-full.md`.** Do not wait for an explicit `/dnd npc [name]` call — do it proactively when a scene centers on that character. Index rows carry surface traits only; personality axes, relationships, and hidden goals are in the full entry.
    - **Do NOT read session-log.md at load** — recent events are already in `state.md → ## Recent Events`. Only read session-log.md if the player explicitly requests a recap, or if DM Calibration from the last 1-2 sessions is needed and not already internalized.
-4. Push full party stats to display sidebar. **CRITICAL:** use `--json` with a complete player object — **never** the `--player` shorthand here. `--player` only updates existing fields; it cannot populate the card or sheet tabs. The display shows "Full sheet not loaded" when `sheet` is absent.
+6. Push full party stats to display sidebar. **CRITICAL:** use `--json` with a complete player object — **never** the `--player` shorthand here. `--player` only updates existing fields; it cannot populate the card or sheet tabs. The display shows "Full sheet not loaded" when `sheet` is absent.
 
    ```bash
    python3 ~/.claude/skills/dnd/display/push_stats.py --replace-players --json '{
@@ -142,7 +166,7 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
    python3 ~/.claude/skills/dnd/display/push_stats.py --quests '[...]'
    ```
    The quest panel only appears when at least one quest is present — do not skip this push.
-5. **Pull scene-context from the campaign graph.** Always run, even if you suspect `graph.json` doesn't exist — the script exits cleanly with a notice when uninitialized.
+7. **Pull scene-context from the campaign graph.** Always run, even if you suspect `graph.json` doesn't exist — the script exits cleanly with a notice when uninitialized.
    ```bash
    python3 ~/.claude/skills/dnd/scripts/campaign_graph.py scene-context \
      --campaign <campaign-name> \
@@ -181,8 +205,8 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 
    6. Re-run scene-context (now populated). Then proceed to step 6 (recap).
 
-6. Deliver one in-character paragraph recapping current situation — where the party is, what's at stake, what was last happening.
-7. Enter active DM mode — no `/dnd` prefix needed from this point.
+8. Deliver one in-character paragraph recapping current situation — where the party is, what's at stake, what was last happening.
+9. Enter active DM mode — no `/dnd` prefix needed from this point.
 
 ---
 
@@ -456,13 +480,21 @@ Read `~/.claude/dnd/campaigns/*/state.md`, print summary table: campaign name | 
 ---
 
 ## `/dnd character new [campaign-name]`
-1. Ask: name, race, class, background.
 
-   **Name uniqueness check (added 2026-05-07):** after the player gives a name, run `python3 ~/.claude/skills/dnd/scripts/name_registry.py check "<name>"`. If exit code is 1 (duplicate), the script prints which prior campaign / session used the name; surface that to the player as a non-blocking warning:
+**Read the campaign's ruleset first** — `python3 ~/.claude/skills/dnd/scripts/paths.py` is not a CLI; instead inline-read with:
 
-   > *"That name was first used in `<first_campaign>` S`<first_session>`. Reuse if it's intentional, or pick a different name. Continue with `<name>`?"*
+```bash
+python3 -c "import sys; sys.path.insert(0,'~/.claude/skills/dnd/scripts'); from paths import campaign_ruleset; print(campaign_ruleset('<campaign>'))"
+```
 
-   If the player confirms, proceed. If they want to change, return to the name prompt. After the character is fully created (step 9, after global-roster mirror), call `name_registry.py add --name "<name>" --type pc --campaign <name> --session <current>` to record it.
+The result drives branching at steps 1 (ASI source), 4 (origin feat), and 5 (subclass timing). The default `2014` applies for legacy campaigns predating the ruleset field.
+
+1. Ask: name, **species** (2024) or **race** (2014), class, background.
+
+   **Name uniqueness check:** run `python3 ~/.claude/skills/dnd/scripts/name_registry.py check "<name>"`. Exit 1 (duplicate) → surface prior use; player confirms or changes. Record after step 9.
+
+   **2014 (race-as-ASI):** the species/race grants ability score increases (e.g. Wood Elf: +2 DEX, +1 WIS). Apply to abilities at step 4.
+   **2024 (background-as-ASI):** the **background** grants the +2/+1 ability score increase OR three +1s, AND a free **Origin Feat** (e.g. Magic Initiate, Lucky, Tough). Species grants traits but no ability scores. Players in 2024 must pick background BEFORE rolling abilities — the background's ASI pattern dictates which scores benefit.
 2. Ask: *"In a sentence, what should the DM know about [Name]?"*
    - If answered: derive ONE pillar — **Bond**, **Flaw**, **Ideal**, or **Goal** (whichever fits best). Store both the raw sentence and derived pillar in `## Character Pillar`.
    - If skipped: leave `## Character Pillar` blank. Do not invent one. Do not re-prompt.
@@ -521,6 +553,12 @@ Read `characters/<name>.md`, display cleanly. If name omitted and one character 
 
    Insufficient XP → report deficit and stop. Only continue on explicit DM override.
 2. Read sheet. Run `character.py levelup`. Apply class features. Ask for HP roll or average. Update sheet + global roster. Narrate the growth.
+
+   **Ruleset-aware subclass timing (added 2026-05-08):** read campaign ruleset via `paths.campaign_ruleset(<campaign>)`.
+   - **2014:** Subclass selection happens at the class's specified level (Cleric/Sorcerer/Warlock at 1; Druid/Wizard at 2; most others at 3).
+   - **2024:** Subclass selection unifies at **level 3** for ALL classes. If the player is hitting level 3 in a 2024 campaign and hasn't picked a subclass yet, prompt for it. Class features that 2014 placed at level 1 (e.g. Cleric Domain) shift to level 3 in 2024.
+
+   **Weapon Mastery (2024 only):** Fighter/Barbarian/Paladin/Ranger gain Weapon Mastery at level 1 (Fighter knows 3 mastery properties; others know 2). Track which properties the character knows on the sheet under `## Class Features → Weapon Mastery: <list>`. Properties are picked from the eight in `data/dnd5e_srd_2024.json → weapon_mastery_properties`. The character can use mastery only with weapons that have the matching property (look up on `data/dnd5e_srd_2024.json → equipment[…].mastery`).
 
 ---
 
