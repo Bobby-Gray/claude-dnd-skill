@@ -10,6 +10,78 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-05-08 — D&D 5e 2024 (SRD 5.2) ruleset support
+
+The skill now supports both **2014 (SRD 5.1)** and **2024 (SRD 5.2)**, declared per campaign on the `state.md` header line. **2014 stays the default** — nothing about an existing campaign changes unless the DM opts in. Routing happens at every `/dnd load` via `paths.campaign_ruleset()`. A backwards-compat migrator handles legacy campaigns with a one-time prompt and a timestamped backup before any write.
+
+### What changed
+
+**Per-campaign ruleset field**
+
+`state.md` header gains `**Ruleset:** 2014` or `**Ruleset:** 2024`. `/dnd new` step 2 prompts at creation time. `/dnd load` reads the field every session and routes lookups, combat, and the procedural docs for character creation and level-up to the matching code path.
+
+- **`paths.campaign_ruleset(name)`** reads the header, returns the declared value or the default (`2014`) for legacy campaigns. Exposed on the CLI as `paths.py campaign-ruleset <campaign>`.
+- **`paths.srd_path(ruleset)`** resolves to `data/dnd5e_srd.json` (2014) or `data/dnd5e_srd_2024.json` (2024). Exposed as `paths.py srd-path [2014|2024]`.
+
+**2024 SRD dataset (`data/dnd5e_srd_2024.json`)**
+
+1,424 records pulled from CC-BY-4.0 sources — `5e-bits/5e-database` (`src/2024/en/`) and `foundryvtt/dnd5e` (`packs/_source/spells24/`, `actors24/`, `classfeatures24/`). Build with `python3 scripts/build_srd.py --ruleset 2024` (one-time, ~3 minutes).
+
+- 341 native 2024 spells, 376 native 2024 monsters, 8 weapon mastery properties, 9 species, 24 subspecies, 17 origin / general / fighting-style feats, the 4 SRD 2024 backgrounds, plus equipment, magic items, conditions, and class features.
+- Every record carries `_source` (e.g. `foundryvtt-2024`) and `_license` (`CC-BY-4.0`) so any single entry traces back to its origin.
+- Foundry token resolvers in `_strip_html` and the actor-item path: `[[expr]]{label}` rolled-display, `@UUID[id]{label}`, `&Reference[id]{label}`, activity-aware lookup tokens, malformed `&Reference[id}` (curly-closer typo from upstream). Output is whole-dataset artifact-clean — bad-substring scan across 10 categories returns zero hits over 1,424 records.
+
+**Weapon mastery in `combat.py`**
+
+The 8 properties — Vex, Topple, Sap, Cleave, Graze, Nick, Push, Slow — wired into `combat.py attack --mastery <property>`. A Fighter applying Sap on a hit gets the disadvantage tracked on the target's next attack without anyone remembering the rule. Standalone `combat.py mastery <prop>` and `combat.py masteries` subcommands surface the canonical mechanical effect for narration.
+
+**Backwards-compat migrator (`scripts/migrate_ruleset.py`)**
+
+Legacy campaigns auto-prompt for migration on the next `/dnd load`.
+
+- **`--check`** is strictly non-mutating. Exit codes: `0` = already migrated, `1` = needs migration, `2` = missing campaign.
+- **`--ruleset 2014|2024 --yes`** stamps the field after backing up `state.md` to `state.md.backup-pre-ruleset-<timestamp>`. Idempotent — re-running on a migrated campaign is a clean no-op.
+- The default for legacy campaigns is **2014** (they *were* 2014; silently flipping mid-arc would change character math under the players' feet). Explicit migration to 2024 via `--ruleset 2024 --yes` is a separate manual exercise.
+
+**`lookup.py` ruleset-aware routing**
+
+Accepts `--campaign <name>` (auto-routes via `paths.campaign_ruleset`) or `--ruleset 2014|2024` (explicit override). With no flag, defaults to 2014; emits a one-line stderr hint when the 2024 dataset is also present.
+
+**Display companion ruleset badge**
+
+Sidebar `#ruleset-badge` in the world-clock cluster — subdued amber for 2014, gold-accented for 2024. Server reads `paths.campaign_ruleset` on `/stats --set-campaign`; `push_stats.py` exposes `--ruleset` as an explicit override.
+
+**Procedural updates**
+
+- `/dnd new` step 2: ruleset selection question; build dataset on the spot if 2024 is chosen and missing.
+- `/dnd load` step 2: `migrate_ruleset.py --check`; one-time prompt for legacy campaigns; renumbered subsequent steps.
+- `/dnd character new` and `/dnd level up`: ruleset-aware branching for subclass-at-3, ASI source (race in 2014, background in 2024), and origin feats.
+
+### Mechanic differences applied at the table
+
+| Mechanic | 2014 | 2024 |
+|---|---|---|
+| Subclass timing | varies by class (1 / 2 / 3) | level 3 across the board |
+| ASI source | race | background |
+| Origin feat | n/a | granted at level 1 by background |
+| Weapon mastery | n/a | 8 properties |
+| Exhaustion | 6-level table with varied effects | 1 stack = -2 to all d20 rolls (cumulative); death at level 6 |
+
+Combat resolution, dice, initiative, AC/HP derivation, XP tables, cantrip damage scaling, and rest recovery are identical between editions.
+
+### Known limits
+
+- **No mid-arc auto-rebuild.** Switching an in-progress campaign mid-arc is allowed by the migrator but doesn't recompute character builds.
+- **Non-SRD 2024 supplemental content.** Wikidot has no 2024 surface yet; `build_supplemental.py --ruleset 2024` writes a stub file with documented `_meta`. Lookups for non-SRD content in a 2024 campaign degrade to the 2014 entry.
+- **No mid-session ruleset switching from the display.** The badge surfaces the campaign's ruleset; there's no UI to flip it from the couch.
+
+### Credit
+
+- [`5e-bits/5e-database`](https://github.com/5e-bits/5e-database) — base SRD surface for both 2014 and 2024.
+- [`foundryvtt/dnd5e`](https://github.com/foundryvtt/dnd5e) — extended 2024 packs (`spells24/`, `actors24/`, `classfeatures24/`, etc.). All foundry content is CC-BY-4.0 with provenance preserved per record.
+
+---
+
 ## [1.7.5] — 2026-05-01 — Display robustness: send.py + tail persistence + arc pre-emption
 
 Three long-standing reliability bugs land hard fixes in this release. Each one had been tripping live sessions repeatedly; the fixes are structural rather than patch-shaped, with regression tests so they don't come back.
