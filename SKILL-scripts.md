@@ -5,6 +5,9 @@ Full syntax for all Python helper scripts. Load this file once at `/dnd load`, t
 ---
 
 ## Dice Script — `scripts/dice.py`
+
+**MANDATORY.** Every die roll in play — player checks, NPC attacks, saves, damage, ability score gen, anything — must be produced by invoking this script via Bash. **Never sample dice mentally or with inline `random` calls.** The script routes rolls through a local physical-dice server that may surface them on the player's phone for them to cast; rolling in your head bypasses that and breaks the ritual. If the server isn't running the script falls back to local random — so there is no scenario where the script should be skipped.
+
 ```bash
 python3 ~/.claude/skills/dnd/scripts/dice.py d20+5
 python3 ~/.claude/skills/dnd/scripts/dice.py 2d6+3
@@ -12,8 +15,31 @@ python3 ~/.claude/skills/dnd/scripts/dice.py 4d6kh3        # ability score roll
 python3 ~/.claude/skills/dnd/scripts/dice.py d20 adv       # advantage
 python3 ~/.claude/skills/dnd/scripts/dice.py d20+3 dis     # disadvantage + modifier
 python3 ~/.claude/skills/dnd/scripts/dice.py d20 --silent  # returns integer only
+
+# Always pass --label so the phone HUD shows what the roll is for:
+python3 ~/.claude/skills/dnd/scripts/dice.py d20+4 --label "Perception check"
+python3 ~/.claude/skills/dnd/scripts/dice.py d20+6 adv --label "Attack — Goblin Boss vs Piper"
+python3 ~/.claude/skills/dnd/scripts/dice.py 2d8+3 --label "Greataxe damage"
+
+# Player rolls — pass --player <pc-name> to route to that player's phone tab:
+python3 ~/.claude/skills/dnd/scripts/dice.py d20+4 --label "Perception" --player piper
+python3 ~/.claude/skills/dnd/scripts/dice.py d20+6 adv --label "Attack" --player piper
+# NPC / monster / DM-side rolls — omit --player (routes to the DM channel,
+# which auto-rolls server-side if the DM has no tab open).
+python3 ~/.claude/skills/dnd/scripts/dice.py d20+5 --label "Goblin attack"
 ```
-Flags nat 20 (CRITICAL HIT) and nat 1 (FUMBLE) automatically.
+
+**Routing rule:** if the roll is **for a player character**, pass `--player <pc-name>` (lowercase, matches whatever name the player used in the URL). If the roll is for an NPC/monster/anything the DM resolves, omit `--player` so it doesn't ring the players' phones.
+
+**Etiquette rule (important):** when invoking with `--player`, the player is not staring at their phone — they're listening to you narrate. **Always prompt them out loud before invoking**, so they pick up the phone. Pattern:
+
+> *"Piper — make a Perception check. Cast it."*
+
+Then run the command. The Bash call will block while the player picks up the phone, sees the prompt, and casts; the result returns to you afterward. Without the verbal prompt the player won't know to look, and the call will sit waiting for ~3 minutes before timing out into an auto-roll.
+
+Flags nat 20 (CRITICAL HIT) and nat 1 (FUMBLE) automatically. If output contains `[auto]` the target's phone wasn't connected and the server rolled itself — no action needed, just narrate the result.
+
+To force-skip the physical roller (e.g. high-volume NPC rolls you don't want to surface): `--auto` flag, or `DND_DICE_PHYSICAL=0 python3 ...`.
 
 ---
 

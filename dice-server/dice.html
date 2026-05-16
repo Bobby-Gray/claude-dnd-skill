@@ -1,0 +1,1235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>fortune's table</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,500&family=Cormorant+SC:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #efe6d2;
+      --ink-dim: rgba(239, 230, 210, 0.55);
+      --ink-faint: rgba(239, 230, 210, 0.32);
+      --brass: #c2944a;
+      --emerald: #3fc270;
+      --ruby: #d6435e;
+      --amber: #d4a04a;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0; height: 100%; overflow: hidden;
+      color: var(--ink);
+      font-family: "Cormorant Garamond", "EB Garamond", Garamond, serif;
+      font-weight: 400;
+      letter-spacing: 0.01em;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% 65%, rgba(212, 160, 74, 0.18), transparent 70%),
+        radial-gradient(ellipse 70% 60% at 50% 30%, rgba(76, 102, 168, 0.10), transparent 65%),
+        linear-gradient(180deg, #0b0e15 0%, #06080d 60%, #040508 100%);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
+    }
+    body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+
+    canvas#stage {
+      position: fixed; inset: 0;
+      width: 100% !important; height: 100% !important;
+      display: block;
+      z-index: 1;
+    }
+
+    /* Film grain overlay - subtle, animated */
+    #grain {
+      position: fixed; inset: -50%;
+      width: 200%; height: 200%;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.9  0 0 0 0 0.8  0 0 0 0.08 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+      pointer-events: none;
+      mix-blend-mode: overlay;
+      opacity: 0.35;
+      z-index: 4;
+      animation: grainShift 0.8s steps(6) infinite;
+    }
+    @keyframes grainShift {
+      0%   { transform: translate(0,0); }
+      20%  { transform: translate(-3%, 2%); }
+      40%  { transform: translate(2%, -3%); }
+      60%  { transform: translate(-1%, 1%); }
+      80%  { transform: translate(3%, 1%); }
+      100% { transform: translate(0,0); }
+    }
+
+    /* Vignette ring — soft, doesn't crush midtones */
+    #vignette {
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse 75% 65% at 50% 58%, transparent 0%, transparent 55%, rgba(0,0,0,0.40) 100%);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* HUD: roll label + spec, top corners */
+    #hud {
+      position: fixed;
+      top: max(28px, env(safe-area-inset-top));
+      left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 0 28px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #label {
+      font-style: italic; font-weight: 500;
+      font-size: 38px;
+      max-width: 62vw;
+      line-height: 1.12;
+      color: var(--ink);
+      text-shadow: 0 1px 10px rgba(0,0,0,0.85);
+      letter-spacing: 0.005em;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #label.show { opacity: 1; }
+    #spec {
+      font-family: "Cormorant SC", "Cormorant Garamond", serif;
+      font-weight: 500;
+      font-size: 20px; letter-spacing: 0.24em;
+      color: var(--ink);
+      opacity: 0.78;
+      text-transform: uppercase;
+      padding-top: 10px;
+      white-space: nowrap;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.7);
+    }
+
+    /* Result readout: bottom-center, elegant serif */
+    #result {
+      position: fixed;
+      bottom: calc(max(34px, env(safe-area-inset-bottom)) + 38px);
+      left: 50%;
+      transform: translateX(-50%) translateY(14px);
+      display: flex; align-items: baseline; gap: 16px;
+      padding: 14px 38px;
+      opacity: 0;
+      transition: opacity 0.5s ease, transform 0.6s cubic-bezier(.2,.8,.2,1);
+      pointer-events: none;
+      z-index: 10;
+      white-space: nowrap;
+    }
+    #result.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    #result .total {
+      font-family: "Cormorant Garamond", serif;
+      font-weight: 500;
+      font-size: 120px;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      color: #f9f0d8;
+      text-shadow:
+        0 0 32px rgba(212, 160, 74, 0.45),
+        0 2px 10px rgba(0,0,0,0.6);
+    }
+    #result .breakdown {
+      font-family: "Cormorant Garamond", serif;
+      font-style: italic;
+      font-weight: 400;
+      font-size: 26px;
+      color: var(--ink);
+      letter-spacing: 0.02em;
+      opacity: 0.78;
+    }
+    #result.crit-hi .total { color: #d8f5dd; text-shadow: 0 0 32px rgba(63, 194, 112, 0.65), 0 2px 8px rgba(0,0,0,0.55); }
+    #result.crit-lo .total { color: #f7d5d8; text-shadow: 0 0 32px rgba(214, 67, 94, 0.65), 0 2px 8px rgba(0,0,0,0.55); }
+    #result.crit-hi::after,
+    #result.crit-lo::after {
+      content: attr(data-crit);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%) translateY(-4px);
+      font-family: "Cormorant SC", serif;
+      font-size: 11px;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      opacity: 0.85;
+    }
+    #result.crit-hi::after { color: var(--emerald); }
+    #result.crit-lo::after { color: var(--ruby); }
+
+    /* Status: small bottom strip — readable, not loud */
+    #status {
+      position: fixed;
+      bottom: max(18px, env(safe-area-inset-bottom));
+      left: 50%; transform: translateX(-50%);
+      font-family: "Cormorant SC", serif;
+      font-weight: 500;
+      font-size: 14px;
+      letter-spacing: 0.42em;
+      text-transform: uppercase;
+      color: var(--ink);
+      opacity: 0.72;
+      z-index: 10;
+      transition: opacity 0.3s ease;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.7);
+    }
+    #status .dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--emerald);
+      margin-right: 12px;
+      vertical-align: middle;
+      box-shadow: 0 0 10px currentColor;
+      animation: dot-pulse 2.2s ease-in-out infinite;
+    }
+    #status.disconnected .dot { background: var(--ruby); }
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    /* Cast prompt: prominent call-to-action while waiting for the gesture */
+    #prompt {
+      position: fixed;
+      left: 50%; top: 38%;
+      transform: translate(-50%, -50%) translateY(8px);
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.45s ease, transform 0.55s cubic-bezier(.2,.85,.25,1);
+      z-index: 11;
+    }
+    #prompt.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) translateY(0);
+    }
+    #prompt .ornament {
+      font-family: "Cormorant SC", serif;
+      font-size: 13px; letter-spacing: 0.6em; text-transform: uppercase;
+      color: var(--amber);
+      opacity: 0.8;
+      margin-bottom: 14px;
+    }
+    #prompt .verse {
+      font-family: "Cormorant Garamond", serif;
+      font-style: italic;
+      font-weight: 500;
+      font-size: 64px;
+      line-height: 1;
+      color: var(--ink);
+      letter-spacing: -0.005em;
+      text-shadow:
+        0 0 28px rgba(212, 160, 74, 0.5),
+        0 2px 14px rgba(0,0,0,0.8);
+      animation: verseBreathe 2.6s ease-in-out infinite;
+    }
+    #prompt .verse::first-letter {
+      color: var(--amber);
+      font-weight: 600;
+    }
+    #prompt .rule {
+      width: 90px; height: 1px;
+      margin: 16px auto 12px;
+      background: linear-gradient(90deg, transparent, var(--amber), transparent);
+      opacity: 0.65;
+    }
+    #prompt .sub {
+      font-family: "Cormorant SC", serif;
+      font-weight: 400;
+      font-size: 14px;
+      letter-spacing: 0.45em;
+      text-transform: uppercase;
+      color: var(--ink);
+      opacity: 0.65;
+    }
+    @keyframes verseBreathe {
+      0%, 100% { text-shadow: 0 0 24px rgba(212, 160, 74, 0.4), 0 2px 14px rgba(0,0,0,0.8); }
+      50%      { text-shadow: 0 0 48px rgba(212, 160, 74, 0.85), 0 2px 14px rgba(0,0,0,0.8); }
+    }
+    @media (max-width: 480px) {
+      #prompt .verse { font-size: 50px; }
+      #prompt .ornament, #prompt .sub { font-size: 12px; letter-spacing: 0.4em; }
+    }
+
+    /* Unlock splash */
+    #unlock {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column;
+      gap: 18px;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 55%, rgba(212, 160, 74, 0.10), transparent 70%),
+        linear-gradient(180deg, #0b0e15 0%, #040508 100%);
+      cursor: pointer;
+      animation: fadeIn 0.6s ease;
+    }
+    #unlock .ornament {
+      font-size: 32px;
+      color: var(--brass);
+      letter-spacing: 0.4em;
+      opacity: 0.85;
+    }
+    #unlock h1 {
+      margin: 0;
+      font-family: "Cormorant Garamond", serif;
+      font-weight: 500;
+      font-style: italic;
+      font-size: 44px;
+      letter-spacing: 0.005em;
+      color: var(--ink);
+      text-shadow: 0 2px 12px rgba(0,0,0,0.7);
+    }
+    #unlock .sub {
+      margin: 0;
+      font-family: "Cormorant SC", serif;
+      font-weight: 500;
+      font-size: 16px;
+      letter-spacing: 0.45em;
+      text-transform: uppercase;
+      color: var(--amber);
+      opacity: 0.95;
+      text-shadow: 0 0 12px rgba(212, 160, 74, 0.45), 0 1px 4px rgba(0,0,0,0.7);
+    }
+    #unlock .rule {
+      width: 120px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--brass), transparent);
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+    #unlock.hide { display: none; }
+    @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+    @media (max-width: 480px) {
+      #result .total { font-size: 68px; }
+      #result .breakdown { font-size: 17px; }
+      #label { font-size: 19px; }
+      #unlock h1 { font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="stage"></canvas>
+  <div id="vignette"></div>
+  <div id="grain"></div>
+
+  <div id="hud">
+    <div id="label"></div>
+    <div id="spec"></div>
+  </div>
+
+  <div id="result"></div>
+
+  <div id="prompt">
+    <div class="ornament">⚜ the table is set ⚜</div>
+    <div class="verse">Cast the die</div>
+    <div class="rule"></div>
+    <div class="sub">tap · or shake the phone</div>
+  </div>
+
+  <div id="status"><span class="dot"></span><span id="status-text">connecting</span></div>
+
+  <div id="unlock">
+    <div class="ornament">⚜</div>
+    <h1>fortune's table</h1>
+    <div class="rule"></div>
+    <p class="sub" id="unlock-sub">tap to consecrate</p>
+    <div id="player-name-display" style="margin-top:18px;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:24px;opacity:0.85;letter-spacing:0.04em;"></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+
+    /* =========================================================
+       AUDIO — synthesized clatter, bounce, settle
+       ========================================================= */
+    let audioCtx = null;
+    function ensureAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    }
+    function noiseBurst(intensity = 1, freq = 1200, q = 2.5, dur = 0.12, delay = 0) {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime + delay;
+      const buf = audioCtx.createBuffer(1, 2048, audioCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / 300);
+      const src = audioCtx.createBufferSource(); src.buffer = buf;
+      const bp = audioCtx.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = q;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.45 * intensity, now + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      src.connect(bp).connect(g).connect(audioCtx.destination);
+      src.start(now); src.stop(now + dur + 0.05);
+    }
+    function clatter() {
+      const hits = 5 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < hits; i++) {
+        noiseBurst(0.5 + Math.random() * 0.4, 700 + Math.random() * 1800, 2 + Math.random() * 2, 0.1, i * (0.03 + Math.random() * 0.05));
+      }
+    }
+    function thud(intensity = 1) {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      // wood-like impact: noise burst + low sine drop
+      noiseBurst(0.45 * intensity, 1100 + Math.random() * 800, 2, 0.08);
+      const osc = audioCtx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(160 - Math.random() * 40, now);
+      osc.frequency.exponentialRampToValueAtTime(48, now + 0.18);
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.55 * intensity, now + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+      osc.connect(g).connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + 0.25);
+    }
+    function chime() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const freqs = [880, 1320];
+      freqs.forEach((f, i) => {
+        const o = audioCtx.createOscillator();
+        o.type = "sine";
+        o.frequency.value = f;
+        const g = audioCtx.createGain();
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+        o.connect(g).connect(audioCtx.destination);
+        o.start(now + i * 0.03); o.stop(now + 0.6);
+      });
+    }
+
+    // Soft bell + buzz to summon the player when a new roll arrives.
+    function summon() {
+      if (audioCtx) {
+        const now = audioCtx.currentTime;
+        // A descending pair — recognizable, not jarring.
+        [1320, 990, 660].forEach((f, i) => {
+          const o = audioCtx.createOscillator();
+          o.type = "triangle";
+          o.frequency.value = f;
+          const g = audioCtx.createGain();
+          const t = now + i * 0.11;
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.22, t + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+          o.connect(g).connect(audioCtx.destination);
+          o.start(t); o.stop(t + 0.5);
+        });
+      }
+      // Vibrate so the phone gets attention even face-down or pocketed.
+      if (navigator.vibrate) {
+        navigator.vibrate([120, 80, 120, 80, 220]);
+      }
+    }
+
+    /* =========================================================
+       DICE NOTATION PARSER
+       ========================================================= */
+    function parseSpec(s) {
+      const m = s.replace(/\s/g, "").match(/^(\d*)d(\d+)(?:k([hl])(\d+))?([+-]\d+)?$/i);
+      if (!m) throw new Error("bad spec: " + s);
+      return {
+        count: parseInt(m[1] || "1", 10),
+        sides: parseInt(m[2], 10),
+        keep: m[3] ? { dir: m[3].toLowerCase(), n: parseInt(m[4], 10) } : null,
+        mod: m[5] ? parseInt(m[5], 10) : 0,
+      };
+    }
+
+    /* =========================================================
+       GEOMETRY — polyhedra + face clustering
+       ========================================================= */
+    function makePentBipyramid() {
+      const r = 1.0, h = 1.05;
+      const verts = [0, h, 0,  0, -h, 0];
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        verts.push(Math.cos(a) * r, 0, Math.sin(a) * r);
+      }
+      const idx = [];
+      for (let i = 0; i < 5; i++) idx.push(0, 2 + i, 2 + ((i + 1) % 5));
+      for (let i = 0; i < 5; i++) idx.push(1, 2 + ((i + 1) % 5), 2 + i);
+      const g = new THREE.BufferGeometry();
+      g.setIndex(idx);
+      g.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+      g.computeVertexNormals();
+      return g;
+    }
+
+    function makeGeometry(sides) {
+      let geo, scale;
+      // For non-standard sides (d9, d14, etc.) pick the smallest standard
+      // shape that has at least `sides` faces.
+      if      (sides === 4)              { geo = new THREE.TetrahedronGeometry(1);     scale = 1.05; }
+      else if (sides === 6)              { geo = new THREE.BoxGeometry(1.35, 1.35, 1.35); scale = 0.72; }
+      else if (sides === 8)              { geo = new THREE.OctahedronGeometry(1);      scale = 0.92; }
+      else if (sides <= 10)              { geo = makePentBipyramid();                  scale = 0.92; }
+      else if (sides === 12)             { geo = new THREE.DodecahedronGeometry(1);    scale = 0.78; }
+      else if (sides <= 20)              { geo = new THREE.IcosahedronGeometry(1);     scale = 0.92; }
+      else if (sides === 100)            { geo = makePentBipyramid();                  scale = 0.92; }
+      else                                { geo = new THREE.IcosahedronGeometry(1);     scale = 0.92; }
+      if (geo.index) geo = geo.toNonIndexed();
+      geo.computeVertexNormals();
+
+      const pos = geo.attributes.position;
+      const triCount = pos.count / 3;
+      const tris = [];
+      for (let i = 0; i < triCount; i++) {
+        const a = new THREE.Vector3().fromBufferAttribute(pos, i * 3);
+        const b = new THREE.Vector3().fromBufferAttribute(pos, i * 3 + 1);
+        const c = new THREE.Vector3().fromBufferAttribute(pos, i * 3 + 2);
+        const ab = new THREE.Vector3().subVectors(b, a);
+        const ac = new THREE.Vector3().subVectors(c, a);
+        const normal = new THREE.Vector3().crossVectors(ab, ac).normalize();
+        const center = new THREE.Vector3().addVectors(a, b).add(c).divideScalar(3);
+        tris.push({ a, b, c, normal, center });
+      }
+
+      const faces = [];
+      const used = new Array(tris.length).fill(false);
+      for (let i = 0; i < tris.length; i++) {
+        if (used[i]) continue;
+        const cluster = [tris[i]];
+        used[i] = true;
+        for (let j = i + 1; j < tris.length; j++) {
+          if (used[j]) continue;
+          if (tris[i].normal.dot(tris[j].normal) > 0.985) {
+            cluster.push(tris[j]);
+            used[j] = true;
+          }
+        }
+        const center = new THREE.Vector3();
+        cluster.forEach(t => center.add(t.center));
+        center.divideScalar(cluster.length);
+        let total = 0, count = 0;
+        cluster.forEach(t => { [t.a, t.b, t.c].forEach(v => { total += v.distanceTo(center); count++; }); });
+        const inradius = (total / count) * 0.7;
+        faces.push({ center, normal: tris[i].normal.clone(), inradius });
+      }
+      return { geo, faces, scale };
+    }
+
+    /* =========================================================
+       NUMBER DECAL TEXTURES
+       ========================================================= */
+    const textureCache = new Map();
+    function faceLabel(sides, faceIdx) {
+      if (sides === 10) return String(faceIdx === 10 ? 0 : faceIdx);
+      if (sides === 100) return String(((faceIdx === 10 ? 0 : faceIdx) * 10)).padStart(2, "0");
+      return String(faceIdx);
+    }
+    function numberTexture(text) {
+      if (textureCache.has(text)) return textureCache.get(text);
+
+      const size = 384;
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      const ctx = c.getContext("2d");
+
+      const cx = size / 2;
+      const cy = size / 2;
+
+      const isLong = text.length > 1;
+      const fontSize = isLong ? 230 : 270;
+      ctx.font = `700 ${fontSize}px "Cormorant Garamond", "EB Garamond", Georgia, "Times New Roman", serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // Soft outer shadow gives illusion of depth (engraved cavity catching shadow)
+      ctx.shadowColor = "rgba(0,0,0,0.7)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 3;
+      ctx.fillStyle = "#3a2208";  // deep bronze — the "bar under 6" color
+      ctx.fillText(text, cx, cy + 6);
+
+      // Second pass: solid dark core, no blur
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.fillStyle = "#2a1604";  // even darker core
+      ctx.fillText(text, cx, cy + 6);
+
+      // Underline for 6 and 9 (matches main number color)
+      if (text === "6" || text === "9") {
+        ctx.beginPath();
+        ctx.strokeStyle = "#2a1604";
+        ctx.lineWidth = 13;
+        ctx.lineCap = "round";
+        const w = 88;
+        const y = cy + fontSize * 0.46;
+        ctx.moveTo(cx - w / 2, y);
+        ctx.lineTo(cx + w / 2, y);
+        ctx.stroke();
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.generateMipmaps = true;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.needsUpdate = true;
+      textureCache.set(text, tex);
+      return tex;
+    }
+
+    // Pre-bake every texture we might need so multi-die rolls never race
+    // against texture creation / font loading.
+    function prebakeTextures() {
+      const labels = new Set();
+      for (let i = 1; i <= 20; i++) labels.add(String(i));
+      labels.add("0"); // d10 face
+      // d100 faces: 00, 10, 20 ... 90
+      for (let i = 0; i < 10; i++) labels.add(String(i * 10).padStart(2, "0"));
+      for (const l of labels) numberTexture(l);
+    }
+
+    async function preloadFonts() {
+      if (!document.fonts || !document.fonts.load) return;
+      try {
+        await Promise.all([
+          document.fonts.load('700 260px "Cormorant Garamond"'),
+          document.fonts.load('500 120px "Cormorant Garamond"'),
+          document.fonts.load('italic 400 30px "Cormorant Garamond"'),
+          document.fonts.load('500 36px "Cormorant SC"'),
+        ]);
+      } catch {}
+    }
+
+    /* =========================================================
+       DIE — geometry, decals, physics
+       ========================================================= */
+    class Die {
+      constructor(scene, sides, value, slot = 0, of = 1) {
+        this.scene = scene;
+        this.sides = sides;
+        this.value = value;
+
+        const { geo, faces, scale } = makeGeometry(sides);
+        this.faces = faces;
+        this.scale = scale;
+
+        // Brass material — warmer, brighter, slightly less rough so highlights sing
+        this.material = new THREE.MeshStandardMaterial({
+          color: 0xe5b569,
+          metalness: 0.85,
+          roughness: 0.28,
+          emissive: 0x3a2410,
+          emissiveIntensity: 0.18,
+        });
+
+        this.mesh = new THREE.Mesh(geo, this.material);
+        this.mesh.castShadow = true;
+        this.mesh.receiveShadow = false;
+        this.mesh.scale.setScalar(scale);
+        this.mesh.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
+
+        // Face number decals (small planes parented to mesh, oriented outward).
+        // Cap at the geometry's actual face count so non-standard dice (e.g. d9
+        // on a 10-face geometry) don't blow up.
+        const decalCount = Math.min(sides, faces.length);
+        for (let i = 0; i < decalCount; i++) {
+          const face = faces[i];
+          const label = faceLabel(sides, i + 1);
+          const tex = numberTexture(label);
+          const decalSize = face.inradius * 1.85;
+          const dGeo = new THREE.PlaneGeometry(decalSize, decalSize);
+          const dMat = new THREE.MeshBasicMaterial({
+            map: tex,
+            alphaTest: 0.35,
+            depthWrite: true,
+            depthTest: true,
+            side: THREE.FrontSide,
+            toneMapped: false, // keep engraved darkness — don't let exposure lighten them
+          });
+          const decal = new THREE.Mesh(dGeo, dMat);
+          decal.position.copy(face.center).addScaledVector(face.normal, 0.035);
+          // Three.js Object3D.lookAt makes the object's +Z point TOWARD the target
+          // (non-camera variant). So target = position + normal places +Z (plane front) outward.
+          const lookTarget = decal.position.clone().add(face.normal);
+          decal.lookAt(lookTarget);
+          decal.castShadow = false;
+          decal.receiveShadow = false;
+          decal.renderOrder = 2;
+          this.mesh.add(decal);
+        }
+
+        scene.add(this.mesh);
+
+        // Contact shadow (separate from real shadow — softer, follows die x/z)
+        const shGeo = new THREE.CircleGeometry(0.7, 36);
+        const shMat = new THREE.MeshBasicMaterial({
+          color: 0x000000, transparent: true, opacity: 0.4, depthWrite: false,
+        });
+        this.shadowMesh = new THREE.Mesh(shGeo, shMat);
+        this.shadowMesh.rotation.x = -Math.PI / 2;
+        this.shadowMesh.position.y = 0.012;
+        this.shadowMesh.renderOrder = -1;
+        scene.add(this.shadowMesh);
+
+        // Initial state — fling from the side, tuned so dice settle within the
+        // visible table region (~±3.5 x, ±2.5 z).
+        const spread = Math.min(2.8, Math.max(1.4, of * 0.7));
+        const offset = (slot - (of - 1) / 2) * spread;
+        const fromLeft = Math.random() < 0.5;
+        const sideX = (fromLeft ? -1 : 1) * (3.0 + Math.random() * 0.8);
+        this.pos = new THREE.Vector3(
+          sideX,
+          6.5 + Math.random() * 1.8,
+          -1.8 + (Math.random() - 0.5) * 1.2
+        );
+        this.vel = new THREE.Vector3(
+          (fromLeft ? 1 : -1) * (3.0 + Math.random() * 1.4) + offset * 0.3,
+          -1.5 - Math.random() * 1.2,
+          1.6 + Math.random() * 1.4
+        );
+        this.angVel = new THREE.Vector3(
+          (Math.random() - 0.5) * 18,
+          (Math.random() - 0.5) * 18,
+          (Math.random() - 0.5) * 18
+        );
+        this.restY = scale * 0.72;
+        this.state = "falling";
+        this.bounces = 0;
+        this.settleStart = 0;
+        this.startQuat = null;
+        this.targetQuat = null;
+        this.onBounce = null;
+        this.onLand = null;
+        this._landed = false;
+        this._dimmed = false;
+      }
+
+      step(dt) {
+        if (this.state === "rested") return;
+
+        if (this.state === "falling" || this.state === "bouncing") {
+          // gravity
+          this.vel.y -= 22 * dt;
+          // drag (gentler so dice carry their lateral momentum across the surface)
+          const drag = Math.pow(0.985, dt * 60);
+          this.vel.x *= drag;
+          this.vel.z *= drag;
+          this.angVel.multiplyScalar(Math.pow(0.975, dt * 60));
+
+          this.pos.addScaledVector(this.vel, dt);
+
+          // angular integration
+          const len = this.angVel.length();
+          if (len > 1e-5) {
+            const axis = this.angVel.clone().multiplyScalar(1 / len);
+            const dq = new THREE.Quaternion().setFromAxisAngle(axis, len * dt);
+            this.mesh.quaternion.premultiply(dq);
+          }
+
+          // invisible table walls — keep dice inside the spotlight pool
+          const WALL_X = 3.7, WALL_Z = 2.6;
+          if (this.pos.x > WALL_X)  { this.pos.x = WALL_X;  this.vel.x = -Math.abs(this.vel.x) * 0.55; }
+          if (this.pos.x < -WALL_X) { this.pos.x = -WALL_X; this.vel.x =  Math.abs(this.vel.x) * 0.55; }
+          if (this.pos.z > WALL_Z)  { this.pos.z = WALL_Z;  this.vel.z = -Math.abs(this.vel.z) * 0.55; }
+          if (this.pos.z < -WALL_Z) { this.pos.z = -WALL_Z; this.vel.z =  Math.abs(this.vel.z) * 0.55; }
+
+          // floor collision
+          if (this.pos.y < this.restY) {
+            this.pos.y = this.restY;
+            if (this.vel.y < 0) {
+              const impactSpeed = Math.abs(this.vel.y);
+              this.vel.y = impactSpeed * 0.58;        // bouncier
+              this.vel.x *= 0.82;                      // keep more lateral on bounce
+              this.vel.z *= 0.82;
+              this.angVel.multiplyScalar(0.78);
+              this.bounces++;
+              if (this.onBounce) this.onBounce(this.bounces, Math.min(1, impactSpeed / 6));
+              // Allow several bounces and a rolling phase before settling
+              if (this.bounces >= 4 || impactSpeed < 0.7) {
+                this.beginSettle();
+              } else {
+                this.state = "bouncing";
+              }
+            }
+          }
+          // Settle only when truly slowed down and on the floor
+          const lateralSpeed = Math.hypot(this.vel.x, this.vel.z);
+          if (this.bounces > 0
+              && Math.abs(this.vel.y) < 0.25
+              && lateralSpeed < 0.6
+              && this.pos.y <= this.restY + 0.04) {
+            this.beginSettle();
+          }
+        } else if (this.state === "settling") {
+          const t = Math.min(1, (performance.now() - this.settleStart) / 600);
+          const eased = 1 - Math.pow(1 - t, 3.2);
+          this.mesh.quaternion.copy(this.startQuat).slerp(this.targetQuat, eased);
+          // ease pos to rest
+          this.pos.y = this.restY + (1 - eased) * Math.max(0, this.pos.y - this.restY);
+          if (t >= 1) {
+            this.state = "rested";
+            if (!this._landed) {
+              this._landed = true;
+              if (this.onLand) this.onLand();
+            }
+          }
+        }
+
+        this.mesh.position.copy(this.pos);
+        // contact shadow
+        this.shadowMesh.position.x = this.pos.x;
+        this.shadowMesh.position.z = this.pos.z;
+        const height = Math.max(0, this.pos.y - this.restY);
+        const sScale = this.scale * (1.05 + height * 0.5);
+        this.shadowMesh.scale.setScalar(sScale);
+        this.shadowMesh.material.opacity = 0.45 * Math.exp(-height * 0.7);
+      }
+
+      beginSettle() {
+        if (this.state === "settling") return;
+        this.state = "settling";
+        this.settleStart = performance.now();
+        this.startQuat = this.mesh.quaternion.clone();
+
+        // Target: rotate so face[value-1].normal (local) points up (+Y world).
+        // For non-standard dice the value may exceed the face count; in that
+        // case fall back to the last face so settle still works.
+        const faceIdx = Math.min(this.value - 1, this.faces.length - 1);
+        const localNormal = this.faces[faceIdx].normal.clone();
+        const target = new THREE.Quaternion().setFromUnitVectors(localNormal, new THREE.Vector3(0, 1, 0));
+        // Random yaw so text orientation varies
+        const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI * 2);
+        target.premultiply(yaw);
+        this.targetQuat = target;
+
+        this.vel.set(0, 0, 0);
+        this.angVel.set(0, 0, 0);
+      }
+
+      setCritGlow(kind) {
+        if (kind === "hi") {
+          this.material.emissive.setHex(0x205a30);
+          this.material.emissiveIntensity = 0.55;
+        } else if (kind === "lo") {
+          this.material.emissive.setHex(0x4a1622);
+          this.material.emissiveIntensity = 0.55;
+        }
+      }
+
+      dim() {
+        if (this._dimmed) return;
+        this._dimmed = true;
+        this.material.opacity = 0.22;
+        this.material.transparent = true;
+        this.mesh.traverse(c => {
+          if (c !== this.mesh && c.material) {
+            c.material.opacity = 0.18;
+            c.material.transparent = true;
+          }
+        });
+        this.shadowMesh.material.opacity *= 0.4;
+      }
+
+      dispose() {
+        this.scene.remove(this.mesh);
+        this.scene.remove(this.shadowMesh);
+        this.material.dispose();
+        this.mesh.geometry.dispose();
+        this.mesh.traverse(c => {
+          if (c !== this.mesh) {
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) c.material.dispose();
+          }
+        });
+        this.shadowMesh.geometry.dispose();
+        this.shadowMesh.material.dispose();
+      }
+    }
+
+    /* =========================================================
+       SCENE — renderer, lights, floor, animation loop
+       ========================================================= */
+    class DiceScene {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.9;
+        this.renderer.setClearColor(0x000000, 0); // transparent, CSS bg shows through
+
+        this.scene = new THREE.Scene();
+
+        this.camera = new THREE.PerspectiveCamera(36, 1, 0.1, 60);
+        this.camera.position.set(0, 10.5, 6.5);
+        this.camera.lookAt(0, 0.4, 0);
+
+        // Lights — brighter and a touch more from above to suit top-down view
+        const hemi = new THREE.HemisphereLight(0xa8b4d8, 0x281c10, 1.5);
+        this.scene.add(hemi);
+
+        const key = new THREE.DirectionalLight(0xfff2cc, 4.4);
+        key.position.set(2.5, 11, 4.0);
+        key.castShadow = true;
+        key.shadow.mapSize.set(1024, 1024);
+        key.shadow.camera.left = -6;
+        key.shadow.camera.right = 6;
+        key.shadow.camera.top = 6;
+        key.shadow.camera.bottom = -6;
+        key.shadow.camera.near = 1;
+        key.shadow.camera.far = 20;
+        key.shadow.bias = -0.0009;
+        key.shadow.radius = 5;
+        this.scene.add(key);
+        this.keyLight = key;
+
+        const rim = new THREE.PointLight(0x90a8e0, 2.6, 22);
+        rim.position.set(-3.8, 3.4, -3.5);
+        this.scene.add(rim);
+
+        const fill = new THREE.PointLight(0xf6c088, 2.2, 18);
+        fill.position.set(3.0, 3.2, 3.8);
+        this.scene.add(fill);
+
+        // Front-fill so the side facing the camera (now more from above) reads brightly
+        const frontFill = new THREE.PointLight(0xffe8c0, 1.6, 18);
+        frontFill.position.set(0, 5.5, 5.0);
+        this.scene.add(frontFill);
+
+        // Floor — dark velvet, slightly lifted so dice read against it
+        const floorGeo = new THREE.PlaneGeometry(80, 80);
+        const floorMat = new THREE.MeshStandardMaterial({
+          color: 0x18161e,
+          roughness: 0.78,
+          metalness: 0.08,
+        });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+
+        // Warm spotlight pool
+        const poolGeo = new THREE.CircleGeometry(6.5, 64);
+        const poolMat = new THREE.MeshBasicMaterial({
+          color: 0xc89a4a, transparent: true, opacity: 0.085, depthWrite: false,
+        });
+        const pool = new THREE.Mesh(poolGeo, poolMat);
+        pool.rotation.x = -Math.PI / 2;
+        pool.position.y = 0.006;
+        this.scene.add(pool);
+
+        // Secondary cooler aura
+        const auraGeo = new THREE.RingGeometry(4.5, 8.5, 64);
+        const auraMat = new THREE.MeshBasicMaterial({
+          color: 0x3a4878, transparent: true, opacity: 0.06, depthWrite: false, side: THREE.DoubleSide,
+        });
+        const aura = new THREE.Mesh(auraGeo, auraMat);
+        aura.rotation.x = -Math.PI / 2;
+        aura.position.y = 0.007;
+        this.scene.add(aura);
+
+        this.dice = [];
+        this.resize();
+        window.addEventListener("resize", () => this.resize());
+
+        this.lastTime = performance.now();
+        this.running = true;
+        this.loop = this.loop.bind(this);
+        this.loop();
+      }
+
+      resize() {
+        const w = window.innerWidth, h = window.innerHeight;
+        this.renderer.setSize(w, h, false);
+        this.camera.aspect = w / h;
+        // adjust framing on portrait phones
+        if (h > w) {
+          this.camera.position.set(0, 11.5, 6.8);
+          this.camera.fov = 42;
+        } else {
+          this.camera.position.set(0, 9.5, 6.0);
+          this.camera.fov = 34;
+        }
+        this.camera.lookAt(0, 0.4, 0);
+        this.camera.updateProjectionMatrix();
+      }
+
+      addDie(sides, value, slot, of) {
+        const d = new Die(this.scene, sides, value, slot, of);
+        this.dice.push(d);
+        return d;
+      }
+
+      clearDice() {
+        this.dice.forEach(d => d.dispose());
+        this.dice = [];
+      }
+
+      allRested() {
+        return this.dice.length > 0 && this.dice.every(d => d.state === "rested");
+      }
+
+      loop() {
+        if (!this.running) return;
+        const now = performance.now();
+        const dt = Math.min(0.05, (now - this.lastTime) / 1000);
+        this.lastTime = now;
+        for (const d of this.dice) d.step(dt);
+        this.renderer.render(this.scene, this.camera);
+        requestAnimationFrame(this.loop);
+      }
+    }
+
+    /* =========================================================
+       PLAYER IDENTITY
+       ========================================================= */
+    function readPlayer() {
+      const p = new URLSearchParams(location.search).get("player");
+      return p ? p.trim() : null;
+    }
+    const PLAYER = readPlayer(); // null = DM tab
+    {
+      const disp = document.getElementById("player-name-display");
+      if (PLAYER) {
+        disp.textContent = `cast for ${PLAYER}`;
+        document.title = `🎲 ${PLAYER}`;
+      } else {
+        disp.textContent = "the dungeon master's table";
+      }
+    }
+
+    /* =========================================================
+       ROLL FLOW
+       ========================================================= */
+    const canvas = document.getElementById("stage");
+    const labelEl = document.getElementById("label");
+    const specEl = document.getElementById("spec");
+    const resultEl = document.getElementById("result");
+    const statusEl = document.getElementById("status");
+    const statusText = document.getElementById("status-text");
+    const promptEl = document.getElementById("prompt");
+    const promptVerse = promptEl.querySelector(".verse");
+
+    let diceScene = null; // initialized after unlock
+    let busy = false;
+    const queue = [];
+
+    function waitForRollTrigger() {
+      return new Promise(resolve => {
+        let lastShake = 0;
+        const trigger = () => {
+          window.removeEventListener("click", trigger);
+          window.removeEventListener("touchend", trigger);
+          window.removeEventListener("keydown", keyHandler);
+          window.removeEventListener("devicemotion", motionHandler);
+          resolve();
+        };
+        const keyHandler = e => { if (e.key === " " || e.key === "Enter") trigger(); };
+        const motionHandler = e => {
+          const a = e.accelerationIncludingGravity || e.acceleration;
+          if (!a) return;
+          const mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+          if (mag > 22 && Date.now() - lastShake > 600) { lastShake = Date.now(); trigger(); }
+        };
+        window.addEventListener("click", trigger);
+        window.addEventListener("touchend", trigger);
+        window.addEventListener("keydown", keyHandler);
+        window.addEventListener("devicemotion", motionHandler);
+      });
+    }
+
+    async function renderRoll(meta) {
+      busy = true;
+      resultEl.classList.remove("show", "crit-hi", "crit-lo");
+      resultEl.innerHTML = "";
+      resultEl.removeAttribute("data-crit");
+      diceScene.clearDice();
+
+      labelEl.textContent = meta.label || "";
+      labelEl.classList.toggle("show", !!meta.label);
+      specEl.textContent = meta.spec;
+      document.title = `🎲 ${meta.spec}`;
+
+      let parsed;
+      try { parsed = parseSpec(meta.spec); }
+      catch {
+        labelEl.textContent = "unreadable rune: " + meta.spec;
+        labelEl.classList.add("show");
+        busy = false; return;
+      }
+
+      // Pre-compute results so dice can be oriented at landing
+      const results = [];
+      for (let i = 0; i < parsed.count; i++) {
+        results.push(1 + Math.floor(Math.random() * parsed.sides));
+      }
+
+      // pick a flavorful verb per die count for the prompt
+      const verseOptions = parsed.count > 1
+        ? ["Cast the dice", "Loose them", "Throw fate"]
+        : ["Cast the die", "Throw it", "Let it fall"];
+      promptVerse.textContent = verseOptions[Math.floor(Math.random() * verseOptions.length)];
+      promptEl.classList.add("show");
+      statusText.textContent = "awaiting your hand";
+      await waitForRollTrigger();
+      promptEl.classList.remove("show");
+      statusText.textContent = "casting…";
+
+      clatter();
+
+      let landedCount = 0;
+      await new Promise(resolve => {
+        for (let i = 0; i < parsed.count; i++) {
+          const die = diceScene.addDie(parsed.sides, results[i], i, parsed.count);
+          die.onBounce = (n, intensity) => thud(0.5 + intensity * 0.5);
+          die.onLand = () => {
+            if (parsed.sides === 20) {
+              if (results[i] === 20) die.setCritGlow("hi");
+              else if (results[i] === 1) die.setCritGlow("lo");
+            }
+            landedCount++;
+            if (landedCount === parsed.count) resolve();
+          };
+        }
+      });
+
+      // Settle pause for visual reading
+      await new Promise(r => setTimeout(r, 280));
+
+      // Keep highest/lowest
+      let kept = results.slice();
+      if (parsed.keep) {
+        const sorted = results.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+        const keepIdx = new Set(
+          (parsed.keep.dir === "h" ? sorted.slice(0, parsed.keep.n) : sorted.slice(-parsed.keep.n)).map(x => x.i)
+        );
+        kept = results.filter((_, i) => keepIdx.has(i));
+        diceScene.dice.forEach((d, i) => { if (!keepIdx.has(i)) d.dim(); });
+      }
+
+      const sum = kept.reduce((a, b) => a + b, 0);
+      const total = sum + parsed.mod;
+
+      const totalEl = document.createElement("span");
+      totalEl.className = "total";
+      totalEl.textContent = String(total);
+      resultEl.appendChild(totalEl);
+
+      if (kept.length > 1 || parsed.mod !== 0) {
+        const bd = document.createElement("span");
+        bd.className = "breakdown";
+        const modStr = parsed.mod ? (parsed.mod >= 0 ? " + " : " − ") + Math.abs(parsed.mod) : "";
+        bd.textContent = (kept.length > 1 ? kept.join(" + ") : kept[0]) + modStr;
+        resultEl.appendChild(bd);
+      }
+
+      if (parsed.sides === 20 && parsed.count === 1) {
+        if (results[0] === 20) {
+          resultEl.classList.add("crit-hi");
+          resultEl.setAttribute("data-crit", "critical");
+          chime();
+        } else if (results[0] === 1) {
+          resultEl.classList.add("crit-lo");
+          resultEl.setAttribute("data-crit", "fumble");
+        }
+      }
+
+      requestAnimationFrame(() => resultEl.classList.add("show"));
+
+      try {
+        await fetch("/submit/" + meta.id, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ total, rolls: results, kept, modifier: parsed.mod, spec: meta.spec }),
+        });
+      } catch {}
+
+      statusText.textContent = "awaiting the next casting";
+
+      await new Promise(r => setTimeout(r, queue.length ? 2400 : 0));
+      busy = false;
+      pump();
+    }
+
+    function pump() {
+      if (busy) return;
+      const next = queue.shift();
+      if (next) renderRoll(next);
+    }
+    function enqueue(meta) {
+      // Buzz + chime so the player notices a new roll has arrived,
+      // even if the phone is face-down or pocketed.
+      summon();
+      queue.push(meta);
+      pump();
+    }
+
+    /* =========================================================
+       SSE + WAKE LOCK + UNLOCK
+       ========================================================= */
+    let es = null;
+    function connect() {
+      const url = PLAYER ? `/events?player=${encodeURIComponent(PLAYER)}` : "/events";
+      es = new EventSource(url);
+      es.onopen = () => {
+        statusEl.classList.remove("disconnected");
+        statusText.textContent = PLAYER ? `${PLAYER}'s table · awaiting` : "awaiting the casting";
+      };
+      es.onerror = () => {
+        statusEl.classList.add("disconnected");
+        statusText.textContent = "the link is broken";
+      };
+      es.onmessage = e => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "roll") enqueue(msg);
+      };
+    }
+
+    let wakeLock = null;
+    async function acquireWakeLock() {
+      try {
+        if ("wakeLock" in navigator) {
+          wakeLock = await navigator.wakeLock.request("screen");
+          wakeLock.addEventListener("release", () => { wakeLock = null; });
+        }
+      } catch {}
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") acquireWakeLock();
+    });
+
+    document.getElementById("unlock").addEventListener("click", async () => {
+      ensureAudio();
+      acquireWakeLock();
+      try {
+        if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+          await DeviceMotionEvent.requestPermission();
+        }
+      } catch {}
+      // Wait for the typeface before the first texture bakes — otherwise canvas
+      // falls back to a generic serif and the numbers look wrong.
+      await preloadFonts();
+      // Pre-bake every face texture once so subsequent multi-die rolls never race
+      // against canvas-rendering / GPU-upload timing.
+      prebakeTextures();
+      diceScene = new DiceScene(canvas);
+      document.getElementById("unlock").classList.add("hide");
+      connect();
+    }, { once: true });
+  </script>
+</body>
+</html>
