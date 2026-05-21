@@ -240,19 +240,119 @@ def _synth_sfx(name: str) -> Optional["np.ndarray"]:
     return np.array([], dtype=np.float64)
 
 
-# ── SFX trigger map ────────────────────────────────────────────────────────────
+# ── SFX language packs ──────────────────────────────────────────────────────────
+# Each language contributes trigger phrases per SFX category.
+# Convention:
+#   "word"       → literal match (with auto-suffix for Latin scripts)
+#   "word1 word2" → words must appear in sequence (whitespace between)
+#   "word +"     → word followed by exactly one other token
+# Add a language by adding a new top-level key — zero code changes needed.
 
-_SFX_MAP = [
-    (re.compile(r'\b(?:strike[sd]?|struck|slam(?:s|med)?|bash(?:es|ed)?|smash(?:es|ed)?)\b', re.I), "impact"),
-    (re.compile(r'\b(?:sword|blade|dagger|steel|cleave[sd]?|parr(?:ies|ied|y))\b',            re.I), "sword"),
-    (re.compile(r'\b(?:arrow[s]?|bolt[s]?|looses?|shoots?\s+\w+|fires?\s+\w+)\b',             re.I), "arrow"),
-    (re.compile(r'\b(?:scream[s]?|screaming|shout[s]?|yell[s]?|roar[s]?|cries?)\b',           re.I), "shout"),
-    (re.compile(r'\b(?:falls?\s+to|fell|collapses?|tumbles?|crashes?|drops?\s+to)\b',          re.I), "thud"),
-    (re.compile(r'\b(?:hit[s]?|blow[s]?|punch(?:es|ed)?|kick[s]?)\b',                         re.I), "impact"),
-    (re.compile(r'\b(?:magic|arcane|spell|cast[s]?|glow[s]?|shimmer[s]?|spark[s]?|crackl)\b', re.I), "magic"),
-    (re.compile(r'\b(?:coin[s]?|gold|clink[s]?|jingle[s]?|purse)\b',                          re.I), "coins"),
-    (re.compile(r'\b(?:door[s]?\s+(?:open|close|slam|creak)|creak[s]?|hinge[s]?)\b',          re.I), "door"),
-    (re.compile(r'\b(?:hum[s]?|humming|vibrat(?:es|ed|ing)|resonat(?:es|ed|ing))\b',           re.I), "low_hum"),
-    (re.compile(r'\b(?:fire[s]?|flame[s]?|torch(?:es)?|blaze|burn[s]?)\b',                    re.I), "fire"),
-    (re.compile(r'\b(?:breath[s]?|exhale[s]?|inhale[s]?|gasp[s]?)\b',                         re.I), "breath"),
-]
+_SFX_TRIGGERS: dict[str, dict[str, list[str]]] = {
+    "en": {
+        "impact":  ["strike", "strikes", "struck", "slam", "slams", "slammed",
+                    "bash", "bashes", "bashed", "smash", "smashes", "smashed",
+                    "hit", "hits", "blow", "blows", "punch", "punches", "punched",
+                    "kick", "kicks"],
+        "sword":   ["sword", "blade", "dagger", "steel", "cleave", "cleaves", "cleaved",
+                    "parry", "parries", "parried"],
+        "arrow":   ["arrow", "arrows", "bolt", "bolts", "loose", "looses",
+                    "shoot +", "fire +"],
+        "shout":   ["scream", "screams", "screaming", "shout", "shouts",
+                    "yell", "yells", "roar", "roars", "cry", "cries"],
+        "thud":    ["falls to", "fell", "collapse", "collapses", "tumble", "tumbles",
+                    "crash", "crashes", "drops to"],
+        "magic":   ["magic", "arcane", "spell", "cast", "casts",
+                    "glow", "glows", "shimmer", "shimmers", "spark", "sparks", "crackle"],
+        "coins":   ["coin", "coins", "gold", "clink", "clinks", "jingle", "jingles", "purse"],
+        "door":    ["door open", "door close", "door slam", "door creak",
+                    "creak", "creaks", "hinge", "hinges"],
+        "low_hum": ["hum", "hums", "humming", "vibrate", "vibrates", "vibrating",
+                    "resonate", "resonates", "resonating"],
+        "fire":    ["fire", "fires", "flame", "flames", "torch", "torches",
+                    "blaze", "burn", "burns"],
+        "breath":  ["breath", "breaths", "exhale", "exhales", "inhale", "inhales",
+                    "gasp", "gasps"],
+    },
+    "zh": {
+        "impact":  ["猛击", "重击", "砸", "撞", "轰", "粉碎", "劈砍"],
+        "sword":   ["拔剑", "挥剑", "剑", "格挡", "招架", "利刃", "刀刃", "劈砍"],
+        "arrow":   ["射箭", "放箭", "离弦", "拉弓", "箭矢", "弩箭"],
+        "shout":   ["咆哮", "怒吼", "尖叫", "大喊", "呐喊", "嘶吼"],
+        "thud":    ["倒地", "倒下", "摔倒", "坠落", "跌落"],
+        "magic":   ["施法", "魔力", "奥术", "法术", "噼啪", "魔法阵", "符文", "闪烁", "秘法"],
+        "coins":   ["叮当", "金币", "银币", "铜币", "钱袋"],
+        "door":    ["吱呀", "咯吱", "推开门", "门轴", "嘎吱"],
+        "low_hum": ["嗡嗡", "嗡鸣", "低鸣", "共鸣", "震颤"],
+        "fire":    ["火焰", "烈焰", "火球", "火把", "燃烧", "烈火", "点燃"],
+        "breath":  ["呼吸", "吐息", "喘息", "喘气", "深吸"],
+    },
+}
+
+# CJK Unicode ranges — languages whose scripts use these are matched literally
+_CJK_START = "一"
+_CJK_END   = "鿿"
+
+_CJK_LANGS = frozenset(["zh", "ja", "ko"])
+
+
+def _compile_trigger_list(triggers: list[str], is_cjk: bool) -> str:
+    """Build a regex alternation string from a list of trigger phrases."""
+    parts: list[str] = []
+    for t in triggers:
+        t = t.strip()
+        if not t:
+            continue
+        if is_cjk:
+            # Literal substring match — no word boundaries in CJK
+            parts.append(re.escape(t))
+        elif t.endswith(" +"):
+            # Wildcard: "shoot +" → shoots?\s+\w+
+            word = re.escape(t[:-2].strip())
+            parts.append(r"\b" + word + r"\s+\w+")
+        elif " " in t:
+            # Multi-word phrase: "falls to" → \bfalls?\s+to\b
+            words = [re.escape(w) for w in t.split()]
+            parts.append(r"\b" + r"\s+".join(words) + r"\b")
+        else:
+            # Single word
+            parts.append(r"\b" + re.escape(t) + r"\b")
+
+    return "|".join(parts)
+
+
+def _rebuild_sfx_map() -> None:
+    """Rebuild _SFX_MAP from active language packs."""
+    global _SFX_MAP
+    _SFX_MAP.clear()
+    flags = {"en": re.IGNORECASE}  # Latin → case-insensitive; CJK → no flags
+    for lang in _SFX_LANGUAGES:
+        pack = _SFX_TRIGGERS.get(lang)
+        if not pack:
+            continue
+        is_cjk = lang in _CJK_LANGS
+        flag = 0 if is_cjk else re.IGNORECASE
+        for sfx_name, triggers in pack.items():
+            regex = _compile_trigger_list(triggers, is_cjk)
+            if regex:
+                _SFX_MAP.append((re.compile(regex, flag), sfx_name))
+
+
+# ── Active language configuration ──────────────────────────────────────────────
+
+_SFX_LANGUAGES: list[str] = ["en"]
+_SFX_MAP: list = []
+
+
+def set_sfx_languages(langs: list[str]) -> None:
+    """Set active language packs for SFX detection. Rebuilds compiled patterns.
+
+    Example: set_sfx_languages(["en", "zh"]) — English checked first, then Chinese.
+    """
+    global _SFX_LANGUAGES
+    _SFX_LANGUAGES = list(langs)
+    _rebuild_sfx_map()
+
+
+# Build default (English-only) on import
+_rebuild_sfx_map()

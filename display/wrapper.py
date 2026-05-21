@@ -85,9 +85,9 @@ def _notify_consumed() -> None:
 
 # ─── Trigger sanitisation ─────────────────────────────────────────────────────
 
-_PRINTABLE    = re.compile(r"[^\x20-\x7E]")          # strip non-printable ASCII
+_PRINTABLE    = re.compile(r"[^\x20-\x7E一-鿿㐀-䶿　-〿＀-￯]")  # allow CJK
 _SHELL_CHARS  = re.compile(r'[$`\\;|&><()\[\]{}!]')  # no shell metacharacters
-_CHAR_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z '\-]{0,48}[A-Za-z]$|^[A-Za-z]$")
+_CHAR_NAME_RE = re.compile(r"^[\w一-鿿][\w一-鿿 '\-]{0,48}[\w一-鿿]$|^[\w一-鿿]{1,2}$")
 _ACTION_LINE  = re.compile(r"^\[([^\]]{1,50})\]:\s*(.{1,500})$")
 
 _MAX_LINES    = 8     # sanity cap — no party this large exists

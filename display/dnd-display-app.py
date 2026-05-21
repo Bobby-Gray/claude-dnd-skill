@@ -125,9 +125,9 @@ def _rate_ok(ip: str) -> bool:
 
 # ─── Input validation helpers ─────────────────────────────────────────────────
 
-_PRINTABLE    = re.compile(r"[^\x20-\x7E]")
+_PRINTABLE    = re.compile(r"[^\x20-\x7E一-鿿㐀-䶿　-〿＀-￯]")
 _SHELL_CHARS  = re.compile(r'[$`\\;|&><()\[\]{}!]')
-_CHAR_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z '\-]{0,48}[A-Za-z]$|^[A-Za-z]$")
+_CHAR_NAME_RE = re.compile(r"^[\w一-鿿][\w一-鿿 '\-]{0,48}[\w一-鿿]$|^[\w一-鿿]{1,2}$")
 
 
 def _sanitize_input(text: str) -> str:
