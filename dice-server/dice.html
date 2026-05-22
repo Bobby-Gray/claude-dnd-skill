@@ -7,6 +7,12 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>fortune's table</title>
 
+  <!-- Google Fonts: SRI intentionally omitted on the CSS link because Google
+       serves UA-varying content (different WOFF2/WOFF rules per browser) and
+       no single hash works across clients. The actual font binaries come from
+       fonts.gstatic.com via Google's own infrastructure — trust model is
+       Google's CDN. If you'd prefer no third-party fonts, self-host
+       Cormorant Garamond locally and replace this <link> with a font-face. -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,500&family=Cormorant+SC:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -347,8 +353,25 @@
     <div id="player-name-display" style="margin-top:18px;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:24px;opacity:0.85;letter-spacing:0.04em;"></div>
   </div>
 
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+    },
+    "integrity": {
+      "https://unpkg.com/three@0.160.0/build/three.module.js": "sha384-61S/Nu32S3E5+n+KpCOTb2eRYps6fVKm+9Gz1QBvSePFthb46f063Aa/qe/lykFZ"
+    }
+  }
+  </script>
+
   <script type="module">
-    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+    // Three.js loaded via importmap so we can pin SRI (ES-module imports can't
+    // take an `integrity` attribute directly the way <script src> can). If
+    // unpkg ever serves modified content for this exact version, the browser
+    // will refuse to execute it. Re-compute the hash via:
+    //   curl -sSL https://unpkg.com/three@0.160.0/build/three.module.js \
+    //     | openssl dgst -sha384 -binary | openssl base64 -A
+    import * as THREE from "three";
 
     /* =========================================================
        AUDIO — synthesized clatter, bounce, settle

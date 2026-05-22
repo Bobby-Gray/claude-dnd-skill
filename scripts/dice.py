@@ -22,7 +22,9 @@ Notation supported:
     2d6+3             multiple dice + modifier
 
 Env vars:
-    DND_DICE_PHYSICAL=0   force local-random (skip the server)
+    DND_DICE_PHYSICAL=1   opt in to physical-roll routing (default: 0, local-random).
+                          Auto-enabled when ~/.dnd-dice/ exists (the install-launchd.sh
+                          script creates this marker on setup).
     DND_DICE_PORT=7777    server port (default 7777)
     DND_DICE_LABEL=...    label shown on the phone for this roll
 """
@@ -170,8 +172,16 @@ def run(notation: str, silent: bool = False, label: str = "",
         force_local: bool = False, player: str = None) -> int:
     num_dice, die_size, modifier, keep_mode, keep_count, adv, dis = parse_notation(notation)
 
-    # Try physical roll first unless explicitly disabled
-    use_physical = not force_local and os.environ.get("DND_DICE_PHYSICAL", "1") != "0"
+    # Physical-roll routing is opt-in. Default behavior is local-random — the
+    # original dice.py behavior. The server bridge is only engaged when one of:
+    #   - env var DND_DICE_PHYSICAL=1 (explicit opt-in)
+    #   - ~/.dnd-dice/ marker directory exists (auto-set by install-launchd.sh)
+    # This way `dice.py` adds zero latency for users who haven't installed
+    # the optional server.
+    env_opt_in = os.environ.get("DND_DICE_PHYSICAL", "0") == "1"
+    marker_opt_in = (os.path.expanduser("~/.dnd-dice") and
+                     os.path.isdir(os.path.expanduser("~/.dnd-dice")))
+    use_physical = not force_local and (env_opt_in or marker_opt_in)
     if use_physical:
         spec = _to_server_notation(num_dice, die_size, modifier, keep_mode, keep_count, adv, dis)
         if spec is not None:

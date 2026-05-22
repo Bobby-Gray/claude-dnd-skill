@@ -10,6 +10,32 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-05-22 — Community release: i18n + optional physical dice server (hardened)
+
+Two community contributions landed in this release, both opt-in / additive — existing campaigns are unaffected unless you choose to engage with the new features.
+
+### CJK input + multi-language SFX triggers (#32 — @canxer314)
+
+Thanks to **@canxer314** for genuinely thoughtful i18n work. The `display/audio.py` SFX trigger map is refactored from inline regex patterns into a per-language data structure so future contributors can drop in Japanese, Korean, or any other language pack with minimal friction. A Chinese (`zh`) pack ships with this release. `_PRINTABLE` and `_CHAR_NAME_RE` in `display/dnd-display-app.py` and `display/wrapper.py` are widened to accept CJK Unicode ranges (U+4E00–U+9FFF, U+3400–U+4DBF, U+3000–U+303F, U+FF00–U+FFEF) without weakening the existing shell-injection filter. Backward-compatible by default — `_SFX_LANGUAGES = ['en']` keeps English-only behavior unless explicitly switched.
+
+非常感谢您的贡献!
+
+### Optional physical 3D dice server (#30 — @ethan-piper)
+
+Thanks to **@ethan-piper** for a beautifully atmospheric piece of work. The new `dice-server/` directory adds an opt-in local Flask server + Three.js phone client that turns each player's phone into a tactile 3D dice tray. When the DM rolls for a PC, dice push to that player's phone — they shake or tap to cast, and the result returns to the campaign. NPC/DM rolls auto-resolve server-side. Real polyhedron geometry, brass PBR material with ACES tone mapping, synthesized clatter / thud / chime audio, and a "consecrate" ritual to anchor a player's tab to the table. Existing `dice.py` behavior is preserved when the server isn't running.
+
+### Hardening applied on top of #30
+
+A security-review skill pass on the dice-server PR flagged a handful of items worth tightening before release. None of these are structural changes — the contributor's core design and code are preserved:
+
+- **`dice-server/server.py` default-bind to `127.0.0.1`.** Previously bound `0.0.0.0` unconditionally. Now binds localhost by default; pass `--lan` (or use the bundled launchd plist which sets the flag) to expose to phones on the LAN. Protects against accidental LAN exposure when developing or running the server briefly without thinking about the network.
+- **Subresource Integrity (SRI) on the unpkg Three.js import.** `dice-server/dice.html` now uses a `<script type="importmap">` with `integrity` field pinning the SHA-384 hash of `three.module.js@0.160.0`. If unpkg ever serves modified content for that exact version, the browser refuses to execute it. SRI omitted on the Google Fonts CSS link because Google serves UA-varying content (no single hash works); inline comment documents the choice.
+- **TTL sweep on the in-memory `rolls` dict.** Entries older than 1 hour are pruned on each `/roll`, `/submit`, `/spec`, and `/result` request. Cheap O(n) sweep; prevents long-running servers from accumulating roll records forever.
+- **`scripts/dice.py` opt-in inverted.** Default is now `DND_DICE_PHYSICAL=0` (no server probe, zero added latency for users who didn't install the optional server). Opt-in two ways: set `DND_DICE_PHYSICAL=1`, or have `~/.dnd-dice/` exist (the `install-launchd.sh` script creates this marker automatically). Users who explicitly install the dice server get the physical-roll routing without doing anything else; users who never installed it pay no cost.
+- **`SKILL-commands.md` health-probe conditional.** The `/dnd new` step 15 and `/dnd load` step 1 dice-server-check sub-step now short-circuits when neither `~/.dnd-dice/` exists nor `DND_DICE_PHYSICAL=1` is set — no `curl` probe at all for users who haven't installed the optional server.
+
+---
+
 ## [1.8.0] — 2026-05-08 — D&D 5e 2024 (SRD 5.2) ruleset support
 
 The skill now supports both **2014 (SRD 5.1)** and **2024 (SRD 5.2)**, declared per campaign on the `state.md` header line. **2014 stays the default** — nothing about an existing campaign changes unless the DM opts in. Routing happens at every `/dnd load` via `paths.campaign_ruleset()`. A backwards-compat migrator handles legacy campaigns with a one-time prompt and a timestamped backup before any write.

@@ -13,6 +13,7 @@
     <array>
         <string>/usr/bin/python3</string>
         <string>{{SERVER_DIR}}/server.py</string>
+        <string>--lan</string>
     </array>
 
     <key>EnvironmentVariables</key>

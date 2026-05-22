@@ -24,6 +24,21 @@ fi
 
 mkdir -p "$HOME/Library/LaunchAgents"
 
+# Marker directory — dice.py uses this to auto-enable physical-roll routing
+# without requiring the user to set DND_DICE_PHYSICAL=1 in their shell.
+mkdir -p "$HOME/.dnd-dice"
+cat > "$HOME/.dnd-dice/README.md" <<'MARKER_README'
+# .dnd-dice marker
+
+This directory's existence tells `dice.py` to route rolls through the
+local dice server when it's reachable. Created by the dice-server
+install-launchd.sh script.
+
+To disable the physical-roll routing without uninstalling the server,
+delete this directory. To re-enable, run install-launchd.sh again or
+just recreate the directory: `mkdir ~/.dnd-dice`.
+MARKER_README
+
 # Substitute placeholders
 sed -e "s|{{HOME}}|$HOME|g" -e "s|{{SERVER_DIR}}|$SERVER_DIR|g" "$TEMPLATE" > "$TARGET"
 

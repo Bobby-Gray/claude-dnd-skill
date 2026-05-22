@@ -21,9 +21,24 @@ HERE = Path(__file__).parent
 PORT = int(os.environ.get("DND_DICE_PORT", "7777"))
 DM_CHANNEL = "_dm"
 
+# Memory hygiene: prune completed rolls older than this so a long-running
+# server doesn't accumulate them indefinitely. SSE replay already caps at
+# 300s; this is a safety net for the rolls dict itself.
+ROLL_TTL_SECONDS = 3600
+
 app = Flask(__name__)
 rolls = {}                                    # id -> roll record
 subscribers = defaultdict(list)               # channel -> list[queue.Queue]
+
+
+def _prune_old_rolls():
+    """Drop completed roll records older than ROLL_TTL_SECONDS. Cheap O(n)
+    sweep, called from each /roll, /submit, /spec, /result handler.
+    """
+    cutoff = time.time() - ROLL_TTL_SECONDS
+    stale = [rid for rid, r in rolls.items() if r.get("created", 0) < cutoff]
+    for rid in stale:
+        rolls.pop(rid, None)
 
 
 def get_lan_ip() -> str:
@@ -83,6 +98,7 @@ def server_side_roll(spec: str) -> dict:
 
 @app.post("/roll")
 def new_roll():
+    _prune_old_rolls()
     data = request.get_json(force=True)
     spec = data["spec"]
     label = data.get("label", "")
@@ -111,6 +127,7 @@ def new_roll():
 
 @app.post("/submit/<rid>")
 def submit(rid):
+    _prune_old_rolls()
     if rid not in rolls:
         return {"error": "unknown id"}, 404
     rolls[rid]["result"] = request.get_json(force=True)
@@ -119,6 +136,7 @@ def submit(rid):
 
 @app.get("/spec/<rid>")
 def spec(rid):
+    _prune_old_rolls()
     if rid not in rolls:
         return {"error": "unknown id"}, 404
     r = rolls[rid]
@@ -127,6 +145,7 @@ def spec(rid):
 
 @app.get("/result/<rid>")
 def result(rid):
+    _prune_old_rolls()
     return jsonify(rolls.get(rid, {"result": None}))
 
 
@@ -177,9 +196,20 @@ def health():
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Local dice server for D&D skill")
+    parser.add_argument("--lan", action="store_true",
+                        help="Bind to 0.0.0.0 so phones on the LAN can connect. "
+                             "Default binds to 127.0.0.1 (localhost only).")
+    args = parser.parse_args()
+
+    host = "0.0.0.0" if args.lan else "127.0.0.1"
     ip = get_lan_ip()
-    print("🎲 dice server")
+    print("dice server")
     print(f"   local:   http://localhost:{PORT}")
-    print(f"   network: http://{ip}:{PORT}/?player=<your-name>   ← players")
-    print(f"            http://{ip}:{PORT}/                       ← DM tab")
-    app.run(port=PORT, host="0.0.0.0", threaded=True)
+    if args.lan:
+        print(f"   network: http://{ip}:{PORT}/?player=<your-name>   <- players (LAN exposed)")
+        print(f"            http://{ip}:{PORT}/                       <- DM tab")
+    else:
+        print(f"   bind:    127.0.0.1 only (use --lan to expose to player phones on the LAN)")
+    app.run(port=PORT, host=host, threaded=True)
