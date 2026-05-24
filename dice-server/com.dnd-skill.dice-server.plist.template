@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for macOS launchd auto-start of the dice server.
+  The install.sh script will substitute {{HOME}} and {{SERVER_DIR}} placeholders.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.dnd-skill.dice-server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>{{SERVER_DIR}}/server.py</string>
+        <string>--lan</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:{{HOME}}/.local/bin</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>{{SERVER_DIR}}</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+
+    <key>StandardOutPath</key>
+    <string>{{SERVER_DIR}}/server.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>{{SERVER_DIR}}/server.log</string>
+</dict>
+</plist>
