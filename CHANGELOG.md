@@ -10,6 +10,8 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+- **License formalized as AGPL-3.0-or-later.** Added canonical `LICENSE` file with `Copyright (c) 2026 Neural Initiative LLC` and a `CONTRIBUTING.md` documenting the contribution licensing handshake. The README's prior informal "MIT" footer is replaced with a proper AGPL-3.0-or-later section linking to the LICENSE file. Self-hosting and modification remain explicitly welcome; AGPL protects against closed-source SaaS forks. Contributions made before this change remain available under their original (MIT-as-stated) terms in git history; new contributions are AGPL-3.0-or-later.
+
 ## [1.9.0] — 2026-05-22 — Community release: i18n + optional physical dice server (hardened)
 
 Two community contributions landed in this release, both opt-in / additive — existing campaigns are unaffected unless you choose to engage with the new features.

@@ -795,4 +795,6 @@ Note: switching an in-progress 2014 campaign to 2024 mid-arc is not recommended 
 
 ## License
 
-MIT
+[AGPL-3.0-or-later](LICENSE). Copyright (c) 2026 Neural Initiative LLC.
+
+Self-hosting and modification are explicitly welcome — fork, run, change as you like. The AGPL specifically protects against re-hosting this as a closed-source SaaS without sharing modifications back. For most users this distinction never matters.
