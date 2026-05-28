@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="dnd-token" content="{{ lan_token }}">
 <meta name="narrator-voice" content="{{ narrator_voice }}">
 <meta name="tts-available" content="{{ '1' if tts_available else '0' }}">
@@ -1743,6 +1745,468 @@
     vertical-align: middle;
     margin-right: 8px;
   }
+
+  /* ── Input-only view (mobile players): http://...:5001/?view=input ── */
+  body.input-only #text-scroll,
+  body.input-only #sidebar,
+  body.input-only #sidebar-toggle,
+  body.input-only #world-clock,
+  body.input-only #ruleset-badge,
+  body.input-only #audio-controls,
+  body.input-only #corner-logo,
+  body.input-only #scene-indicator,
+  body.input-only #vignette,
+  body.input-only #frame,
+  body.input-only #bottom-fade,
+  body.input-only #bg-a,
+  body.input-only #bg-b,
+  body.input-only #flash-overlay {
+    display: none !important;
+  }
+  body.input-only {
+    background: #0a0a0c !important;
+  }
+  body.input-only {
+    /* iOS Safari URL bar friendly + safe-area aware */
+    overscroll-behavior: contain;
+    -webkit-text-size-adjust: 100%;
+  }
+  body.input-only #input-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;          /* fallback */
+    height: 100dvh !important;          /* dynamic viewport (iOS 16+) */
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    transform: none !important;
+    padding:
+      env(safe-area-inset-top)
+      env(safe-area-inset-right)
+      env(safe-area-inset-bottom)
+      env(safe-area-inset-left) !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  body.input-only #input-panel.collapsed {
+    transform: none !important;
+  }
+  body.input-only #input-body {
+    display: flex !important;
+    flex: 1 1 auto;
+    max-height: none !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Hide the legacy "Party Input ▲" panel header in input-only mode — the tabs
+     are now the top navigation, so the old toggle no longer serves a purpose. */
+  body.input-only #input-panel-header { display: none !important; }
+
+  /* Tab bar — only shown in input-only mode, hidden on the TV view. */
+  #dp-tabs { display: none; }
+  body.input-only #dp-tabs {
+    display: flex !important;
+    flex: 0 0 auto;
+    gap: 0;
+    border-bottom: 1px solid rgba(180,140,60,0.25);
+    background: rgba(0,0,0,0.4);
+  }
+  body.input-only .dp-tab {
+    flex: 1 1 0;
+    background: transparent;
+    color: #b8a26a;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font: 700 16px/1 ui-monospace, monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 16px 8px;
+    min-height: 48px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+  }
+  body.input-only .dp-tab.active {
+    color: #f4e2a8;
+    border-bottom-color: rgba(220,180,90,0.85);
+    background: rgba(180,140,60,0.08);
+  }
+  body.input-only .dp-tab:active { background: rgba(180,140,60,0.18); }
+
+  /* Section visibility: only the section whose data-tab-section matches
+     #input-body[data-active-tab] is shown. Every other tagged section is
+     hidden. Untagged children stay visible (none currently). */
+  body.input-only #input-body[data-active-tab="move"]      [data-tab-section="roll"],
+  body.input-only #input-body[data-active-tab="move"]      [data-tab-section="character"],
+  body.input-only #input-body[data-active-tab="roll"]      [data-tab-section="move"],
+  body.input-only #input-body[data-active-tab="roll"]      [data-tab-section="character"],
+  body.input-only #input-body[data-active-tab="character"] [data-tab-section="move"],
+  body.input-only #input-body[data-active-tab="character"] [data-tab-section="roll"] {
+    display: none !important;
+  }
+
+  /* Move tab: let the action textarea actually use the screen. */
+  body.input-only #input-body[data-active-tab="move"] #player-input-text {
+    flex: 1 1 auto;
+    min-height: 160px;
+    font-size: 16px !important;
+    padding: 14px;
+    margin: 10px 12px;
+    border-radius: 10px;
+  }
+  body.input-only #input-body[data-active-tab="move"] #input-footer {
+    padding: 0 12px 12px;
+  }
+  body.input-only #input-body[data-active-tab="move"] #stage-btn {
+    min-height: 48px;
+    padding: 14px 18px;
+    font-size: 16px;
+  }
+  /* Character pane — phone-side read-only sheet viewer. */
+  #character-pane { display: none; }
+  body.input-only #character-pane {
+    display: flex !important;
+    flex-direction: column;
+    flex: 1 1 auto;
+    padding: 12px 14px 24px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    color: #d8c694;
+    font: 400 14px/1.5 ui-monospace, monospace;
+  }
+  body.input-only #cp-status {
+    color: rgba(180,140,60,0.5);
+    font-style: italic;
+    text-align: center;
+    padding: 8px 0;
+  }
+  body.input-only #cp-body { width: 100%; }
+  body.input-only #cp-body h1 {
+    color: #f4e2a8;
+    font: 800 22px/1.2 ui-monospace, monospace;
+    margin: 0 0 6px;
+    border-bottom: 1px solid rgba(180,140,60,0.35);
+    padding-bottom: 6px;
+  }
+  body.input-only #cp-body h2 {
+    color: #ffd98a;
+    font: 700 17px/1.3 ui-monospace, monospace;
+    margin: 20px 0 6px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  body.input-only #cp-body h3 {
+    color: #d8c694;
+    font: 700 15px/1.3 ui-monospace, monospace;
+    margin: 14px 0 4px;
+  }
+  body.input-only #cp-body p {
+    margin: 4px 0 10px;
+    color: #c2b48a;
+  }
+  body.input-only #cp-body strong { color: #f4e2a8; font-weight: 700; }
+  body.input-only #cp-body em     { color: #b8a26a; font-style: italic; }
+  body.input-only #cp-body ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 4px 0 10px;
+  }
+  body.input-only #cp-body li {
+    padding: 3px 0 3px 14px;
+    position: relative;
+  }
+  body.input-only #cp-body li::before {
+    content: '•';
+    color: rgba(180,140,60,0.7);
+    position: absolute;
+    left: 2px;
+    top: 3px;
+  }
+  body.input-only #cp-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 6px 0 14px;
+    font-size: 13px;
+  }
+  body.input-only #cp-body th,
+  body.input-only #cp-body td {
+    border: 1px solid rgba(180,140,60,0.25);
+    padding: 6px 8px;
+    text-align: left;
+    color: #c2b48a;
+  }
+  body.input-only #cp-body th {
+    background: rgba(180,140,60,0.12);
+    color: #f4e2a8;
+    font-weight: 700;
+  }
+  body.input-only #cp-body tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+  /* Notification dot on the Roll tab when an unresolved DM request targets us. */
+  body.input-only .dp-tab.has-request::after {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-left: 8px;
+    border-radius: 50%;
+    background: #ffd98a;
+    box-shadow: 0 0 8px rgba(255,220,140,0.8);
+    vertical-align: middle;
+  }
+  /* iOS: prevent auto-zoom on focus by ensuring inputs are ≥16px */
+  body.input-only #player-input-text,
+  body.input-only #dp-name,
+  body.input-only #dp-label {
+    font-size: 16px !important;
+  }
+
+  /* ── Phone dice pad (visible only in input-only view) ────────────────── */
+  #dice-pad { display: none; }
+  body.input-only #dice-pad {
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px 16px;
+    border-top: 1px solid rgba(180,140,60,0.18);
+    background: rgba(0,0,0,0.35);
+  }
+  #dice-pad .dp-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+  }
+  #dice-pad .dp-die,
+  #dice-pad .dp-adv,
+  #dice-pad .dp-mod,
+  #dice-pad #dp-roll {
+    background: rgba(20,16,8,0.7);
+    color: #d8c694;
+    border: 1px solid rgba(180,140,60,0.35);
+    border-radius: 10px;
+    font: 600 16px/1 ui-monospace, monospace;
+    padding: 12px 14px;
+    min-width: 56px;
+    min-height: 44px;                       /* iOS HIG tap target */
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;             /* kill 300 ms double-tap zoom */
+    appearance: none;
+    -webkit-appearance: none;
+    transition: transform 80ms ease, background 120ms ease;
+  }
+  #dice-pad .dp-die:active,
+  #dice-pad .dp-adv:active,
+  #dice-pad .dp-mod:active,
+  #dice-pad #dp-roll:active {
+    transform: scale(0.94);
+    background: rgba(180,140,60,0.32);
+  }
+  #dice-pad .dp-die[disabled],
+  #dice-pad .dp-adv[disabled],
+  #dice-pad .dp-mod[disabled] {
+    opacity: 0.25;
+    pointer-events: none;
+  }
+  #dice-pad #dp-label[readonly] {
+    opacity: 0.5;
+  }
+  #dp-hint {
+    text-align: center;
+    color: rgba(180,140,60,0.65);
+    font: 400 12px/1.3 ui-monospace, monospace;
+    margin-top: -4px;
+  }
+  #dice-pad .dp-die.active,
+  #dice-pad .dp-adv.active {
+    background: rgba(180,140,60,0.25);
+    border-color: rgba(220,180,90,0.8);
+    color: #f4e2a8;
+  }
+  #dice-pad .dp-mod { min-width: 38px; padding: 10px 8px; }
+  #dice-pad #dp-mod-val {
+    color: #f4e2a8;
+    font: 600 16px/1 ui-monospace, monospace;
+    min-width: 36px;
+    text-align: center;
+  }
+  #dice-pad #dp-label {
+    background: rgba(0,0,0,0.4);
+    color: #d8c694;
+    border: 1px solid rgba(180,140,60,0.25);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: 400 14px/1.2 ui-monospace, monospace;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  #dice-pad #dp-label::placeholder { color: rgba(180,140,60,0.4); }
+  #dice-pad #dp-name {
+    background: rgba(0,0,0,0.4);
+    color: #f4e2a8;
+    border: 1px solid rgba(180,140,60,0.3);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: 600 14px/1 ui-monospace, monospace;
+    width: 120px;
+    text-align: center;
+  }
+  #dice-pad #dp-roll {
+    flex: 1 1 auto;
+    background: linear-gradient(180deg, rgba(180,140,60,0.45), rgba(120,80,30,0.55));
+    color: #fff8dc;
+    border-color: rgba(220,180,90,0.7);
+    font-size: 17px;
+    letter-spacing: 0.04em;
+    padding: 14px 16px;
+  }
+  #dice-pad #dp-roll:disabled { opacity: 0.5; }
+
+  /* Slot-machine reel */
+  #dp-reel-wrap {
+    height: 86px;
+    border: 1px solid rgba(180,140,60,0.4);
+    border-radius: 12px;
+    background: radial-gradient(ellipse at center, rgba(40,30,10,0.9), rgba(0,0,0,0.95));
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.7);
+  }
+  #dp-reel-wrap::before,
+  #dp-reel-wrap::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 22px;
+    pointer-events: none;
+    z-index: 2;
+  }
+  #dp-reel-wrap::before {
+    top: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.95), transparent);
+  }
+  #dp-reel-wrap::after {
+    bottom: 0;
+    background: linear-gradient(0deg, rgba(0,0,0,0.95), transparent);
+  }
+  #dp-reel {
+    font: 700 44px/1 ui-monospace, monospace;
+    color: #f4e2a8;
+    text-shadow: 0 0 14px rgba(220,180,90,0.55);
+    will-change: transform;
+    transform: translateY(0);
+  }
+  #dp-reel.spinning { animation: dp-blur 80ms linear infinite; }
+  @keyframes dp-blur {
+    0%   { filter: blur(0.4px); }
+    50%  { filter: blur(1.2px); }
+    100% { filter: blur(0.4px); }
+  }
+  #dp-result-line {
+    text-align: center;
+    color: #b8a26a;
+    font: 500 13px/1.4 ui-monospace, monospace;
+    min-height: 18px;
+  }
+  #dp-result-line .total {
+    color: #f4e2a8;
+    font-weight: 700;
+    font-size: 15px;
+  }
+  #dp-reel.locked { animation: dp-lock 0.45s ease-out; }
+  @keyframes dp-lock {
+    0%   { transform: scale(1.0); }
+    35%  { transform: scale(1.18); color: #fff8dc; text-shadow: 0 0 24px rgba(255,220,140,0.9); }
+    100% { transform: scale(1.0); }
+  }
+
+  /* Main-display "Waiting on…" badge while a DM dice-request is unresolved.
+     Hidden in input-only (phone) mode so it stays a DM-side indicator only. */
+  #dice-pending-badge {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 60;
+    background: rgba(20,12,4,0.92);
+    color: #f4e2a8;
+    border: 1px solid rgba(220,180,90,0.55);
+    border-radius: 12px;
+    padding: 8px 16px;
+    font: 600 14px/1.3 ui-monospace, monospace;
+    letter-spacing: 0.04em;
+    text-align: center;
+    box-shadow: 0 0 22px rgba(0,0,0,0.6), 0 0 0 0 rgba(255,220,140,0.5);
+    animation: dpb-pulse 1.6s ease-in-out infinite;
+    pointer-events: none;
+    max-width: 80vw;
+  }
+  #dice-pending-badge.visible { display: block; }
+  #dice-pending-badge .dpb-label {
+    display: block;
+    font-weight: 400;
+    font-size: 12px;
+    color: #b8a26a;
+    letter-spacing: 0.02em;
+    margin-top: 2px;
+  }
+  @keyframes dpb-pulse {
+    0%   { box-shadow: 0 0 22px rgba(0,0,0,0.6), 0 0 0 0   rgba(255,220,140,0.5); }
+    70%  { box-shadow: 0 0 22px rgba(0,0,0,0.6), 0 0 0 12px rgba(255,220,140,0); }
+    100% { box-shadow: 0 0 22px rgba(0,0,0,0.6), 0 0 0 0   rgba(255,220,140,0); }
+  }
+  body.input-only #dice-pending-badge { display: none !important; }
+
+  /* Bound character header + Roll-button pulse on DM request */
+  #dp-bound {
+    text-align: center;
+    color: #f4e2a8;
+    font: 700 13px/1.2 ui-monospace, monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.85;
+  }
+  #dp-bound .req {
+    display: block;
+    margin-top: 4px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    color: #ffd98a;
+    font-size: 13px;
+  }
+  body.input-only #dp-name.locked {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  #dp-roll.pulse {
+    animation: dp-pulse 0.9s ease-in-out infinite;
+    box-shadow: 0 0 0 0 rgba(255,220,140,0.6);
+  }
+  #dp-roll.rolled {
+    /* Visually distinct "you've already rolled — wait for the DM" state. */
+    background: rgba(20,16,8,0.6);
+    color: #8a7a4a;
+    border-color: rgba(120,90,30,0.4);
+    opacity: 0.6;
+  }
+  @keyframes dp-pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(255,220,140,0.55); }
+    70%  { box-shadow: 0 0 0 14px rgba(255,220,140,0); }
+    100% { box-shadow: 0 0 0 0   rgba(255,220,140,0); }
+  }
 </style>
 </head>
 <body>
@@ -1803,6 +2267,9 @@
 <!-- Device approval cards — shown when a new LAN device requests input access -->
 <div id="device-approvals"></div>
 
+<!-- DM-side waiting badge for active dice-requests (driven by SSE dice_pending) -->
+<div id="dice-pending-badge"></div>
+
 <!-- Player input panel — submit actions from the display companion -->
 <div id="input-panel" class="collapsed">
   <div id="input-panel-header">
@@ -1818,16 +2285,70 @@
     </div>
     <span id="input-toggle-arrow">▲</span>
   </div>
-  <div id="input-body">
-    <div id="staged-queue"></div>
-    <div id="waiting-indicator"></div>
-    <div id="char-tabs">
+  <div id="input-body" data-active-tab="move">
+    <!-- Phone-only tab bar (shown by ?view=input). Top-level switcher between
+         the action input (Move) and the dice pad (Roll). The same DOM children
+         exist for the TV view too — tab data-attributes only take effect in
+         input-only mode. -->
+    <div id="dp-tabs">
+      <button class="dp-tab active" data-tab="move" type="button">Move</button>
+      <button class="dp-tab"        data-tab="roll" type="button">Roll</button>
+      <button class="dp-tab"        data-tab="character" type="button">Sheet</button>
+    </div>
+    <div id="staged-queue" data-tab-section="move"></div>
+    <div id="waiting-indicator" data-tab-section="move"></div>
+    <div id="char-tabs" data-tab-section="move">
       <button class="char-tab active" data-char="Everybody">Everybody</button>
     </div>
-    <textarea id="player-input-text" rows="2" placeholder="Enter action or dialogue…" maxlength="500"></textarea>
-    <div id="input-footer">
+    <textarea id="player-input-text" rows="2" placeholder="Enter action or dialogue…" maxlength="500"
+              data-tab-section="move"></textarea>
+    <div id="input-footer" data-tab-section="move">
       <button id="skip-turn-btn" style="display:none" title="Skip this character's turn">Skip Turn</button>
       <button id="stage-btn">Stage</button>
+    </div>
+    <!-- Phone-only dice pad (shown by ?view=input) -->
+    <div id="dice-pad" data-tab-section="roll">
+      <div id="dp-bound" style="display:none"></div>
+      <div class="dp-row">
+        <input id="dp-name" type="text" maxlength="24" placeholder="Name"
+               autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false">
+      </div>
+      <div id="dp-reel-wrap"><div id="dp-reel">d20</div></div>
+      <div id="dp-result-line"></div>
+      <div class="dp-row" id="dp-die-row">
+        <button class="dp-die active" data-spec="1d20">d20</button>
+        <button class="dp-die" data-spec="1d4">d4</button>
+        <button class="dp-die" data-spec="1d6">d6</button>
+        <button class="dp-die" data-spec="1d8">d8</button>
+        <button class="dp-die" data-spec="1d10">d10</button>
+        <button class="dp-die" data-spec="1d12">d12</button>
+        <button class="dp-die" data-spec="1d100">d100</button>
+        <button class="dp-die" data-spec="2d6">2d6</button>
+      </div>
+      <div class="dp-row">
+        <button class="dp-adv active" data-adv="normal"  title="Roll one d20">Straight</button>
+        <button class="dp-adv"        data-adv="advantage"    title="Roll two d20s, keep higher">Adv ▲</button>
+        <button class="dp-adv"        data-adv="disadvantage" title="Roll two d20s, keep lower">Dis ▼</button>
+      </div>
+      <div id="dp-hint">Advantage / disadvantage applies only to d20 rolls.</div>
+      <div class="dp-row">
+        <button class="dp-mod" data-delta="-1" aria-label="decrease modifier">−</button>
+        <span style="opacity:.7">Mod</span>
+        <span id="dp-mod-val">+0</span>
+        <button class="dp-mod" data-delta="1" aria-label="increase modifier">+</button>
+      </div>
+      <div class="dp-row">
+        <input id="dp-label" type="text" maxlength="60" placeholder="Label (e.g. Stealth) — optional"
+               autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false">
+      </div>
+      <div class="dp-row">
+        <button id="dp-roll">Roll</button>
+      </div>
+    </div>
+    <!-- Phone-only character sheet pane (Sheet tab) -->
+    <div id="character-pane" data-tab-section="character">
+      <div id="cp-status">Loading…</div>
+      <div id="cp-body"></div>
     </div>
   </div>
 </div>
@@ -2604,7 +3125,7 @@ textScroll.addEventListener('scroll', () => {
   userScrolledUp = distFromBottom > 80;
 });
 
-let charDelay = 18;      // ms per character while typing (mutable — see speed toggle)
+let charDelay = 36;      // ms per character while typing (mutable — see speed toggle)
 const IDLE_GAP   = 1800; // ms silence before starting a new block
 
 function getOrCreateBlock() {
@@ -4217,8 +4738,8 @@ document.getElementById('sfx-row').addEventListener('click', () => {
 
 // ── Typing speed toggle ──────────────────────────────────────────────
 const _speedSteps = [
-  { label: 'Normal',  ms: 18 },
-  { label: 'Fast',    ms: 7  },
+  { label: 'Normal',  ms: 36 },
+  { label: 'Fast',    ms: 18 },
   { label: 'Instant', ms: 0  },
 ];
 let _speedIdx = 0;
@@ -4995,6 +5516,16 @@ function connect() {
     let payload;
     try { payload = JSON.parse(e.data); } catch { return; }
 
+    if (payload.dice_request && typeof window._onDiceRequest === 'function') {
+      window._onDiceRequest(payload.dice_request);
+    }
+    if (payload.dice_request_cancelled && typeof window._onDiceRequestCancelled === 'function') {
+      window._onDiceRequestCancelled(payload.dice_request_cancelled);
+    }
+    if (payload.dice_pending !== undefined) {
+      _updateDicePendingBadge(payload.dice_pending);
+    }
+
     if (payload.stats) {
       updateStats(payload.stats);
       if (payload.stats.players && payload.stats.players.length > 0) {
@@ -5112,6 +5643,459 @@ function connect() {
 }
 
 connect();
+
+// ── Input-only mode for mobile players ───────────────────────────────────
+// Triggered by either:
+//   ?view=input              — explicit (long form, still supported)
+//   ?char=<Name>             — shorthand: char= alone implies input-only,
+//                              so players only need to type the short URL
+//                              (e.g. http://<host>:5001/?char=Mira).
+// Both forms set the character binding the same way (the binding is read
+// from ?character= or ?char= inside _initDicePad / _loadCharacterSheet).
+{
+  const _qp = new URLSearchParams(location.search);
+  const _inputMode = _qp.get('view') === 'input' || _qp.has('char') || _qp.has('character');
+  if (_inputMode) {
+    document.body.classList.add('input-only');
+    const ip = document.getElementById('input-panel');
+    if (ip) ip.classList.remove('collapsed');
+    _initInputTabs();
+    _initDicePad();
+  }
+}
+
+// ── Move / Roll tab switcher (input-only mode only) ──────────────────────
+function _initInputTabs() {
+  const body = document.getElementById('input-body');
+  if (!body) return;
+  document.querySelectorAll('.dp-tab').forEach(btn => {
+    btn.addEventListener('click', () => _setActiveTab(btn.dataset.tab));
+  });
+}
+
+function _setActiveTab(tab) {
+  if (tab !== 'move' && tab !== 'roll' && tab !== 'character') return;
+  const body = document.getElementById('input-body');
+  if (!body) return;
+  body.dataset.activeTab = tab;
+  document.querySelectorAll('.dp-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  // Clear the "DM request waiting" dot once the player navigates to Roll.
+  if (tab === 'roll') {
+    const rollTab = document.querySelector('.dp-tab[data-tab="roll"]');
+    if (rollTab) rollTab.classList.remove('has-request');
+  }
+  // Lazy-load the character sheet the first time Sheet is opened, and refresh
+  // each subsequent open so HP / slots / conditions stay current with the
+  // campaign file (which the DM updates between turns).
+  if (tab === 'character') _loadCharacterSheet();
+}
+
+// ── Character sheet pane (Sheet tab) ─────────────────────────────────────
+async function _loadCharacterSheet() {
+  const status = document.getElementById('cp-status');
+  const bodyEl = document.getElementById('cp-body');
+  if (!status || !bodyEl) return;
+  // Resolve the character: prefer ?char= / ?character=, then localStorage / typed name.
+  const _qpCh = new URLSearchParams(location.search);
+  const ch = (_qpCh.get('char') || _qpCh.get('character')
+              || localStorage.getItem('dnd_player_name')
+              || '').trim();
+  if (!ch) {
+    status.textContent = 'No character bound — open with ?char=<Name>';
+    bodyEl.innerHTML = '';
+    return;
+  }
+  status.textContent = `Loading ${ch}…`;
+  try {
+    const res = await fetch(`/character/${encodeURIComponent(ch)}`, {
+      headers: _authHeaders(),
+    });
+    if (!res.ok) {
+      status.textContent = `Could not load sheet (${res.status})`;
+      bodyEl.innerHTML = '';
+      return;
+    }
+    const md = await res.text();
+    bodyEl.innerHTML = _renderMarkdown(md);
+    status.textContent = '';
+  } catch (e) {
+    status.textContent = `Network error — ${e.message || e}`;
+    bodyEl.innerHTML = '';
+  }
+}
+
+// Minimal markdown → HTML for character sheets. Supports the subset used in
+// the campaign template: # ## ### headers, **bold**, *italic*, - bullet lists,
+// and GitHub-style pipe tables. Not a full CommonMark implementation; deliberately
+// small so we don't drag in a dependency for one read-only viewer.
+function _renderMarkdown(md) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inline = (s) => esc(s)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+    .replace(/(^|[\s(])_([^_\n]+)_/g, '$1<em>$2</em>');
+
+  const lines = md.replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    // Headers
+    let m = /^(#{1,3})\s+(.*)$/.exec(line);
+    if (m) { const lvl = m[1].length; out.push(`<h${lvl}>${inline(m[2])}</h${lvl}>`); i++; continue; }
+    // Horizontal rule
+    if (/^---+\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+    // Table — header row followed by separator row of dashes/pipes.
+    if (line.includes('|') && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}.*\|/.test(lines[i+1])) {
+      const cells = (s) => s.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(c => c.trim());
+      const head = cells(line);
+      const rows = [];
+      i += 2;
+      while (i < lines.length && lines[i].includes('|')) { rows.push(cells(lines[i])); i++; }
+      let html = '<table><thead><tr>' + head.map(h => `<th>${inline(h)}</th>`).join('') + '</tr></thead><tbody>';
+      for (const r of rows) html += '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>';
+      html += '</tbody></table>';
+      out.push(html);
+      continue;
+    }
+    // Bullet list
+    if (/^\s*-\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*-\s+/.test(lines[i])) {
+        items.push(inline(lines[i].replace(/^\s*-\s+/, '')));
+        i++;
+      }
+      out.push('<ul>' + items.map(t => `<li>${t}</li>`).join('') + '</ul>');
+      continue;
+    }
+    // Blank line → paragraph break
+    if (line.trim() === '') { i++; continue; }
+    // Otherwise paragraph (collect consecutive non-blank, non-special lines)
+    const para = [line];
+    i++;
+    while (i < lines.length && lines[i].trim() !== '' && !/^#{1,3}\s/.test(lines[i])
+           && !/^\s*-\s+/.test(lines[i]) && !lines[i].includes('|')
+           && !/^---+\s*$/.test(lines[i])) {
+      para.push(lines[i]); i++;
+    }
+    out.push('<p>' + inline(para.join(' ')) + '</p>');
+  }
+  return out.join('\n');
+}
+
+// ── DM-side "Waiting on Piper, Mira…" badge for unresolved dice-requests ──
+// Driven by the server's dice_pending SSE event (snapshot of all active
+// requests). Hidden when the snapshot is empty.
+function _updateDicePendingBadge(snapshot) {
+  const badge = document.getElementById('dice-pending-badge');
+  if (!badge) return;
+  const entries = Array.isArray(snapshot) ? snapshot.filter(e => e && (e.pending || []).length) : [];
+  if (entries.length === 0) {
+    badge.classList.remove('visible');
+    badge.innerHTML = '';
+    return;
+  }
+  // Most recent request first (best-effort: snapshot order is insertion order on the server).
+  const lines = entries.map(e => {
+    const who   = (e.pending || []).join(', ');
+    const label = e.label ? `<span class="dpb-label">${e.label}</span>` : '';
+    return `Waiting on: ${who}${label}`;
+  }).join('<hr style="border:none;border-top:1px solid rgba(180,140,60,0.25);margin:6px 0">');
+  badge.innerHTML = lines;
+  badge.classList.add('visible');
+}
+
+// ── Phone dice pad: server-side roll + slot-machine reveal ───────────────
+function _initDicePad() {
+  const reel    = document.getElementById('dp-reel');
+  const rollBtn = document.getElementById('dp-roll');
+  const modVal  = document.getElementById('dp-mod-val');
+  const nameEl  = document.getElementById('dp-name');
+  const labelEl = document.getElementById('dp-label');
+  const boundEl = document.getElementById('dp-bound');
+  if (!reel || !rollBtn) return;
+
+  // Character binding: ?char=Piper (or ?character=Piper) locks this phone to
+  // that player. Without the param the phone falls back to a free-text name
+  // + localStorage. Short form (?char=) is preferred for hand-typed URLs.
+  const _qp = new URLSearchParams(location.search);
+  const _bound = (_qp.get('char') || _qp.get('character') || '').trim().slice(0, 24);
+  if (_bound) {
+    nameEl.value = _bound;
+    nameEl.classList.add('locked');
+    nameEl.setAttribute('readonly', '');
+    if (boundEl) {
+      boundEl.style.display = 'block';
+      boundEl.textContent = _bound;
+    }
+  } else {
+    nameEl.value = localStorage.getItem('dnd_player_name') || '';
+    nameEl.addEventListener('input', () => {
+      localStorage.setItem('dnd_player_name', nameEl.value.trim().slice(0, 24));
+    });
+  }
+
+  let spec = '1d20';
+  let adv  = 'normal';
+  let mod  = 0;
+  // Currently-active DM request, if any. Echoed back on the roll POST so the
+  // server can match the response to the pending request and release any
+  // blocking --wait call on the DM side.
+  let _activeRequestId = '';
+  reel.textContent = 'd20';
+
+  function _syncAdvAvailability() {
+    const isD20 = (spec === '1d20');
+    document.querySelectorAll('.dp-adv').forEach(b => {
+      if (isD20) b.removeAttribute('disabled');
+      else       b.setAttribute('disabled', '');
+    });
+    if (!isD20 && adv !== 'normal') {
+      adv = 'normal';
+      document.querySelectorAll('.dp-adv').forEach(b => b.classList.remove('active'));
+      const n = document.querySelector('.dp-adv[data-adv="normal"]');
+      if (n) n.classList.add('active');
+    }
+    const hint = document.getElementById('dp-hint');
+    if (hint) hint.style.opacity = isD20 ? '1' : '0.4';
+  }
+
+  document.querySelectorAll('#dp-die-row .dp-die').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#dp-die-row .dp-die').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      spec = btn.dataset.spec;
+      if (!reel.classList.contains('spinning')) reel.textContent = spec.replace('1d', 'd');
+      _syncAdvAvailability();
+    });
+  });
+  _syncAdvAvailability();
+  document.querySelectorAll('.dp-adv').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.dp-adv').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      adv = btn.dataset.adv;
+    });
+  });
+  document.querySelectorAll('.dp-mod').forEach(btn => {
+    btn.addEventListener('click', () => {
+      mod = Math.max(-30, Math.min(30, mod + Number(btn.dataset.delta)));
+      modVal.textContent = (mod >= 0 ? '+' : '') + mod;
+    });
+  });
+
+  // Slot-machine ticker: cycle random faces, ease the interval, then lock.
+  function spin(maxFace) {
+    return new Promise(resolve => {
+      reel.classList.add('spinning');
+      reel.classList.remove('locked');
+      let delay = 40;             // ms between ticks
+      const start = performance.now();
+      const minMs = 900;          // minimum spin duration
+      function tick() {
+        reel.textContent = String(1 + Math.floor(Math.random() * maxFace));
+        const elapsed = performance.now() - start;
+        delay = Math.min(260, 40 + elapsed * 0.25);   // ease out
+        if (elapsed > minMs && delay > 220) { resolve(); return; }
+        setTimeout(tick, delay);
+      }
+      tick();
+    });
+  }
+
+  function lockTo(value) {
+    reel.classList.remove('spinning');
+    reel.textContent = String(value);
+    // restart animation
+    reel.classList.remove('locked');
+    void reel.offsetWidth;
+    reel.classList.add('locked');
+  }
+
+  rollBtn.addEventListener('click', async () => {
+    const character = (nameEl.value || '').trim() || 'Player';
+    const label     = (labelEl.value || '').trim();
+    rollBtn.disabled = true;
+    document.getElementById('dp-result-line').textContent = '';
+
+    const m = /^(\d+)d(\d+)$/.exec(spec);
+    const faces = m ? Number(m[2]) : 20;
+
+    // Kick off spin animation immediately so the phone feels responsive,
+    // then await the authoritative server roll.
+    const spinPromise = spin(faces);
+    let result = null;
+    try {
+      const res = await fetch('/player-input/dice', {
+        method: 'POST',
+        headers: _authHeaders(),
+        body: JSON.stringify({
+          character, spec, modifier: mod, advantage: adv, label,
+          request_id: _activeRequestId || undefined,
+        }),
+      });
+      if (res.ok) result = await res.json();
+    } catch (_) { /* network error — fall through */ }
+
+    await spinPromise;
+    if (!result) {
+      reel.classList.remove('spinning');
+      reel.textContent = '!';
+      document.getElementById('dp-result-line').textContent = 'roll failed';
+      rollBtn.disabled = false;
+      rollBtn.classList.remove('pulse');
+      if (_locked) _setLocked(false);
+      return;
+    }
+
+    // Lock to the kept die value (single die) or the subtotal (multi-die).
+    const displayFace = (result.kept && result.kept.length === 1)
+      ? result.kept[0]
+      : result.subtotal;
+    lockTo(displayFace);
+
+    const line = document.getElementById('dp-result-line');
+    line.innerHTML = `${result.spec}${result.modifier ? (result.modifier > 0 ? '+' : '') + result.modifier : ''}` +
+                     ` &nbsp;→&nbsp; <span class="total">${result.total}</span>` +
+                     (result.both ? ` &nbsp;<span style="opacity:.7">(${result.both.join(' / ')} ${result.advantage})</span>` : '');
+    if (navigator.vibrate) navigator.vibrate(30);
+    rollBtn.classList.remove('pulse');
+    if (boundEl) {
+      // Clear the inline request line once the roll has been resolved.
+      const req = boundEl.querySelector('.req');
+      if (req) req.remove();
+    }
+
+    // If this was a prescribed (DM-requested) roll, keep the pad fully locked
+    // afterwards so the player can't fire another unsolicited roll. The lock
+    // is released only by the next dice_request arriving for this character
+    // (which unlocks + re-pre-fills inside _applyDiceRequest).
+    if (_activeRequestId) {
+      _setLocked(true, spec, adv);          // keep die / adv selections frozen
+      rollBtn.disabled = true;              // and disable Roll itself
+      rollBtn.classList.add('rolled');
+      if (boundEl) {
+        let done = boundEl.querySelector('.req');
+        if (!done) { done = document.createElement('span'); done.className = 'req'; boundEl.appendChild(done); }
+        done.textContent = '✓ Rolled — waiting for DM';
+      }
+      _activeRequestId = '';
+    } else {
+      // Free-roll path: unlock so the player can roll again freely.
+      rollBtn.disabled = false;
+      if (_locked) _setLocked(false);
+    }
+  });
+
+  // Lock the pad to a single prescribed roll. Only the matching die / adv
+  // button and the Roll button remain interactive. Cleared after the roll
+  // resolves (success or failure) so the player can free-roll again.
+  let _locked = false;
+  function _setLocked(active, keepSpec, keepAdv) {
+    _locked = !!active;
+    document.querySelectorAll('.dp-die').forEach(b => {
+      if (active && b.dataset.spec !== keepSpec) b.setAttribute('disabled', '');
+      else                                       b.removeAttribute('disabled');
+    });
+    document.querySelectorAll('.dp-adv').forEach(b => {
+      // Adv buttons are also gated by _syncAdvAvailability for non-d20 specs;
+      // re-syncing afterwards restores that behaviour.
+      if (active && b.dataset.adv !== keepAdv) b.setAttribute('disabled', '');
+      else                                     b.removeAttribute('disabled');
+    });
+    document.querySelectorAll('.dp-mod').forEach(b => {
+      if (active) b.setAttribute('disabled', '');
+      else        b.removeAttribute('disabled');
+    });
+    if (active) labelEl.setAttribute('readonly', '');
+    else        labelEl.removeAttribute('readonly');
+    if (!active) _syncAdvAvailability();
+  }
+
+  // ── DM → phone: react to a /dice-request broadcast ───────────────────────
+  function _applyDiceRequest(req) {
+    if (!req) return;
+    const me      = (nameEl.value || '').trim().toLowerCase();
+    const targets = Array.isArray(req.characters) && req.characters.length
+      ? req.characters.map(c => String(c).toLowerCase())
+      : [String(req.character || 'any').toLowerCase()];
+    const isAny   = targets.includes('any');
+    if (!isAny && !targets.includes(me)) return;                  // not for this phone
+
+    _activeRequestId = String(req.request_id || '');
+
+    // Spec → click the matching die button. If unknown, fall back to d20.
+    const reqSpec = (req.spec || '1d20').toLowerCase();
+    const dieBtn  = document.querySelector(`.dp-die[data-spec="${reqSpec}"]`)
+                 || document.querySelector('.dp-die[data-spec="1d20"]');
+    if (dieBtn) dieBtn.click();
+
+    // Adv/dis (only meaningful on 1d20; _syncAdvAvailability gates the rest).
+    const advBtn = document.querySelector(`.dp-adv[data-adv="${req.advantage || 'normal'}"]`);
+    if (advBtn && !advBtn.hasAttribute('disabled')) advBtn.click();
+
+    // Modifier — jump straight to the requested value rather than +/- ticking.
+    mod = Math.max(-30, Math.min(30, Number(req.modifier) || 0));
+    modVal.textContent = (mod >= 0 ? '+' : '') + mod;
+
+    // Label / DC line.
+    const baseLabel = (req.label || '').trim();
+    labelEl.value = baseLabel;
+    if (boundEl) {
+      const dcStr = (req.dc != null) ? ` · DC ${req.dc}` : '';
+      const desc  = baseLabel || (reqSpec === '1d20' ? 'Roll d20' : `Roll ${reqSpec}`);
+      let r = boundEl.querySelector('.req');
+      if (!r) { r = document.createElement('span'); r.className = 'req'; boundEl.appendChild(r); }
+      r.textContent = `↻ ${desc}${dcStr}`;
+    }
+
+    rollBtn.disabled = false;                 // re-enable after a previous "rolled" lock
+    rollBtn.classList.remove('rolled');
+    rollBtn.classList.add('pulse');
+    if (navigator.vibrate) navigator.vibrate([20, 60, 20]);
+
+    // Lock everything except the prescribed die + adv button + Roll.
+    _setLocked(true, reqSpec, (req.advantage || 'normal'));
+
+    // Pull the player to the Roll tab so they don't miss the request. If they
+    // were already on Roll, this is a no-op; if they were on Move, the tab
+    // switches and the dot on the Roll button is cleared by _setActiveTab.
+    const onMove = document.getElementById('input-body')?.dataset.activeTab === 'move';
+    if (onMove) {
+      const rollTab = document.querySelector('.dp-tab[data-tab="roll"]');
+      if (rollTab) rollTab.classList.add('has-request');
+      _setActiveTab('roll');
+    }
+  }
+  window._onDiceRequest = _applyDiceRequest;
+
+  // DM cancelled the active prescribed roll (e.g. via DELETE /dice-request/<id>).
+  // Server broadcasts {dice_request_cancelled: <request_id>}. If it matches
+  // this phone's active request, fully unlock the pad so the player isn't
+  // stuck staring at a locked Roll button while the badge has already cleared.
+  // Cancellations for other phones (or for requests we never received) are
+  // safely ignored.
+  function _onDiceRequestCancelled(rid) {
+    if (!rid || rid !== _activeRequestId) return;
+    _activeRequestId = '';
+    if (_locked) _setLocked(false);
+    rollBtn.disabled = false;
+    rollBtn.classList.remove('pulse', 'rolled');
+    if (boundEl) {
+      const r = boundEl.querySelector('.req');
+      if (r) r.remove();
+    }
+    // Brief inline confirmation so the player sees the unlock happened.
+    const line = document.getElementById('dp-result-line');
+    if (line) {
+      line.textContent = '— request cancelled by DM —';
+      setTimeout(() => { if (line.textContent === '— request cancelled by DM —') line.textContent = ''; }, 4000);
+    }
+  }
+  window._onDiceRequestCancelled = _onDiceRequestCancelled;
+}
 </script>
 </body>
 </html>

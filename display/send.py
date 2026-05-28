@@ -70,6 +70,7 @@ BASE_URL    = f"{_SCHEME}://localhost:5001"
 FLASK_URL   = f"{BASE_URL}/chunk"
 STATS_URL   = f"{BASE_URL}/stats"
 HEALTH_URL  = f"{BASE_URL}/health"
+DICE_REQ_URL = f"{BASE_URL}/dice-request"
 TOKEN_FILE  = os.path.expanduser("~/.claude/skills/dnd/display/.token")
 TIMEOUT     = 8.0
 RETRIES     = 1                # one retry on timeout/connection error
@@ -405,6 +406,30 @@ def main() -> None:
     parser.add_argument("--xp-award", metavar="JSON",
         help='XP award block: \'{"names":["Aldric","Mira"],"xp":250,"reason":"Encounter resolved","total":"3250/6500"}\'')
 
+    # ── Dice request (DM → player phones) ────────────────────────────────────
+    parser.add_argument("--dice-request", action="store_true",
+        help='Broadcast a dice request to player phones (pre-fills their pad). '
+             'Combine with --character / --spec / --modifier / --advantage / --label / --dc.')
+    parser.add_argument("--character", metavar="NAME",
+        help='Target character for --dice-request. Use "any" or omit to target every phone.')
+    parser.add_argument("--spec", metavar="NdM", default="1d20",
+        help='Dice spec for --dice-request (default 1d20). Examples: 1d20, 2d6, 1d100.')
+    parser.add_argument("--modifier", type=int, default=0, metavar="N",
+        help='Modifier to apply on the phone (default 0). May be negative.')
+    parser.add_argument("--advantage", choices=["normal", "advantage", "disadvantage"],
+        default="normal",
+        help='For 1d20 only: normal | advantage | disadvantage (default normal).')
+    parser.add_argument("--label", metavar="TEXT",
+        help='Human label for the roll (e.g. "Stealth check", "Concentration save").')
+    parser.add_argument("--dc", type=int, metavar="N",
+        help='Optional DC; displayed informationally on the phone.')
+    parser.add_argument("--wait", action="store_true",
+        help='With --dice-request: block until every prescribed character has rolled '
+             '(polls /dice-request/<id>). Exits non-zero on timeout.')
+    parser.add_argument("--wait-timeout", type=int, default=120, metavar="SECONDS",
+        help='Timeout for --wait (default 120s). On timeout, prints still-pending '
+             'characters to stderr and exits 2.')
+
     # ── Stat-change flags (Option B — bundled with narration) ─────────────────
     parser.add_argument("--stat-hp", action="append", metavar="NAME:CUR:MAX",
         help="Set HP: NAME:CURRENT:MAX (can repeat for multiple players)")
@@ -447,6 +472,83 @@ def main() -> None:
     # which silently dropped any heredoc body bundled with them. Reading piped
     # stdin under the same isatty() gate as stat flags lets bundled narration
     # flow through to the text-send block below.
+    # ── Dice request (DM → phones) — broadcast + optional blocking wait ──────
+    if args.dice_request:
+        # Comma-split character list so the DM can address multiple players at once,
+        # e.g. --character "Piper,Mira,Aldric"  → all three must roll before --wait returns.
+        chars = [c.strip() for c in (args.character or "any").split(",") if c.strip()] or ["any"]
+        body = {
+            "characters": chars,
+            "spec": args.spec,
+            "modifier": args.modifier,
+            "advantage": args.advantage,
+        }
+        if args.label: body["label"] = args.label
+        if args.dc is not None: body["dc"] = args.dc
+        _token = _read_token()
+
+        # Direct urllib call (rather than _post) because we need the JSON response body.
+        headers = {"Content-Type": "application/json"}
+        if _token: headers["X-DND-Token"] = _token
+        try:
+            req = urllib.request.Request(
+                DICE_REQ_URL, data=json.dumps(body).encode(),
+                headers=headers, method="POST",
+            )
+            resp = urllib.request.urlopen(req, timeout=TIMEOUT, context=_SSL_CTX)
+            resp_body = json.loads(resp.read().decode("utf-8") or "{}")
+        except Exception as e:
+            print(f"send.py: dice-request failed: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        request_id = resp_body.get("request_id", "")
+        pending    = list(resp_body.get("pending") or [])
+        # Machine-readable on stdout so callers can correlate (cancel, log, etc.).
+        # flush=True because Python block-buffers stdout when redirected, and
+        # callers want the id immediately to dispatch rolls / cancellation.
+        print(request_id, flush=True)
+
+        if args.wait:
+            if not pending:
+                # "any" targets aren't tracked, so --wait is a no-op there.
+                print(f"send.py: --wait with no trackable characters (target={chars}) — nothing to wait for.",
+                      file=sys.stderr)
+            else:
+                status_url = f"{DICE_REQ_URL}/{request_id}"
+                poll_headers = {"X-DND-Token": _token} if _token else {}
+                deadline = time.time() + max(1, args.wait_timeout)
+                last_pending: list = list(pending)
+                print(f"send.py: waiting for rolls from: {', '.join(pending)}", file=sys.stderr)
+                while time.time() < deadline:
+                    try:
+                        sreq = urllib.request.Request(status_url, headers=poll_headers, method="GET")
+                        s = urllib.request.urlopen(sreq, timeout=TIMEOUT, context=_SSL_CTX)
+                        st = json.loads(s.read().decode("utf-8") or "{}")
+                    except Exception as e:
+                        print(f"send.py: poll error ({e}) — retrying", file=sys.stderr)
+                        time.sleep(1.0)
+                        continue
+                    if st.get("complete"):
+                        print(f"send.py: all rolls received.", file=sys.stderr)
+                        break
+                    remaining = st.get("pending") or []
+                    if remaining != last_pending:
+                        print(f"send.py: still waiting on: {', '.join(remaining)}", file=sys.stderr)
+                        last_pending = list(remaining)
+                    time.sleep(0.5)
+                else:
+                    print(f"send.py: timeout after {args.wait_timeout}s — still pending: "
+                          f"{', '.join(last_pending)}", file=sys.stderr)
+                    sys.exit(2)
+
+        # If no other action requested, exit clean (don't fall through to stdin read).
+        _other = (args.player or args.npc or args.dice or args.tutor or args.action
+                  or args.inspiration_award or args.inspiration_spend
+                  or args.milestone_award or args.milestone_spend or args.xp_award
+                  or args.verify)
+        if not _other:
+            return
+
     _has_content_flag = bool(args.player or args.npc or args.dice or args.tutor or args.action)
     if _has_content_flag:
         text = sys.stdin.read()

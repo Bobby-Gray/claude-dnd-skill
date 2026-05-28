@@ -1040,6 +1040,20 @@ _load_stats()
 _input_queue: list[dict] = []
 _input_lock = threading.Lock()
 
+# Pending DM-issued dice requests: request_id → {chars: set[str], meta: {...}, started_at: float}
+# A request is "complete" when its chars set is empty (every prescribed player rolled).
+# send.py --wait polls GET /dice-request/<id> to know when the DM can move on.
+_dice_pending: dict = {}
+_dice_pending_lock = threading.Lock()
+
+
+def _dice_pending_snapshot() -> list:
+    with _dice_pending_lock:
+        return [
+            {"request_id": rid, "pending": sorted(e["chars"]), "label": e["meta"].get("label", "")}
+            for rid, e in _dice_pending.items() if e["chars"]
+        ]
+
 
 def _load_input_queue() -> None:
     global _input_queue
@@ -1902,6 +1916,267 @@ def player_input():
     return "", 204
 
 
+@app.route("/player-input/dice", methods=["POST"])
+def player_dice():
+    """Server-side dice roll submitted from a player's phone.
+
+    Body: {"character": "Piper", "spec": "1d20", "modifier": 5,
+           "advantage": "normal" | "advantage" | "disadvantage",
+           "label": "Stealth check"  (optional)}
+
+    Rolls server-side (secrets.randbelow → uniform, non-spoofable), broadcasts
+    a dice-typed entry on the feed, and returns the result so the phone can
+    finish its slot-machine animation on the real value.
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+
+    data = request.get_json(force=True, silent=True) or {}
+    character = re.sub(r"[`\\$]", "", str(data.get("character", "Player"))[:50]).strip() or "Player"
+    spec      = str(data.get("spec", "1d20")).strip().lower()
+    modifier  = int(data.get("modifier", 0) or 0)
+    adv       = str(data.get("advantage", "normal")).strip().lower()
+    label     = re.sub(r"[`\\$]", "", str(data.get("label", ""))[:60]).strip()
+    req_id    = str(data.get("request_id", "")).strip()[:24]
+
+    m = re.fullmatch(r"(\d{1,2})d(\d{1,3})", spec)
+    if not m:
+        return jsonify({"error": "bad spec"}), 400
+    n_dice, n_sides = int(m.group(1)), int(m.group(2))
+    if not (1 <= n_dice <= 20 and 2 <= n_sides <= 100):
+        return jsonify({"error": "out of range"}), 400
+    modifier = max(-100, min(100, modifier))
+
+    def _roll_once() -> list[int]:
+        return [secrets.randbelow(n_sides) + 1 for _ in range(n_dice)]
+
+    if adv in ("advantage", "disadvantage") and spec == "1d20":
+        r1, r2 = _roll_once(), _roll_once()
+        chosen = max(r1[0], r2[0]) if adv == "advantage" else min(r1[0], r2[0])
+        rolls  = [chosen]
+        kept   = [chosen]
+        both   = [r1[0], r2[0]]
+    else:
+        rolls = _roll_once()
+        kept  = rolls
+        both  = None
+
+    subtotal = sum(kept)
+    total    = subtotal + modifier
+    mod_str  = (f"+{modifier}" if modifier > 0 else (str(modifier) if modifier < 0 else ""))
+    breakdown = f"[{', '.join(str(r) for r in (both or rolls))}]"
+    if both is not None:
+        breakdown += f" → keep {kept[0]} ({adv})"
+    if modifier:
+        breakdown += f" {mod_str}"
+    suffix = f" — {label}" if label else ""
+    text   = f"{character} rolls {spec}{mod_str}: {breakdown} = {total}{suffix}"
+
+    payload   = {"text": text, "dice": True}
+    log_entry = {"text": text, "dice": True}
+    try:
+        _camp_stamp = open(CAMP_FILE).read().strip()
+        if _camp_stamp:
+            log_entry["_camp"] = _camp_stamp
+    except Exception:
+        pass
+
+    with _text_log_lock:
+        _text_log.append(log_entry)
+    with _tail_lock:
+        _tail_buffer.append(log_entry)
+    _persist_log()
+    _persist_tail()
+    _broadcast(payload)
+
+    # Correlate against any pending DM request. Case-insensitive match on the
+    # character name — drop them from the request's expected-rollers set.
+    pending_changed = False
+    if req_id:
+        with _dice_pending_lock:
+            entry = _dice_pending.get(req_id)
+            if entry is not None:
+                ci = character.lower()
+                matched = next((c for c in entry["chars"] if c.lower() == ci), None)
+                if matched is not None:
+                    entry["chars"].discard(matched)
+                    pending_changed = True
+                    if not entry["chars"]:
+                        _dice_pending.pop(req_id, None)
+    if pending_changed:
+        _broadcast({"dice_pending": _dice_pending_snapshot()})
+
+    return jsonify({
+        "character": character,
+        "spec": spec,
+        "modifier": modifier,
+        "advantage": adv,
+        "rolls": rolls,
+        "kept": kept,
+        "both": both,
+        "subtotal": subtotal,
+        "total": total,
+        "text": text,
+        "request_id": req_id or None,
+    }), 200
+
+
+@app.route("/dice-request", methods=["POST"])
+def dice_request():
+    """DM-initiated dice request — broadcast to player phones (no persistence).
+
+    Body: {"character": "Piper" | "any",
+           "spec": "1d20", "modifier": 5,
+           "advantage": "normal" | "advantage" | "disadvantage",
+           "label": "Stealth check"  (optional),
+           "dc": 15  (optional, informational)}
+
+    Phones bound to ?character=<name> match case-insensitively. "any" / ""
+    targets every phone. No state stored — late-joining phones will not see
+    requests issued before they connected.
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+
+    import time
+    data = request.get_json(force=True, silent=True) or {}
+    raw_char  = data.get("characters") if "characters" in data else data.get("character", "any")
+    if isinstance(raw_char, list):
+        chars = [str(c).strip() for c in raw_char if str(c).strip()]
+    else:
+        chars = [c.strip() for c in re.sub(r"[`\\$]", "", str(raw_char))[:200].split(",") if c.strip()]
+    if not chars:
+        chars = ["any"]
+
+    spec      = str(data.get("spec", "1d20")).strip().lower()
+    modifier  = int(data.get("modifier", 0) or 0)
+    adv       = str(data.get("advantage", "normal")).strip().lower()
+    label     = re.sub(r"[`\\$]", "", str(data.get("label", ""))[:60]).strip()
+    dc        = data.get("dc")
+
+    if not re.fullmatch(r"\d{1,2}d\d{1,3}", spec):
+        return jsonify({"error": "bad spec"}), 400
+    if adv not in ("normal", "advantage", "disadvantage"):
+        adv = "normal"
+    modifier = max(-100, min(100, modifier))
+    dc_val   = int(dc) if isinstance(dc, (int, float)) else None
+
+    request_id = secrets.token_hex(6)
+
+    # Only register pending entries for explicit named targets. "any" is fire-and-forget.
+    trackable = [c for c in chars if c.lower() != "any"]
+    if trackable:
+        with _dice_pending_lock:
+            _dice_pending[request_id] = {
+                "chars": set(trackable),
+                "meta": {"spec": spec, "modifier": modifier, "advantage": adv, "label": label, "dc": dc_val},
+                "started_at": time.time(),
+            }
+        _broadcast({"dice_pending": _dice_pending_snapshot()})
+
+    payload = {
+        "dice_request": {
+            "request_id": request_id,
+            "characters": chars,
+            "character": chars[0] if len(chars) == 1 else "any",   # legacy single-target field
+            "spec": spec,
+            "modifier": modifier,
+            "advantage": adv,
+            "label": label,
+            "dc": dc_val,
+        }
+    }
+    _broadcast(payload)
+    return jsonify({
+        "request_id": request_id,
+        "pending": sorted(trackable),
+        "complete": not trackable,
+    }), 200
+
+
+@app.route("/dice-request/<request_id>", methods=["GET"])
+def dice_request_status(request_id):
+    """Poll a dice request's completion state.
+
+    Returns 200 with {complete, pending, label, started_at}. A request that
+    never existed (or has already fully drained) reports complete=True with
+    an empty pending list — send.py --wait treats both identically.
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+    with _dice_pending_lock:
+        entry = _dice_pending.get(request_id)
+        if entry is None or not entry["chars"]:
+            return jsonify({"complete": True, "pending": []}), 200
+        return jsonify({
+            "complete": False,
+            "pending": sorted(entry["chars"]),
+            "label": entry["meta"].get("label", ""),
+            "started_at": entry["started_at"],
+        }), 200
+
+
+@app.route("/dice-request/<request_id>", methods=["DELETE"])
+def dice_request_cancel(request_id):
+    """Cancel a pending dice request (DM gave up waiting / moved on)."""
+    if not _token_ok():
+        return "Forbidden", 403
+    with _dice_pending_lock:
+        _dice_pending.pop(request_id, None)
+    _broadcast({"dice_pending": _dice_pending_snapshot(), "dice_request_cancelled": request_id})
+    return "", 204
+
+
+@app.route("/character/<character>", methods=["GET"])
+def get_character_sheet(character):
+    """Return the markdown content of a PC sheet for the active campaign.
+
+    Used by the phone's Character tab. Resolves the active campaign from
+    CAMP_FILE, then reads:
+        <DND_CAMPAIGN_ROOT>/campaigns/<campaign>/characters/<character>.md
+
+    Falls back to the global roster at ~/.claude/dnd/characters/<character>.md
+    if the campaign-side file is missing — useful when the character was just
+    imported but not yet replicated.
+
+    Returns text/markdown so the phone can render in JS without server-side
+    dependencies (no `markdown` lib required).
+    """
+    if not _token_ok():
+        return "Forbidden", 403
+
+    safe = re.sub(r"[^A-Za-z0-9 _-]", "", character).strip()[:50]
+    if not safe:
+        return "Bad character name", 400
+
+    try:
+        camp = open(CAMP_FILE).read().strip()
+    except Exception:
+        camp = ""
+    # Sanitise the campaign name with the same allowlist + length cap as the
+    # character argument. CAMP_FILE is writable by anyone inside the LAN+token
+    # trust boundary (via push_stats.py --set-campaign), so a malicious value
+    # here could pivot to arbitrary `<name>.md` reads via os.path.join.
+    camp = re.sub(r"[^A-Za-z0-9_-]", "", camp)[:50]
+
+    root = os.environ.get("DND_CAMPAIGN_ROOT", os.path.expanduser("~/.claude/dnd"))
+    candidates = []
+    if camp:
+        candidates.append(os.path.join(root, "campaigns", camp, "characters", f"{safe}.md"))
+    candidates.append(os.path.expanduser(f"~/.claude/dnd/characters/{safe}.md"))
+
+    for path in candidates:
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    body = f.read()
+            except Exception as e:
+                return f"Read error: {e}", 500
+            return Response(body, mimetype="text/markdown; charset=utf-8")
+
+    return f"No sheet found for '{safe}' in campaign '{camp}'", 404
+
+
 @app.route("/device/approve", methods=["POST"])
 def device_approve():
     """DM approves a pending device. Body: {"id": "<device_id>"}"""
@@ -2176,6 +2451,29 @@ def stream():
     with _queue_status_lock:
         if _queue_status:
             q.put_nowait({"queue_status": list(_queue_status)})
+
+    # Send current pending dice requests so the "Waiting on…" badge survives reload.
+    snap = _dice_pending_snapshot()
+    if snap:
+        q.put_nowait({"dice_pending": snap})
+
+    # Replay every active dice_request so phones that connected *after* a DM
+    # broadcast still pre-fill their pad and store the request_id. Without this,
+    # a late-joining or reloaded phone rolls without a request_id, the roll logs
+    # but the pending set never drains, and the "Waiting on…" banner gets stuck.
+    with _dice_pending_lock:
+        active = [(rid, dict(e["meta"]), sorted(e["chars"])) for rid, e in _dice_pending.items() if e["chars"]]
+    for rid, meta, chars in active:
+        q.put_nowait({"dice_request": {
+            "request_id": rid,
+            "characters": chars,
+            "character": chars[0] if len(chars) == 1 else "any",
+            "spec": meta.get("spec", "1d20"),
+            "modifier": meta.get("modifier", 0),
+            "advantage": meta.get("advantage", "normal"),
+            "label": meta.get("label", ""),
+            "dc": meta.get("dc"),
+        }})
 
     # Replay autorun cycle so reconnecting clients resume the countdown from correct elapsed position.
     with _autorun_cycle_lock:
