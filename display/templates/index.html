@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="dnd-token" content="{{ lan_token }}">
+<meta name="narrator-voice" content="{{ narrator_voice }}">
+<meta name="tts-available" content="{{ '1' if tts_available else '0' }}">
 <title>DnD — Dungeon Master</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1275,6 +1277,105 @@
   }
   .speed-label:hover { color: rgba(220,185,100,1); }
 
+  /* ── Auto-narrate toggle (per-browser, sits inside #audio-controls) ── */
+  .narrate-label {
+    font-family: 'Cinzel', serif;
+    font-size: 7.5px;
+    letter-spacing: 1.5px;
+    color: rgba(180,140,60,0.75);
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+  }
+  .narrate-label:hover { color: rgba(220,185,100,1); }
+  .narrate-label.on { color: rgba(240,210,120,1); }
+
+  /* ── TTS per-block bar ──
+     Hidden until block is fully flushed (set by flushNewBlock).
+     Dim at rest; bright on parent-block hover or focus-within. */
+  .tts-bar {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    margin-top: 0.55em;
+    position: relative;
+  }
+  .tts-play-btn,
+  .tts-voice-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px 8px;
+    color: rgba(180, 140, 60, 0.24);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+    line-height: 0;
+  }
+  .dm-block:hover .tts-play-btn,
+  .dm-block:hover .tts-voice-btn,
+  .npc-block:hover .tts-play-btn,
+  .npc-block:hover .tts-voice-btn,
+  .tts-bar:focus-within .tts-play-btn,
+  .tts-bar:focus-within .tts-voice-btn { color: rgba(180, 140, 60, 0.72); }
+  .tts-play-btn:hover,
+  .tts-voice-btn:hover {
+    color: rgba(220, 185, 100, 1.0);
+    background: rgba(180, 140, 60, 0.08);
+  }
+  .tts-voice-label {
+    font-family: 'Cinzel', serif;
+    font-size: 7px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1;
+    color: inherit;
+  }
+  .tts-play-btn.tts-playing { color: rgba(210, 90, 70, 0.9); }
+  .tts-play-btn.tts-loading { color: rgba(180, 140, 60, 0.45); }
+  @keyframes tts-spin { to { transform: rotate(360deg); } }
+  .tts-spin { animation: tts-spin 0.9s linear infinite; }
+  .tts-voice-menu {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 0;
+    background: rgba(8, 5, 2, 0.98);
+    border: 1px solid rgba(180, 140, 60, 0.45);
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 120px;
+    z-index: 50;
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(0,0,0,0.6);
+  }
+  .tts-voice-group {
+    padding: 6px 13px 2px;
+    font-family: 'Cinzel', serif;
+    font-size: 6.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(180, 140, 60, 0.65);
+    pointer-events: none;
+  }
+  .tts-voice-opt {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px 13px;
+    text-align: left;
+    font-family: inherit;
+    font-size: 0.77rem;
+    letter-spacing: 0.05em;
+    color: rgba(220, 196, 148, 0.9);
+    transition: background 0.1s, color 0.1s;
+  }
+  .tts-voice-opt:hover { background: rgba(180,140,60,0.12); color: rgba(240,210,120,1.0); }
+  .tts-voice-opt.tts-voice-active { color: rgba(240,210,120,1.0); font-weight: 500; }
+
   /* ── Player input panel ── */
   #input-panel {
     position: fixed;
@@ -1689,6 +1790,10 @@
   <div class="audio-row" id="speed-row" title="Typing speed — click to cycle">
     <span class="audio-label">Type Speed</span>
     <span id="speed-label" class="speed-label">Normal</span>
+  </div>
+  <div class="audio-row" id="narrate-row" title="Auto-narrate new blocks in this browser only" hidden>
+    <span class="audio-label">Auto Narrate</span>
+    <span id="narrate-label" class="narrate-label">Off</span>
   </div>
 </div>
 
@@ -2614,6 +2719,7 @@ function flushNewBlock() {
   }
   // Add a soft divider if there was content
   if (currentEl) {
+    _addTtsBar(currentEl);
     const div = document.createElement('div');
     div.className = 'divider';
     div.textContent = '✦';
@@ -2767,6 +2873,7 @@ function renderNPCBlock(name, text, isReplay) {
     block.appendChild(p);
   });
 
+  _addTtsBar(block);
   textContent.appendChild(block);
   _reanchorCursor();
 }
@@ -3003,6 +3110,7 @@ function renderReplayBatch(items) {
         _appendInlineSegments(p, _mdParse(line));
         block.appendChild(p);
       });
+      _addTtsBar(block);
       textContent.appendChild(block);
     }
   });
@@ -3110,6 +3218,7 @@ function renderReplay(text) {
     _appendInlineSegments(p, _mdParse(line));
     block.appendChild(p);
   });
+  _addTtsBar(block);
   textContent.appendChild(block);
 
   // Add a divider after replay so live text starts fresh
@@ -4120,6 +4229,250 @@ document.getElementById('speed-row').addEventListener('click', () => {
   charDelay = step.ms;
   _speedLabel.textContent = step.label;
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// TTS — per-block narrator audio playback (Gemini Flash TTS)
+// Only .dm-block and .npc-block get a TTS bar. Player/dice/tutor blocks
+// are excluded by omission in their renderers.
+//
+// Per-browser AudioContext-based engine (NOT HTMLAudioElement) — iOS
+// WebKit gesture handling is more reliable: ctx.resume() once inside a
+// user gesture and the context stays running for the session.
+//
+// Auto-narrate is per-browser (localStorage). One device casting to a TV
+// can toggle it on without affecting player phones.
+// ═══════════════════════════════════════════════════════════════════
+
+const _TTS_VOICES_MALE   = ['Charon', 'Enceladus', 'Fenrir', 'Umbriel'];
+const _TTS_VOICES_FEMALE = ['Aoede', 'Gacrux', 'Kore', 'Vindemiatrix', 'Zephyr'];
+
+const _ttsAvailableMeta = document.querySelector('meta[name="tts-available"]');
+const _TTS_AVAILABLE = _ttsAvailableMeta && _ttsAvailableMeta.getAttribute('content') === '1';
+
+const _narratorVoiceMeta = document.querySelector('meta[name="narrator-voice"]');
+let _ttsVoice = (_narratorVoiceMeta && _narratorVoiceMeta.getAttribute('content'))
+  || localStorage.getItem('dnd_tts_voice')
+  || 'Enceladus';
+
+let _ttsAutoNarrate = localStorage.getItem('dnd_tts_auto') === '1';
+
+let _ttsCtx = null;
+let _ttsActiveSource = null;
+let _ttsActivePlayBtn = null;
+
+function _getTtsCtx() {
+  if (!_ttsCtx || _ttsCtx.state === 'closed') {
+    _ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _ttsCtx;
+}
+
+const _SVG_SPEAKER = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 5.5h3l4-3v11l-4-3H3v-5z" fill="currentColor"/><path d="M10.5 5.2c.9.8 1.5 1.8 1.5 2.8s-.6 2-1.5 2.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M12.2 3.4c1.5 1.2 2.3 2.7 2.3 4.6s-.8 3.4-2.3 4.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
+const _SVG_STOP    = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 12 12" fill="none" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1.5" fill="currentColor"/></svg>';
+const _SVG_SPIN    = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" class="tts-spin" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="31.4 31.4" stroke-linecap="round"/></svg>';
+const _SVG_CHEVRON = '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function _ttsStopActive() {
+  if (_ttsActiveSource) {
+    try { _ttsActiveSource.stop(); } catch (_) {}
+    _ttsActiveSource = null;
+  }
+  if (_ttsActivePlayBtn) {
+    _ttsActivePlayBtn.innerHTML = _SVG_SPEAKER;
+    _ttsActivePlayBtn.classList.remove('tts-playing', 'tts-loading');
+    _ttsActivePlayBtn.setAttribute('aria-label', 'Listen to narration');
+    _ttsActivePlayBtn = null;
+  }
+}
+
+function _ttsExtractText(blockEl) {
+  const clone = blockEl.cloneNode(true);
+  const bar = clone.querySelector('.tts-bar');
+  if (bar) bar.remove();
+  return (clone.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
+}
+
+async function _ttsPlayBlock(btn, blockEl) {
+  if (btn.classList.contains('tts-playing')) { _ttsStopActive(); return; }
+  _ttsStopActive();
+  const text = _ttsExtractText(blockEl);
+  if (!text) return;
+
+  const ctx = _getTtsCtx();
+  const resumeP = ctx.state !== 'running' ? ctx.resume() : Promise.resolve();
+
+  btn.innerHTML = _SVG_SPIN;
+  btn.classList.add('tts-loading');
+  btn.setAttribute('aria-label', 'Loading…');
+  _ttsActivePlayBtn = btn;
+
+  try {
+    const resp = await fetch('/tts', {
+      method: 'POST',
+      headers: _authHeaders(),
+      body: JSON.stringify({ text, voice: _ttsVoice }),
+    });
+    if (!resp.ok) throw new Error('TTS ' + resp.status);
+    const pcm = await resp.arrayBuffer();
+    if (!pcm.byteLength) throw new Error('TTS empty');
+
+    await resumeP;
+    if (ctx.state === 'suspended') await ctx.resume();
+
+    const int16 = new Int16Array(pcm);
+    const audioBuffer = ctx.createBuffer(1, int16.length, 24000);
+    const ch = audioBuffer.getChannelData(0);
+    for (let i = 0; i < int16.length; i++) ch[i] = int16[i] / 32768.0;
+
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(ctx.destination);
+
+    btn.innerHTML = _SVG_STOP;
+    btn.classList.remove('tts-loading');
+    btn.classList.add('tts-playing');
+    btn.setAttribute('aria-label', 'Stop narration');
+    _ttsActiveSource = source;
+
+    source.onended = () => {
+      if (_ttsActiveSource === source) {
+        _ttsActiveSource = null;
+        if (_ttsActivePlayBtn === btn) {
+          btn.innerHTML = _SVG_SPEAKER;
+          btn.classList.remove('tts-playing');
+          btn.setAttribute('aria-label', 'Listen to narration');
+          _ttsActivePlayBtn = null;
+        }
+      }
+    };
+    source.start(0);
+  } catch (err) {
+    if (_ttsActivePlayBtn === btn) {
+      const label = (err.message || 'ERR').slice(0, 12);
+      btn.textContent = label;
+      btn.classList.remove('tts-loading', 'tts-playing');
+      setTimeout(() => {
+        if (!btn.classList.contains('tts-playing') && !btn.classList.contains('tts-loading')) {
+          btn.innerHTML = _SVG_SPEAKER;
+          btn.setAttribute('aria-label', 'Listen to narration');
+        }
+      }, 3000);
+      _ttsActivePlayBtn = null;
+    }
+    _ttsActiveSource = null;
+  }
+}
+
+function _ttsSaveVoice(voice) {
+  _ttsVoice = voice;
+  localStorage.setItem('dnd_tts_voice', voice);
+  // Persist per-campaign on the server so a fresh page load lands on the same
+  // voice across browsers. Best-effort; UI never blocks on the response.
+  fetch('/voice', {
+    method: 'POST',
+    headers: _authHeaders(),
+    body: JSON.stringify({ voice }),
+  }).catch(() => {});
+  document.querySelectorAll('.tts-voice-opt').forEach(o => {
+    o.classList.toggle('tts-voice-active', o.dataset.voice === voice);
+  });
+}
+
+function _ttsBuildVoiceMenu() {
+  const menu = document.createElement('div');
+  menu.className = 'tts-voice-menu';
+  menu.hidden = true;
+
+  function _addGroup(label, voices) {
+    const hdr = document.createElement('div');
+    hdr.className = 'tts-voice-group';
+    hdr.textContent = label;
+    menu.appendChild(hdr);
+    voices.forEach(v => {
+      const opt = document.createElement('button');
+      opt.className = 'tts-voice-opt';
+      opt.dataset.voice = v;
+      opt.textContent = v;
+      if (v === _ttsVoice) opt.classList.add('tts-voice-active');
+      opt.addEventListener('click', e => {
+        e.stopPropagation();
+        _ttsSaveVoice(v);
+        menu.hidden = true;
+      });
+      menu.appendChild(opt);
+    });
+  }
+  _addGroup('Male',   _TTS_VOICES_MALE);
+  _addGroup('Female', _TTS_VOICES_FEMALE);
+  return menu;
+}
+
+function _addTtsBar(blockEl) {
+  if (!_TTS_AVAILABLE || !blockEl) return;
+  if (blockEl.querySelector(':scope > .tts-bar')) return;  // already added
+
+  const bar = document.createElement('div');
+  bar.className = 'tts-bar';
+
+  const playBtn = document.createElement('button');
+  playBtn.className = 'tts-play-btn';
+  playBtn.innerHTML = _SVG_SPEAKER;
+  playBtn.setAttribute('aria-label', 'Listen to narration');
+  playBtn.addEventListener('click', e => { e.stopPropagation(); _ttsPlayBlock(playBtn, blockEl); });
+  bar.appendChild(playBtn);
+
+  const voiceBtn = document.createElement('button');
+  voiceBtn.className = 'tts-voice-btn';
+  voiceBtn.innerHTML = '<span class="tts-voice-label">Voices</span>' + _SVG_CHEVRON;
+  voiceBtn.setAttribute('aria-label', 'Select narrator voice');
+  bar.appendChild(voiceBtn);
+
+  const menu = _ttsBuildVoiceMenu();
+  bar.appendChild(menu);
+
+  voiceBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const wasHidden = menu.hidden;
+    document.querySelectorAll('.tts-voice-menu').forEach(m => { m.hidden = true; });
+    menu.hidden = !wasHidden;
+  });
+
+  blockEl.appendChild(bar);
+
+  if (_ttsAutoNarrate) {
+    // Defer one tick so the bar is in the DOM before triggering the click path
+    setTimeout(() => _ttsPlayBlock(playBtn, blockEl), 0);
+  }
+}
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.tts-voice-menu').forEach(m => { m.hidden = true; });
+}, { passive: true });
+
+// Auto-narrate row — only shown if the server reports TTS available.
+if (_TTS_AVAILABLE) {
+  const narrateRow = document.getElementById('narrate-row');
+  const narrateLabel = document.getElementById('narrate-label');
+  if (narrateRow && narrateLabel) {
+    narrateRow.hidden = false;
+    const refresh = () => {
+      narrateLabel.textContent = _ttsAutoNarrate ? 'On' : 'Off';
+      narrateLabel.classList.toggle('on', _ttsAutoNarrate);
+    };
+    refresh();
+    narrateRow.addEventListener('click', () => {
+      _ttsAutoNarrate = !_ttsAutoNarrate;
+      localStorage.setItem('dnd_tts_auto', _ttsAutoNarrate ? '1' : '0');
+      refresh();
+      if (_ttsAutoNarrate) {
+        // Prime the AudioContext from this click so auto-narrate works on the next
+        // block without needing a per-block gesture (iOS Safari).
+        const ctx = _getTtsCtx();
+        if (ctx.state !== 'running') ctx.resume().catch(() => {});
+      }
+    });
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // PLAYER INPUT PANEL

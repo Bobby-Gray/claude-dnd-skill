@@ -146,6 +146,6 @@ revision_log: []
 *(leave empty until the first arc completes)*
 
 ## Session Flags
-*(tutor_mode, etc. — session-scoped flags set via /dnd commands)*
+*(tutor_mode, autorun, autorun_interval, tts_voice, sfx_languages — session-scoped flags set via /dnd commands or by the display companion)*
 
 ## DM Notes (hidden from players)

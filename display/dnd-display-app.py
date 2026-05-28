@@ -59,6 +59,44 @@ try:
     _audio.init()
 except Exception:
     _audio = None   # type: ignore
+
+# TTS module — degrades silently if Gemini API key not configured
+try:
+    import tts as _tts
+except Exception:
+    _tts = None   # type: ignore
+
+
+def _apply_campaign_sfx_languages() -> None:
+    """Read sfx_languages from the active campaign's state.md Session Flags.
+
+    state.md line shape:  `sfx_languages: en,zh,es`
+    Takes precedence over the DND_SFX_LANGUAGES env var when present; both
+    fall back to English-only if neither is set.
+    """
+    if _audio is None:
+        return
+    try:
+        camp = open(os.path.expanduser("~/.claude/skills/dnd/display/.campaign")).read().strip()
+        if not camp:
+            return
+        state_md = _find_campaign(camp) / "state.md"
+        if not state_md.exists():
+            return
+        text = state_md.read_text(errors="replace")
+    except (OSError, ValueError):
+        return
+    m = re.search(r"^\s*sfx_languages:\s*([\w,\s\-]+)$", text, re.MULTILINE)
+    if not m:
+        return
+    langs = [l.strip() for l in m.group(1).split(",") if l.strip()]
+    valid = [l for l in langs if l in _audio.available_languages()]
+    if valid:
+        _audio.set_sfx_languages(valid)
+
+
+_apply_campaign_sfx_languages()
+
 HELP_LOCK     = os.path.expanduser("~/.claude/skills/dnd/display/.help-lock")
 CAMP_FILE     = os.path.expanduser("~/.claude/skills/dnd/display/.campaign")
 STATS_FILE    = os.path.expanduser("~/.claude/skills/dnd/display/stats.json")
@@ -125,9 +163,34 @@ def _rate_ok(ip: str) -> bool:
 
 # ─── Input validation helpers ─────────────────────────────────────────────────
 
-_PRINTABLE    = re.compile(r"[^\x20-\x7E一-鿿㐀-䶿　-〿＀-￯]")
+_PRINTABLE    = re.compile(
+    "[^"
+    "\x20-\x7E"                 # ASCII printable
+    " -ɏ"             # Latin-1 + Latin Extended A/B (é ñ ö ć ş ž etc.)
+    "Ͱ-Ͽ"             # Greek
+    "Ѐ-ӿ"             # Cyrillic (Russian, Ukrainian)
+    "֐-׿"             # Hebrew
+    "؀-ۿ"             # Arabic
+    "ݐ-ݿ"             # Arabic Supplement
+    "ऀ-ॿ"             # Devanagari (Hindi, Marathi)
+    "ঀ-৿"             # Bengali
+    "஀-௿"             # Tamil
+    "ఀ-౿"             # Telugu
+    "฀-๿"             # Thai
+    "Ḁ-ỿ"             # Latin Extended Additional (Vietnamese diacritics)
+    "　-〿"             # CJK Symbols and Punctuation
+    "぀-ゟ"             # Hiragana
+    "゠-ヿ"             # Katakana
+    "㐀-䶿"             # CJK Extension A
+    "一-鿿"             # CJK Unified Ideographs
+    "가-힯"             # Hangul Syllables
+    "＀-￯"             # Halfwidth / Fullwidth
+    "]"
+)
 _SHELL_CHARS  = re.compile(r'[$`\\;|&><()\[\]{}!]')
-_CHAR_NAME_RE = re.compile(r"^[\w一-鿿][\w一-鿿 '\-]{0,48}[\w一-鿿]$|^[\w一-鿿]{1,2}$")
+# Unicode \w covers letters from all scripts above. Allow space, apostrophe, hyphen
+# inside the name; trim 1-2 char names to a separate branch.
+_CHAR_NAME_RE = re.compile(r"^\w[\w '\-]{0,48}\w$|^\w{1,2}$", re.UNICODE)
 
 
 def _sanitize_input(text: str) -> str:
@@ -1015,7 +1078,12 @@ def _broadcast(payload: dict) -> None:
 @app.route("/")
 def index():
     # Pass LAN token to template so the browser can authenticate /help-request
-    return render_template("index.html", lan_token=_lan_token or "")
+    return render_template(
+        "index.html",
+        lan_token=_lan_token or "",
+        narrator_voice=_read_narrator_voice(),
+        tts_available=(_tts is not None),
+    )
 
 
 @app.route("/icons/<path:filename>")
@@ -1590,6 +1658,138 @@ def audio_toggle():
     else:
         state = {"sfx": False, "available": False}
     return state, 200
+
+
+# ─── Narrator voice (Gemini Flash TTS) ────────────────────────────────────────
+# Voice selection persists per-campaign in state.md → ## Session Flags →
+# `tts_voice: <name>`. Read at /index render, written by POST /voice.
+
+_VOICE_PAT = re.compile(r"^\s*tts_voice:\s*([A-Za-z]+)\s*$", re.MULTILINE)
+
+
+def _active_campaign_name() -> Optional[str]:
+    try:
+        return open(CAMP_FILE).read().strip() or None
+    except OSError:
+        return None
+
+
+def _read_narrator_voice() -> str:
+    """Return the active campaign's tts_voice, or the module default."""
+    if _tts is None:
+        return ""
+    name = _active_campaign_name()
+    if not name:
+        return _tts.DEFAULT_VOICE
+    try:
+        state = _find_campaign(name) / "state.md"
+        if not state.exists():
+            return _tts.DEFAULT_VOICE
+        text = state.read_text(errors="replace")
+    except (OSError, ValueError):
+        return _tts.DEFAULT_VOICE
+    m = _VOICE_PAT.search(text)
+    if not m:
+        return _tts.DEFAULT_VOICE
+    v = m.group(1).strip()
+    return v if v in _tts.VALID_VOICES else _tts.DEFAULT_VOICE
+
+
+def _write_narrator_voice(voice: str) -> bool:
+    """Persist tts_voice to the active campaign's state.md → ## Session Flags."""
+    if _tts is None or voice not in _tts.VALID_VOICES:
+        return False
+    name = _active_campaign_name()
+    if not name:
+        return False
+    try:
+        state = _find_campaign(name) / "state.md"
+        text = state.read_text(errors="replace") if state.exists() else ""
+    except (OSError, ValueError):
+        return False
+
+    new_line = f"tts_voice: {voice}"
+    if _VOICE_PAT.search(text):
+        text = _VOICE_PAT.sub(new_line, text, count=1)
+    else:
+        # Append under ## Session Flags. If the section is missing, append at EOF.
+        if "## Session Flags" in text:
+            # Insert right after the header line. Keep the existing template
+            # comment if present, but place the flag immediately under it.
+            text = re.sub(
+                r"(## Session Flags\n(?:\*\(.*?\)\*\n)?)",
+                r"\1" + new_line + "\n",
+                text,
+                count=1,
+            )
+        else:
+            sep = "" if text.endswith("\n") else "\n"
+            text = f"{text}{sep}\n## Session Flags\n{new_line}\n"
+
+    try:
+        state.write_text(text)
+        return True
+    except OSError:
+        return False
+
+
+@app.route("/tts", methods=["POST"])
+def tts_synthesize():
+    """Synthesize a narrator/NPC block to L16 PCM.
+
+    Body: {"text": str, "voice": str (optional)}
+    Response: raw L16 PCM bytes, Content-Type: audio/L16;codec=pcm;rate=24000
+    Failures: 503 (no key / module unavailable), 400 (bad input), 502 (upstream)
+    """
+    if _tts is None:
+        return "TTS module unavailable", 503
+    if not _token_ok():
+        return "Forbidden", 403
+    if not _rate_ok(request.remote_addr or "?"):
+        return "Rate limited", 429
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    voice = (data.get("voice") or _tts.DEFAULT_VOICE).strip()
+    if not text:
+        return "empty text", 400
+    if len(text) > _tts.MAX_TEXT_CHARS:
+        text = text[: _tts.MAX_TEXT_CHARS]
+    if voice not in _tts.VALID_VOICES:
+        voice = _tts.DEFAULT_VOICE
+    if _tts.key_source() == "unset":
+        return "TTS not configured (see docs/SKILL-tts.md)", 503
+    try:
+        pcm = _tts.synthesize_strict(text, voice)
+    except _tts.TtsError as e:
+        return f"TTS upstream: {e}", 502
+    return Response(
+        pcm,
+        mimetype="audio/L16;codec=pcm;rate=24000",
+        headers={
+            "X-Audio-Chars": str(len(text)),
+            "X-Audio-Voice": voice,
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.route("/voice", methods=["POST"])
+def tts_voice():
+    """Persist narrator voice selection for the active campaign.
+
+    Body: {"voice": str}
+    Response: {"voice": str, "persisted": bool}
+    """
+    if _tts is None:
+        return jsonify({"voice": "", "persisted": False}), 503
+    if not _token_ok():
+        return "Forbidden", 403
+    data = request.get_json(silent=True) or {}
+    voice = (data.get("voice") or "").strip()
+    if voice not in _tts.VALID_VOICES:
+        return jsonify({"error": "invalid voice"}), 400
+    ok = _write_narrator_voice(voice)
+    return jsonify({"voice": voice, "persisted": ok}), 200
 
 
 @app.route("/audio/sfx/<name>")

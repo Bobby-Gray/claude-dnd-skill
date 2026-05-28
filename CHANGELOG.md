@@ -12,6 +12,40 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 - **License formalized as AGPL-3.0-or-later.** Added canonical `LICENSE` file with `Copyright (c) 2026 Neural Initiative LLC` and a `CONTRIBUTING.md` documenting the contribution licensing handshake. The README's prior informal "MIT" footer is replaced with a proper AGPL-3.0-or-later section linking to the LICENSE file. Self-hosting and modification remain explicitly welcome; AGPL protects against closed-source SaaS forks. Contributions made before this change remain available under their original (MIT-as-stated) terms in git history; new contributions are AGPL-3.0-or-later.
 
+## [1.10.0] — 2026-05-28 — Narrator TTS + i18n expansion to all 24 Gemini locales
+
+Two additive features in this release, both opt-in. Existing campaigns are unaffected unless you choose to engage with the new capabilities.
+
+### Narrator TTS via Gemini Flash TTS (optional)
+
+Per-block speaker buttons on every `.dm-block` and `.npc-block` in the display companion, paired with a 9-voice dropdown (4 male: Charon, Enceladus, Fenrir, Umbriel; 5 female: Aoede, Gacrux, Kore, Vindemiatrix, Zephyr). Click the speaker to hear the block read aloud through your chosen narrator voice. Synthesis happens server-side via Google's Gemini Flash TTS through your own AI Studio API key — the full setup walkthrough at `docs/SKILL-tts.md` gets you running in about five minutes with a free Google account.
+
+A per-browser **Auto Narrate** toggle in the top-right audio controls (saved to `localStorage`) auto-plays each new narration block on that browser only. Practical use: turn it on for the device casting to your TV and leave it off on player phones, so the audio plays from the main display while the phones stay quiet.
+
+Voice selection is per-campaign — persisted to `state.md → ## Session Flags → tts_voice: <name>`. Switching voices mid-session updates the active marker across every visible block's dropdown simultaneously.
+
+The feature is **off by default** and stays off until you configure an API key. With no key the speaker buttons don't render and the display behaves exactly as it does today. Three layered fail-silent gates back this up: no key → server returns 503 and the button stays inert; invalid voice → silent fallback to the default; upstream API error → button shows a brief diagnostic label for a few seconds, then resets, while text-only narration continues uninterrupted.
+
+Browser-side playback uses AudioContext with manual Int16 → Float32 PCM conversion rather than HTMLAudioElement. iOS WebKit's per-call gesture gating on `<audio>` is hard to work around; AudioContext only needs `ctx.resume()` once per session inside a user gesture, so subsequent plays don't require a fresh gesture. The 2000-character input cap matches the point past which Gemini Flash TTS responses begin to degrade in latency and may truncate; longer DM responses are naturally chunked at block flush.
+
+**Per-browser cost note.** Each player clicking the speaker on the same block triggers a separate Gemini call — there's no server-side caching by content hash. A 4-player table where everyone clicks every block is roughly 4× the per-block cost. Recommended mitigation: use Auto Narrate on the casting TV only, so the TV speaker carries the audio for the table. Setup doc also points at Google's billing-cap controls for users who want a hard ceiling.
+
+Gemini Flash TTS auto-detects the input language from the text content, so the feature works transparently across all 24 supported locales — Chinese, Japanese, Spanish, Hindi, and the rest just synthesize correctly without any language code on the request.
+
+### i18n expansion to all 24 Gemini-supported locales
+
+PR #32's two-language SFX foundation (English + Chinese) is extended to all 24 locales Gemini Flash TTS supports: `ar`, `bn`, `de`, `en`, `es`, `fr`, `hi`, `id`, `it`, `ja`, `ko`, `mr`, `nl`, `pl`, `pt`, `ro`, `ru`, `ta`, `te`, `th`, `tr`, `uk`, `vi`, `zh`. Same dict-of-dicts language-pack structure as #32 — each language contributes trigger phrases per SFX category (impact, sword, arrow, shout, thud, magic, coins, door, low_hum, fire, breath). Latin scripts use word-boundary regex; unspaced scripts (CJK, Thai, Arabic) use literal substring matching.
+
+The `_PRINTABLE` character allowlist and `_CHAR_NAME_RE` regex in `display/dnd-display-app.py` and `display/wrapper.py` widen to accept letters from every script in scope: Latin Extended A/B (`é ñ ö ć ş` etc.), Greek, Cyrillic, Hebrew, Arabic, Devanagari (Hindi/Marathi), Bengali, Tamil, Telugu, Thai, Vietnamese diacritics, Hiragana, Katakana, Hangul, and the existing CJK ranges. Player and NPC names in any of these scripts are now first-class without per-script special casing.
+
+Default behavior is unchanged. The active language list stays `["en"]` (English-only) until explicitly overridden via the new `DND_SFX_LANGUAGES` environment variable (e.g. `export DND_SFX_LANGUAGES=en,zh,es`) or per-campaign via `state.md → ## Session Flags → sfx_languages: en,zh`. Both pre-existing English-only sessions and PR #32's `["en", "zh"]` configurations continue to work without modification.
+
+Translation quality across the 22 new packs is best-effort starter content. Community PRs to refine any individual pack are warmly welcomed — the structure is designed for additive, language-by-language extension with zero code changes needed in the regex compiler.
+
+### README — Other ways to play
+
+The "Using a different LLM?" section additionally mentions `neuralinitiative.ai` as the hosted browser-based sibling project for users who'd rather skip a local install entirely. Matches the existing cross-reference tone — honest about the tradeoffs, optional, no marketing language. Existing `open-tabletop-gm` mention preserved as-is.
+
 ## [1.9.0] — 2026-05-22 — Community release: i18n + optional physical dice server (hardened)
 
 Two community contributions landed in this release, both opt-in / additive — existing campaigns are unaffected unless you choose to engage with the new features.

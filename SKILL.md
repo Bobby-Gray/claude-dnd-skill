@@ -102,7 +102,8 @@ Players who take creative risks, commit hard to a roleplay choice, or do somethi
   scripts/           ← dice.py, combat.py, character.py, tracker.py, calendar.py, lookup.py
   data/              ← bundled 5e SRD dataset (dnd5e_srd.json — no download needed; sync via /dnd data sync)
   templates/         ← blank character-sheet.md, state.md, world.md, npcs.md, session-log.md
-  display/           ← Flask SSE display companion (dnd-display-app.py, send.py, push_stats.py, wrapper.py)
+  display/           ← Flask SSE display companion (dnd-display-app.py, send.py, push_stats.py, wrapper.py, tts.py)
+  docs/              ← optional setup walkthroughs (SKILL-tts.md for narrator TTS)
 
 ~/.claude/dnd/campaigns/<name>/
   state.md / world.md / npcs.md / session-log.md / characters/<name>.md

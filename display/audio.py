@@ -12,6 +12,7 @@ If numpy is missing the module degrades silently — WAV endpoints return 404.
 """
 
 import io
+import os
 import re
 import struct
 from typing import Callable, Optional
@@ -249,6 +250,7 @@ def _synth_sfx(name: str) -> Optional["np.ndarray"]:
 # Add a language by adding a new top-level key — zero code changes needed.
 
 _SFX_TRIGGERS: dict[str, dict[str, list[str]]] = {
+    # English (en-IN, en-US share the pack)
     "en": {
         "impact":  ["strike", "strikes", "struck", "slam", "slams", "slammed",
                     "bash", "bashes", "bashed", "smash", "smashes", "smashed",
@@ -274,6 +276,323 @@ _SFX_TRIGGERS: dict[str, dict[str, list[str]]] = {
         "breath":  ["breath", "breaths", "exhale", "exhales", "inhale", "inhales",
                     "gasp", "gasps"],
     },
+
+    # Spanish (es-US)
+    "es": {
+        "impact":  ["golpe", "golpea", "golpeó", "embiste", "aplasta", "rompe", "estrella"],
+        "sword":   ["espada", "hoja", "daga", "acero", "parar", "paró", "estoque"],
+        "arrow":   ["flecha", "flechas", "saeta", "dispara", "tensa", "ballesta"],
+        "shout":   ["grita", "grito", "chilla", "ruge", "rugido", "aúlla"],
+        "thud":    ["cae", "se desploma", "tropieza", "se derrumba"],
+        "magic":   ["magia", "arcano", "hechizo", "conjura", "lanza el hechizo", "destella"],
+        "coins":   ["moneda", "monedas", "oro", "tintinea", "bolsa"],
+        "door":    ["puerta", "cruje", "bisagra", "portón"],
+        "low_hum": ["zumba", "zumbido", "vibra", "resuena"],
+        "fire":    ["fuego", "llama", "llamas", "antorcha", "arde", "incendia"],
+        "breath":  ["respira", "aliento", "exhala", "inhala", "jadea"],
+    },
+
+    # French (fr-FR)
+    "fr": {
+        "impact":  ["frappe", "frappes", "frappa", "cogne", "écrase", "brise", "percute"],
+        "sword":   ["épée", "lame", "dague", "acier", "para", "pare", "parade"],
+        "arrow":   ["flèche", "flèches", "carreau", "décoche", "bande l'arc"],
+        "shout":   ["crie", "cri", "hurle", "rugit", "rugissement", "beugle"],
+        "thud":    ["tombe", "s'effondre", "trébuche", "s'écrase"],
+        "magic":   ["magie", "arcane", "sort", "incantation", "lance le sort", "scintille"],
+        "coins":   ["pièce", "pièces", "or", "tintent", "bourse"],
+        "door":    ["porte", "grince", "gond", "portail"],
+        "low_hum": ["bourdonne", "vibre", "résonne"],
+        "fire":    ["feu", "flamme", "flammes", "torche", "brûle", "embrase"],
+        "breath":  ["respire", "souffle", "expire", "inspire", "halète"],
+    },
+
+    # German (de-DE)
+    "de": {
+        "impact":  ["schlägt", "schlug", "trifft", "kracht", "zerschmettert", "prallt"],
+        "sword":   ["schwert", "klinge", "dolch", "stahl", "pariert", "schneide"],
+        "arrow":   ["pfeil", "pfeile", "bolzen", "schießt", "spannt den bogen"],
+        "shout":   ["schreit", "brüllt", "ruft", "kreischt", "heult"],
+        "thud":    ["fällt", "stürzt", "kollabiert", "taumelt", "knallt"],
+        "magic":   ["magie", "arkan", "zauber", "wirkt", "spricht den zauber", "funkelt"],
+        "coins":   ["münze", "münzen", "gold", "klimpert", "beutel"],
+        "door":    ["tür", "knarrt", "scharnier", "tor"],
+        "low_hum": ["summt", "vibriert", "schwingt"],
+        "fire":    ["feuer", "flamme", "flammen", "fackel", "brennt", "lodert"],
+        "breath":  ["atmet", "atem", "haucht", "keucht", "japst"],
+    },
+
+    # Italian (it-IT)
+    "it": {
+        "impact":  ["colpisce", "colpo", "schianta", "spacca", "sbatte"],
+        "sword":   ["spada", "lama", "pugnale", "acciaio", "para", "parata"],
+        "arrow":   ["freccia", "frecce", "dardo", "scocca", "tende l'arco"],
+        "shout":   ["grida", "urla", "ruggisce", "ringhia", "strilla"],
+        "thud":    ["cade", "crolla", "stramazza", "inciampa"],
+        "magic":   ["magia", "arcano", "incantesimo", "lancia l'incantesimo", "scintilla"],
+        "coins":   ["moneta", "monete", "oro", "tintinna", "borsa"],
+        "door":    ["porta", "scricchiola", "cardine", "portone"],
+        "low_hum": ["ronza", "vibra", "risuona"],
+        "fire":    ["fuoco", "fiamma", "fiamme", "torcia", "brucia", "arde"],
+        "breath":  ["respira", "respiro", "espira", "inspira", "ansima"],
+    },
+
+    # Portuguese (pt-BR)
+    "pt": {
+        "impact":  ["golpe", "golpeia", "atinge", "esmaga", "estilhaça", "soca"],
+        "sword":   ["espada", "lâmina", "adaga", "aço", "apara", "estoque"],
+        "arrow":   ["flecha", "flechas", "virote", "atira", "retesa o arco"],
+        "shout":   ["grita", "grito", "berra", "ruge", "uiva"],
+        "thud":    ["cai", "desaba", "tropeça", "tomba"],
+        "magic":   ["magia", "arcano", "feitiço", "lança o feitiço", "brilha", "cintila"],
+        "coins":   ["moeda", "moedas", "ouro", "tilinta", "bolsa"],
+        "door":    ["porta", "range", "dobradiça", "portão"],
+        "low_hum": ["zumbe", "vibra", "ressoa"],
+        "fire":    ["fogo", "chama", "chamas", "tocha", "queima", "arde"],
+        "breath":  ["respira", "respiração", "expira", "inspira", "ofega"],
+    },
+
+    # Dutch (nl-NL)
+    "nl": {
+        "impact":  ["slaat", "ramt", "verbrijzelt", "beukt", "smeert"],
+        "sword":   ["zwaard", "kling", "dolk", "staal", "pareert"],
+        "arrow":   ["pijl", "pijlen", "schiet", "spant de boog"],
+        "shout":   ["schreeuwt", "brult", "krijst", "roept"],
+        "thud":    ["valt", "stort", "zakt in elkaar", "tuimelt"],
+        "magic":   ["magie", "arcaan", "spreuk", "spreekt de spreuk", "glinstert"],
+        "coins":   ["munt", "munten", "goud", "rinkelt", "buidel"],
+        "door":    ["deur", "kraakt", "scharnier", "poort"],
+        "low_hum": ["zoemt", "trilt", "resoneert"],
+        "fire":    ["vuur", "vlam", "vlammen", "fakkel", "brandt"],
+        "breath":  ["ademt", "adem", "ademt uit", "hijgt"],
+    },
+
+    # Polish (pl-PL)
+    "pl": {
+        "impact":  ["uderza", "uderzył", "wali", "rąbie", "miażdży"],
+        "sword":   ["miecz", "ostrze", "sztylet", "stal", "paruje"],
+        "arrow":   ["strzała", "strzały", "bełt", "strzela", "napina łuk"],
+        "shout":   ["krzyczy", "krzyk", "ryczy", "wrzeszczy"],
+        "thud":    ["upada", "wali się", "potyka się", "runął"],
+        "magic":   ["magia", "tajemny", "zaklęcie", "rzuca zaklęcie", "iskrzy"],
+        "coins":   ["moneta", "monety", "złoto", "brzęczy", "sakiewka"],
+        "door":    ["drzwi", "skrzypią", "zawias", "brama"],
+        "low_hum": ["buczy", "wibruje", "rezonuje"],
+        "fire":    ["ogień", "płomień", "płomienie", "pochodnia", "płonie"],
+        "breath":  ["oddycha", "oddech", "wydycha", "wdycha", "dyszy"],
+    },
+
+    # Romanian (ro-RO)
+    "ro": {
+        "impact":  ["lovește", "lovi", "izbește", "zdrobește", "sfărâmă"],
+        "sword":   ["sabie", "lamă", "pumnal", "oțel", "parează"],
+        "arrow":   ["săgeată", "săgeți", "trage", "încordează arcul"],
+        "shout":   ["strigă", "țipă", "urlă", "răcnește"],
+        "thud":    ["cade", "se prăbușește", "se împiedică"],
+        "magic":   ["magie", "arcan", "vrajă", "aruncă vraja", "sclipește"],
+        "coins":   ["monedă", "monede", "aur", "zornăie", "pungă"],
+        "door":    ["ușa", "scârțâie", "balama", "poartă"],
+        "low_hum": ["bâzâie", "vibrează", "rezonează"],
+        "fire":    ["foc", "flacără", "flăcări", "torță", "arde"],
+        "breath":  ["respiră", "respirație", "expiră", "inspiră", "gâfâie"],
+    },
+
+    # Russian (ru-RU)
+    "ru": {
+        "impact":  ["удар", "ударяет", "бьёт", "сокрушает", "врезается"],
+        "sword":   ["меч", "клинок", "кинжал", "сталь", "парирует"],
+        "arrow":   ["стрела", "стрелы", "болт", "стреляет", "натягивает лук"],
+        "shout":   ["кричит", "крик", "ревёт", "вопит", "рычит"],
+        "thud":    ["падает", "рушится", "спотыкается", "повалился"],
+        "magic":   ["магия", "тайный", "заклинание", "произносит заклинание", "искрится"],
+        "coins":   ["монета", "монеты", "золото", "звенит", "кошелёк"],
+        "door":    ["дверь", "скрипит", "петля", "ворота"],
+        "low_hum": ["гудит", "вибрирует", "резонирует"],
+        "fire":    ["огонь", "пламя", "факел", "горит", "пылает"],
+        "breath":  ["дышит", "дыхание", "выдыхает", "вдыхает", "задыхается"],
+    },
+
+    # Ukrainian (uk-UA)
+    "uk": {
+        "impact":  ["удар", "ударяє", "б'є", "трощить", "врізається"],
+        "sword":   ["меч", "клинок", "кинджал", "сталь", "парирує"],
+        "arrow":   ["стріла", "стріли", "болт", "стріляє", "натягує лук"],
+        "shout":   ["кричить", "крик", "реве", "волає", "гарчить"],
+        "thud":    ["падає", "валиться", "спотикається"],
+        "magic":   ["магія", "арканний", "закляття", "промовляє закляття", "іскриться"],
+        "coins":   ["монета", "монети", "золото", "дзвенить", "гаманець"],
+        "door":    ["двері", "скрипить", "завіса", "ворота"],
+        "low_hum": ["гуде", "вібрує", "резонує"],
+        "fire":    ["вогонь", "полум'я", "смолоскип", "горить", "палає"],
+        "breath":  ["дихає", "дихання", "видихає", "вдихає", "задихається"],
+    },
+
+    # Turkish (tr-TR)
+    "tr": {
+        "impact":  ["vurur", "darbe", "çarpar", "ezer", "kırar"],
+        "sword":   ["kılıç", "bıçak", "hançer", "çelik", "savuşturur"],
+        "arrow":   ["ok", "oklar", "atar", "yayı gerer"],
+        "shout":   ["bağırır", "haykırır", "kükrer", "çığlık"],
+        "thud":    ["düşer", "yığılır", "tökezler", "çöker"],
+        "magic":   ["büyü", "gizemli", "büyü yapar", "büyüyü okur", "parlar"],
+        "coins":   ["sikke", "altın", "şıngırdar", "kese"],
+        "door":    ["kapı", "gıcırdar", "menteşe"],
+        "low_hum": ["uğuldar", "titrer", "rezonans"],
+        "fire":    ["ateş", "alev", "alevler", "meşale", "yanar"],
+        "breath":  ["nefes", "nefes alır", "nefes verir", "soluk"],
+    },
+
+    # Indonesian (id-ID)
+    "id": {
+        "impact":  ["pukul", "memukul", "menghantam", "menghancurkan", "membenturkan"],
+        "sword":   ["pedang", "bilah", "belati", "baja", "menangkis"],
+        "arrow":   ["panah", "anak panah", "menembak", "merentangkan busur"],
+        "shout":   ["berteriak", "menjerit", "mengaum", "memekik"],
+        "thud":    ["jatuh", "tumbang", "tersandung", "ambruk"],
+        "magic":   ["sihir", "arkana", "mantra", "merapal mantra", "berkilau"],
+        "coins":   ["koin", "emas", "gemerincing", "kantong uang"],
+        "door":    ["pintu", "berderit", "engsel", "gerbang"],
+        "low_hum": ["bergumam", "bergetar", "beresonansi"],
+        "fire":    ["api", "nyala", "obor", "membakar", "berkobar"],
+        "breath":  ["napas", "bernapas", "menghela napas", "terengah"],
+    },
+
+    # Vietnamese (vi-VN)
+    "vi": {
+        "impact":  ["đánh", "đập", "tông", "đập tan", "nện"],
+        "sword":   ["kiếm", "lưỡi kiếm", "dao găm", "thép", "đỡ đòn"],
+        "arrow":   ["mũi tên", "tên", "bắn", "giương cung"],
+        "shout":   ["hét", "gào", "rống", "thét"],
+        "thud":    ["ngã", "đổ sụp", "vấp", "sụp xuống"],
+        "magic":   ["phép thuật", "huyền bí", "thần chú", "niệm chú", "lấp lánh"],
+        "coins":   ["đồng tiền", "vàng", "leng keng", "túi tiền"],
+        "door":    ["cửa", "cọt kẹt", "bản lề", "cổng"],
+        "low_hum": ["vo ve", "rung", "vang vọng"],
+        "fire":    ["lửa", "ngọn lửa", "đuốc", "cháy", "bốc cháy"],
+        "breath":  ["hơi thở", "thở", "thở ra", "hít vào", "thở gấp"],
+    },
+
+    # Hindi (hi-IN) — Devanagari
+    "hi": {
+        "impact":  ["प्रहार", "मारता", "टकराता", "तोड़ता"],
+        "sword":   ["तलवार", "खंजर", "इस्पात", "धार"],
+        "arrow":   ["तीर", "बाण", "चलाता", "धनुष"],
+        "shout":   ["चिल्लाता", "गरजता", "हुंकार", "दहाड़"],
+        "thud":    ["गिरता", "गिर पड़ा", "लड़खड़ाता"],
+        "magic":   ["जादू", "मंत्र", "तंत्र", "जादू करता", "चमकता"],
+        "coins":   ["सिक्का", "स्वर्ण", "खनकता", "थैली"],
+        "door":    ["दरवाज़ा", "चरमराता", "कब्ज़ा"],
+        "low_hum": ["गुंजन", "कांपता", "गूंजता"],
+        "fire":    ["आग", "लौ", "ज्वाला", "मशाल", "जलता"],
+        "breath":  ["सांस", "सांस लेता", "हांफता"],
+    },
+
+    # Marathi (mr-IN) — Devanagari, distinct vocabulary
+    "mr": {
+        "impact":  ["आघात", "मारतो", "ठोकतो", "तोडतो"],
+        "sword":   ["तलवार", "कट्यार", "पोलाद", "धार"],
+        "arrow":   ["बाण", "तीर", "धनुष्य"],
+        "shout":   ["ओरडतो", "गर्जतो", "हाक"],
+        "thud":    ["पडतो", "कोसळतो", "अडखळतो"],
+        "magic":   ["जादू", "मंत्र", "जादू करतो", "चमकतो"],
+        "coins":   ["नाणे", "सोनं", "किणकिणतो"],
+        "door":    ["दार", "करकरतो", "बिजागिरी"],
+        "low_hum": ["गुणगुणतो", "थरथरतो"],
+        "fire":    ["अग्नी", "ज्वाला", "मशाल", "जळतो"],
+        "breath":  ["श्वास", "श्वास घेतो", "धापा"],
+    },
+
+    # Bengali (bn-BD)
+    "bn": {
+        "impact":  ["আঘাত", "মারে", "ধাক্কা", "ভেঙে দেয়"],
+        "sword":   ["তরবারি", "ছুরি", "ইস্পাত", "ধার"],
+        "arrow":   ["তীর", "বাণ", "ছোঁড়ে", "ধনুক"],
+        "shout":   ["চিৎকার", "গর্জন", "হুঙ্কার"],
+        "thud":    ["পড়ে", "ধসে পড়ে", "হোঁচট"],
+        "magic":   ["যাদু", "মন্ত্র", "যাদু করে", "ঝিকমিক"],
+        "coins":   ["মুদ্রা", "স্বর্ণ", "ঝংকার", "থলি"],
+        "door":    ["দরজা", "ক্যাঁচ", "কব্জা"],
+        "low_hum": ["গুঞ্জন", "কাঁপে", "অনুরণন"],
+        "fire":    ["আগুন", "শিখা", "মশাল", "জ্বলে"],
+        "breath":  ["শ্বাস", "শ্বাস নেয়", "হাঁপায়"],
+    },
+
+    # Tamil (ta-IN)
+    "ta": {
+        "impact":  ["தாக்கு", "அறை", "மோதி", "உடைக்கிறது"],
+        "sword":   ["வாள்", "கத்தி", "எஃகு"],
+        "arrow":   ["அம்பு", "வில்", "எய்கிறது"],
+        "shout":   ["கூச்சல்", "கர்ஜனை", "அலறுகிறது"],
+        "thud":    ["விழுகிறது", "சரிகிறது"],
+        "magic":   ["மந்திரம்", "மாயம்", "மந்திரம் செய்கிறது", "ஒளிர்கிறது"],
+        "coins":   ["நாணயம்", "தங்கம்", "மணி", "பை"],
+        "door":    ["கதவு", "சத்தம்", "கீல்"],
+        "low_hum": ["ஒலி", "அதிர்வு"],
+        "fire":    ["தீ", "சுடர்", "தீப்பந்தம்", "எரிகிறது"],
+        "breath":  ["மூச்சு", "மூச்சு விடுகிறது", "மூச்சிரைக்கிறது"],
+    },
+
+    # Telugu (te-IN)
+    "te": {
+        "impact":  ["దెబ్బ", "కొడుతుంది", "ఢీకొంటుంది", "విరిగిపోతుంది"],
+        "sword":   ["కత్తి", "ఖడ్గం", "ఉక్కు"],
+        "arrow":   ["బాణం", "విల్లు", "వదులుతుంది"],
+        "shout":   ["అరుపు", "గర్జన", "కేక"],
+        "thud":    ["పడిపోతుంది", "కూలిపోతుంది"],
+        "magic":   ["మంత్రం", "మాయ", "మంత్రం వేస్తుంది", "మెరుస్తుంది"],
+        "coins":   ["నాణెం", "బంగారం", "మోతిస్తుంది", "సంచి"],
+        "door":    ["తలుపు", "క్రీచ్", "బందు"],
+        "low_hum": ["హుంకారం", "కంపన"],
+        "fire":    ["అగ్ని", "మంట", "కాగడా", "మండుతుంది"],
+        "breath":  ["శ్వాస", "ఊపిరి", "రొప్పుతుంది"],
+    },
+
+    # Thai (th-TH) — no inter-word spaces, treated as unspaced
+    "th": {
+        "impact":  ["โจมตี", "ฟาด", "ทุบ", "ปะทะ", "ทำลาย"],
+        "sword":   ["ดาบ", "ใบมีด", "มีดสั้น", "เหล็กกล้า"],
+        "arrow":   ["ลูกธนู", "ธนู", "ยิง", "ขึ้นคันธนู"],
+        "shout":   ["ตะโกน", "คำราม", "ร้อง", "กรีดร้อง"],
+        "thud":    ["ล้ม", "ทรุดลง", "สะดุด"],
+        "magic":   ["เวทมนตร์", "เวท", "ร่ายเวท", "ส่องประกาย"],
+        "coins":   ["เหรียญ", "ทอง", "กรุ๊งกริ๊ง", "ถุงเงิน"],
+        "door":    ["ประตู", "เสียงเอี๊ยด", "บานพับ"],
+        "low_hum": ["หึ่ง", "สั่น", "ก้อง"],
+        "fire":    ["ไฟ", "เปลว", "คบเพลิง", "เผา"],
+        "breath":  ["หายใจ", "ลมหายใจ", "หอบ"],
+    },
+
+    # Japanese (ja-JP) — unspaced script
+    "ja": {
+        "impact":  ["殴る", "殴った", "叩く", "ぶつかる", "粉砕", "砕く"],
+        "sword":   ["剣", "刃", "短剣", "鋼", "受け流す", "刀"],
+        "arrow":   ["矢", "弓", "射る", "弓を引く"],
+        "shout":   ["叫ぶ", "怒鳴る", "咆哮", "悲鳴"],
+        "thud":    ["倒れる", "崩れ落ちる", "つまずく"],
+        "magic":   ["魔法", "秘術", "呪文", "詠唱", "煌めく", "輝く"],
+        "coins":   ["硬貨", "金貨", "ちゃりん", "金", "袋"],
+        "door":    ["扉", "ドア", "きしむ", "蝶番"],
+        "low_hum": ["唸る", "振動", "共鳴"],
+        "fire":    ["火", "炎", "焔", "松明", "燃える"],
+        "breath":  ["息", "呼吸", "吐息", "あえぐ"],
+    },
+
+    # Korean (ko-KR) — Hangul, mostly spaced but treated as unspaced for literal substring
+    "ko": {
+        "impact":  ["때리다", "친다", "박살", "충돌", "강타"],
+        "sword":   ["검", "칼", "단검", "강철", "받아치다"],
+        "arrow":   ["화살", "활", "쏘다", "활시위"],
+        "shout":   ["외치다", "비명", "포효", "고함"],
+        "thud":    ["쓰러진다", "무너진다", "비틀거린다"],
+        "magic":   ["마법", "비술", "주문", "주문을 외운다", "반짝인다"],
+        "coins":   ["동전", "금화", "쨍그랑", "주머니"],
+        "door":    ["문", "삐걱", "경첩"],
+        "low_hum": ["윙윙", "진동", "공명"],
+        "fire":    ["불", "불꽃", "횃불", "타오른다"],
+        "breath":  ["숨", "호흡", "내쉰다", "헐떡인다"],
+    },
+
+    # Chinese (zh-CN) — original PR #32 pack, unchanged
     "zh": {
         "impact":  ["猛击", "重击", "砸", "撞", "轰", "粉碎", "劈砍"],
         "sword":   ["拔剑", "挥剑", "剑", "格挡", "招架", "利刃", "刀刃", "劈砍"],
@@ -287,35 +606,58 @@ _SFX_TRIGGERS: dict[str, dict[str, list[str]]] = {
         "fire":    ["火焰", "烈焰", "火球", "火把", "燃烧", "烈火", "点燃"],
         "breath":  ["呼吸", "吐息", "喘息", "喘气", "深吸"],
     },
+
+    # Arabic (ar-EG) — RTL, connected script, treated as unspaced literal match
+    "ar": {
+        "impact":  ["يضرب", "ضربة", "يصدم", "يحطم", "يدق"],
+        "sword":   ["سيف", "نصل", "خنجر", "فولاذ"],
+        "arrow":   ["سهم", "سهام", "يطلق", "قوس"],
+        "shout":   ["يصرخ", "صرخة", "يزأر", "يهتف"],
+        "thud":    ["يسقط", "ينهار", "يتعثر"],
+        "magic":   ["سحر", "تعويذة", "يلقي تعويذة", "يتلألأ"],
+        "coins":   ["عملة", "ذهب", "يرن", "كيس"],
+        "door":    ["باب", "يصرّ", "مفصلة", "بوابة"],
+        "low_hum": ["يطن", "يهتز", "يرن"],
+        "fire":    ["نار", "لهب", "مشعل", "يحترق"],
+        "breath":  ["نفس", "يتنفس", "يلهث"],
+    },
 }
 
-# CJK Unicode ranges — languages whose scripts use these are matched literally
+# Languages whose scripts are unspaced (or where literal substring matching
+# is the right semantic): no \b word boundaries; phrases match anywhere.
+# Includes CJK, Thai, Arabic (RTL, connected glyphs).
+_UNSPACED_LANGS = frozenset(["zh", "ja", "ko", "th", "ar"])
+
+# Backwards-compat alias — pre-existing code referenced _CJK_LANGS.
+_CJK_LANGS = _UNSPACED_LANGS
 _CJK_START = "一"
 _CJK_END   = "鿿"
 
-_CJK_LANGS = frozenset(["zh", "ja", "ko"])
+# All language codes we ship packs for. Used for validation in set_sfx_languages.
+_AVAILABLE_LANGS = frozenset(_SFX_TRIGGERS.keys())
 
 
-def _compile_trigger_list(triggers: list[str], is_cjk: bool) -> str:
-    """Build a regex alternation string from a list of trigger phrases."""
+def _compile_trigger_list(triggers: list[str], is_unspaced: bool) -> str:
+    """Build a regex alternation string from a list of trigger phrases.
+
+    `is_unspaced` languages (CJK, Thai, Arabic) use literal substring matching
+    because there are no word-boundary tokens to anchor on (or, in Arabic's
+    case, the glyphs connect rather than separate cleanly).
+    """
     parts: list[str] = []
     for t in triggers:
         t = t.strip()
         if not t:
             continue
-        if is_cjk:
-            # Literal substring match — no word boundaries in CJK
+        if is_unspaced:
             parts.append(re.escape(t))
         elif t.endswith(" +"):
-            # Wildcard: "shoot +" → shoots?\s+\w+
             word = re.escape(t[:-2].strip())
             parts.append(r"\b" + word + r"\s+\w+")
         elif " " in t:
-            # Multi-word phrase: "falls to" → \bfalls?\s+to\b
             words = [re.escape(w) for w in t.split()]
             parts.append(r"\b" + r"\s+".join(words) + r"\b")
         else:
-            # Single word
             parts.append(r"\b" + re.escape(t) + r"\b")
 
     return "|".join(parts)
@@ -325,15 +667,16 @@ def _rebuild_sfx_map() -> None:
     """Rebuild _SFX_MAP from active language packs."""
     global _SFX_MAP
     _SFX_MAP.clear()
-    flags = {"en": re.IGNORECASE}  # Latin → case-insensitive; CJK → no flags
     for lang in _SFX_LANGUAGES:
         pack = _SFX_TRIGGERS.get(lang)
         if not pack:
             continue
-        is_cjk = lang in _CJK_LANGS
-        flag = 0 if is_cjk else re.IGNORECASE
+        is_unspaced = lang in _UNSPACED_LANGS
+        # Latin / Cyrillic / Greek / Indic etc. → case-insensitive match.
+        # Unspaced scripts → no flag; case isn't meaningful in those scripts.
+        flag = re.UNICODE if is_unspaced else (re.IGNORECASE | re.UNICODE)
         for sfx_name, triggers in pack.items():
-            regex = _compile_trigger_list(triggers, is_cjk)
+            regex = _compile_trigger_list(triggers, is_unspaced)
             if regex:
                 _SFX_MAP.append((re.compile(regex, flag), sfx_name))
 
@@ -347,12 +690,34 @@ _SFX_MAP: list = []
 def set_sfx_languages(langs: list[str]) -> None:
     """Set active language packs for SFX detection. Rebuilds compiled patterns.
 
-    Example: set_sfx_languages(["en", "zh"]) — English checked first, then Chinese.
+    Unknown codes are skipped silently. Example:
+        set_sfx_languages(["en", "zh"]) — English first, then Chinese.
+        set_sfx_languages(["es", "en"]) — Spanish first, English fallback.
     """
     global _SFX_LANGUAGES
-    _SFX_LANGUAGES = list(langs)
+    _SFX_LANGUAGES = [l.strip() for l in langs if l.strip()]
     _rebuild_sfx_map()
 
 
-# Build default (English-only) on import
+def available_languages() -> list[str]:
+    """Return the sorted list of language codes we ship SFX packs for."""
+    return sorted(_AVAILABLE_LANGS)
+
+
+def _load_languages_from_env() -> None:
+    """Read DND_SFX_LANGUAGES (comma-separated, e.g. 'en,zh') and apply.
+
+    Falls back to English-only if unset or empty.
+    """
+    raw = os.environ.get("DND_SFX_LANGUAGES", "").strip()
+    if not raw:
+        return  # keep the English-only default
+    requested = [l.strip() for l in raw.split(",") if l.strip()]
+    valid = [l for l in requested if l in _AVAILABLE_LANGS]
+    if valid:
+        set_sfx_languages(valid)
+
+
+# Build default (English-only) on import, then apply env override if set
 _rebuild_sfx_map()
+_load_languages_from_env()
