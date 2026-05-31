@@ -309,11 +309,15 @@
     font-family: 'Cinzel', serif;
     font-size: 12px;
     letter-spacing: 2px;
-    color: #c8a040;
-    text-shadow: 0 0 10px rgba(200, 160, 64, 0.3);
+    /* Brightened gold + stronger glow + stronger border for legibility. The
+       prior #c8a040 (muted bronze) with 0.3 shadow + 0.18 border alpha sat
+       too close to the dark backdrop and was barely visible at table-side. */
+    color: #f0d27a;
+    text-shadow: 0 0 12px rgba(255, 210, 110, 0.55), 0 0 3px rgba(20, 14, 6, 0.9);
     padding: 0.25em 1.2em;
-    border: 1px solid rgba(200, 160, 64, 0.18);
+    border: 1px solid rgba(220, 180, 90, 0.4);
     border-radius: 1px;
+    background: rgba(40, 28, 8, 0.35);
   }
 
   /* ── Tutor / learning mode hint blocks ── */
@@ -1281,36 +1285,58 @@
     display: flex;
     flex-direction: column;
     gap: 7px;
-    opacity: 0.38;
-    transition: opacity 0.3s ease;
+    /* Default opacity bumped from 0.38 to 0.78 — the old value combined
+       with rgba(*,0.75) text alpha gave ~0.28 effective alpha against the
+       dark backdrop, which was barely legible. Per-row hover (defined on
+       .audio-row) brightens individual rows further so the row under the
+       cursor reads as the active target. */
+    opacity: 0.78;
+    transition: opacity 0.2s ease;
     pointer-events: auto;
   }
-  #audio-controls:hover { opacity: 0.85; }
-  .speed-label {
+  #audio-controls:hover { opacity: 1; }
+  /* Pill-button styling shared across the three click-to-cycle labels in
+     #audio-controls (Type Speed / Auto Narrate / Theme). Each is a stateful
+     toggle; the pill affordance makes that interactivity readable at a
+     glance. Slight border + dark inset bg, brightens on row hover. */
+  .speed-label,
+  .narrate-label,
+  .theme-label {
     font-family: 'Cinzel', serif;
     font-size: 7.5px;
     letter-spacing: 1.5px;
-    color: rgba(180,140,60,0.75);
+    color: rgba(220,185,100,0.92);
     text-transform: uppercase;
-    min-width: 42px;
-    text-align: right;
+    min-width: 48px;
+    text-align: center;
     cursor: pointer;
     user-select: none;
+    padding: 3px 8px;
+    border: 1px solid rgba(180,140,60,0.4);
+    border-radius: 4px;
+    background: rgba(20,12,4,0.45);
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
   }
-  .speed-label:hover { color: rgba(220,185,100,1); }
-
-  /* ── Auto-narrate toggle (per-browser, sits inside #audio-controls) ── */
-  .narrate-label {
-    font-family: 'Cinzel', serif;
-    font-size: 7.5px;
-    letter-spacing: 1.5px;
-    color: rgba(180,140,60,0.75);
-    text-transform: uppercase;
-    cursor: pointer;
-    user-select: none;
+  /* Hover brightens whether the cursor is on the label itself or anywhere in
+     the row (label-only hover preserves the existing affordance, row-hover
+     extends it so clicking the "Type Speed" word also reads as interactive). */
+  .audio-row:hover .speed-label,
+  .audio-row:hover .narrate-label,
+  .audio-row:hover .theme-label,
+  .speed-label:hover,
+  .narrate-label:hover,
+  .theme-label:hover {
+    color: rgba(245,215,130,1);
+    background: rgba(180,140,60,0.22);
+    border-color: rgba(220,185,100,0.7);
   }
-  .narrate-label:hover { color: rgba(220,185,100,1); }
-  .narrate-label.on { color: rgba(240,210,120,1); }
+  /* "On" state — slightly brighter text + stronger border so an active toggle
+     reads as engaged even without hover. */
+  .narrate-label.on,
+  .theme-label.on {
+    color: rgba(245,220,130,1);
+    border-color: rgba(220,185,100,0.6);
+  }
 
   /* ── TTS per-block bar ──
      Hidden until block is fully flushed (set by flushNewBlock).
@@ -1648,29 +1674,41 @@
     gap: 7px;
     cursor: pointer;
     user-select: none;
+    padding: 3px 4px;
+    border-radius: 5px;
+    transition: background 0.15s ease;
   }
+  /* Per-row hover affordance — subtle background pill so the row currently
+     under the cursor reads as the active click target. Pairs with the brighter
+     label colors below. */
+  .audio-row:hover { background: rgba(180,140,60,0.10); }
   .audio-label {
     font-family: 'Cinzel', serif;
     font-size: 7.5px;
     letter-spacing: 1.8px;
-    color: rgba(180,140,60,0.75);
+    color: rgba(220,185,100,0.85);
     text-transform: uppercase;
     min-width: 42px;
     text-align: right;
+    transition: color 0.15s ease;
   }
+  .audio-row:hover .audio-label { color: rgba(245,215,130,1); }
   .toggle-track {
     width: 28px; height: 14px;
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(180,140,60,0.25);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(220,185,100,0.45);
     border-radius: 7px;
     position: relative;
-    transition: background 0.3s, border-color 0.3s;
+    transition: background 0.2s, border-color 0.2s;
     flex-shrink: 0;
   }
   .toggle-track.on {
-    background: rgba(180,140,60,0.28);
-    border-color: rgba(180,140,60,0.65);
+    background: rgba(220,185,100,0.35);
+    border-color: rgba(245,215,130,0.8);
   }
+  /* Per-row hover brightens the toggle track in the SFX row to match the
+     label affordance on the other rows. */
+  .audio-row:hover .toggle-track { border-color: rgba(245,215,130,0.7); }
   .toggle-thumb {
     position: absolute;
     top: 2px; left: 2px;
@@ -2639,15 +2677,45 @@
   :root[data-theme="light"] #dice-pending-badge .dpb-label { color: rgba(110, 75, 20, 0.85); }
 
   /* Audio controls (theme picker home) — deeper ink against parchment */
-  :root[data-theme="light"] .audio-label { color: rgba(110, 75, 20, 0.85); }
+  :root[data-theme="light"] .audio-label { color: rgba(110, 75, 20, 0.92); }
+  :root[data-theme="light"] .audio-row:hover { background: rgba(140, 95, 20, 0.14); }
+  :root[data-theme="light"] .audio-row:hover .audio-label { color: rgb(40, 28, 14); }
   :root[data-theme="light"] .speed-label,
   :root[data-theme="light"] .narrate-label,
-  :root[data-theme="light"] .theme-label { color: rgba(110, 75, 20, 0.85); }
+  :root[data-theme="light"] .theme-label {
+    color: rgba(70, 50, 18, 0.95);
+    background: rgba(248, 238, 215, 0.7);
+    border-color: rgba(140, 95, 20, 0.45);
+  }
+  :root[data-theme="light"] .audio-row:hover .speed-label,
+  :root[data-theme="light"] .audio-row:hover .narrate-label,
+  :root[data-theme="light"] .audio-row:hover .theme-label,
   :root[data-theme="light"] .speed-label:hover,
   :root[data-theme="light"] .narrate-label:hover,
-  :root[data-theme="light"] .theme-label:hover { color: rgb(70, 50, 18); }
+  :root[data-theme="light"] .theme-label:hover {
+    color: rgb(35, 22, 8);
+    background: rgba(255, 248, 225, 0.95);
+    border-color: rgba(140, 95, 20, 0.8);
+  }
   :root[data-theme="light"] .narrate-label.on,
-  :root[data-theme="light"] .theme-label.on { color: rgb(40, 28, 14); font-weight: 500; }
+  :root[data-theme="light"] .theme-label.on {
+    color: rgb(20, 14, 6);
+    background: rgba(220, 195, 130, 0.75);
+    border-color: rgba(140, 95, 20, 0.7);
+    font-weight: 500;
+  }
+  :root[data-theme="light"] .toggle-track { border-color: rgba(140, 95, 20, 0.55); background: rgba(255, 248, 225, 0.4); }
+  :root[data-theme="light"] .toggle-track.on { background: rgba(220, 195, 130, 0.65); border-color: rgba(140, 95, 20, 0.85); }
+
+  /* Dice-result pill — deep ink on parchment instead of glowing gold on dark.
+     Brighter contrast than the v1.12.0 pass that left .dice-result inheriting
+     dark-mode glow, which was confusing against the new parchment page. */
+  :root[data-theme="light"] .dice-result {
+    color: rgb(60, 40, 12);
+    background: rgba(220, 195, 130, 0.5);
+    border-color: rgba(140, 95, 20, 0.55);
+    text-shadow: none;
+  }
 
   /* ── Auto (system-pref) mode — only applies when no data-theme attribute ── */
   @media (prefers-color-scheme: light) {
@@ -2756,10 +2824,35 @@
     :root:not([data-theme]) #srd-body .srd-desc { color: rgb(40, 28, 14); }
     :root:not([data-theme]) .composing-label { color: rgba(110, 75, 20, 0.85); }
     :root:not([data-theme]) #world-clock { color: rgba(110, 75, 20, 0.85); }
-    :root:not([data-theme]) .audio-label,
+    :root:not([data-theme]) .audio-label { color: rgba(110, 75, 20, 0.92); }
+    :root:not([data-theme]) .audio-row:hover { background: rgba(140, 95, 20, 0.14); }
+    :root:not([data-theme]) .audio-row:hover .audio-label { color: rgb(40, 28, 14); }
     :root:not([data-theme]) .speed-label,
     :root:not([data-theme]) .narrate-label,
-    :root:not([data-theme]) .theme-label { color: rgba(110, 75, 20, 0.85); }
+    :root:not([data-theme]) .theme-label {
+      color: rgba(70, 50, 18, 0.95);
+      background: rgba(248, 238, 215, 0.7);
+      border-color: rgba(140, 95, 20, 0.45);
+    }
+    :root:not([data-theme]) .audio-row:hover .speed-label,
+    :root:not([data-theme]) .audio-row:hover .narrate-label,
+    :root:not([data-theme]) .audio-row:hover .theme-label {
+      color: rgb(35, 22, 8);
+      background: rgba(255, 248, 225, 0.95);
+      border-color: rgba(140, 95, 20, 0.8);
+    }
+    :root:not([data-theme]) .narrate-label.on,
+    :root:not([data-theme]) .theme-label.on {
+      background: rgba(220, 195, 130, 0.75);
+      border-color: rgba(140, 95, 20, 0.7);
+    }
+    :root:not([data-theme]) .toggle-track { border-color: rgba(140, 95, 20, 0.55); }
+    :root:not([data-theme]) .dice-result {
+      color: rgb(60, 40, 12);
+      background: rgba(220, 195, 130, 0.5);
+      border-color: rgba(140, 95, 20, 0.55);
+      text-shadow: none;
+    }
     :root:not([data-theme]) #phone-mode-btn {
       background: rgba(250, 240, 215, 0.92);
       border-color: rgba(140, 95, 20, 0.5);

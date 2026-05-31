@@ -12,6 +12,30 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 - **License formalized as AGPL-3.0-or-later.** Added canonical `LICENSE` file with `Copyright (c) 2026 Neural Initiative LLC` and a `CONTRIBUTING.md` documenting the contribution licensing handshake. The README's prior informal "MIT" footer is replaced with a proper AGPL-3.0-or-later section linking to the LICENSE file. Self-hosting and modification remain explicitly welcome; AGPL protects against closed-source SaaS forks. Contributions made before this change remain available under their original (MIT-as-stated) terms in git history; new contributions are AGPL-3.0-or-later.
 
+## [1.12.1] — 2026-05-31 — Audio-controls legibility fixes (table-test feedback on v1.12.0)
+
+Four small fixes surfaced by table-side testing right after v1.12.0 landed. All in `display/templates/index.html`; no script or data changes.
+
+### `.theme-label` was rendering at browser-default `<span>` size
+
+The new "Dark / Light / Auto" value beside the Theme row was sitting at ~16px while every other label in `#audio-controls` was 7.5px Cinzel. The class was declared on the element but never had a CSS rule — fixed by folding `.theme-label` into the same combined declaration as `.speed-label` and `.narrate-label`. All three now share font, sizing, transitions, and the new pill-button styling described below.
+
+### Click-to-cycle labels now look like buttons
+
+The three stateful labels (Type Speed, Auto Narrate, Theme) all click to cycle through their states but rendered as plain text — the affordance wasn't readable. They now share a pill-button shape: subtle dark inset background, bronze 1px border, 4px corner radius, brighter font color. Active-state ("Auto Narrate: On", "Theme: Light/Auto") gets a stronger pill background so an engaged toggle reads as engaged even when nothing is hovered. Light-mode picks up the inverse — parchment-tinted pills with deep-ink text.
+
+### Default audio-controls opacity bumped from 0.38 → 0.78
+
+The cluster used to fade to barely-visible at rest, then to ~0.85 only when the cursor entered the cluster. Combined with the `rgba(*,0.75)` text alpha that gave ~0.28 effective alpha against the dark backdrop — basically illegible without hover. New defaults: cluster sits at 0.78 at rest, brightens to 1.0 on cluster hover. Individual labels start at brighter `rgba(220,185,100,0.85)` instead of `rgba(180,140,60,0.75)`.
+
+### Per-row hover affordance
+
+The cluster used to brighten as a single block on hover — every row lit up at once. Each `.audio-row` now has its own hover state: subtle background pill (`rgba(180,140,60,0.10)`), brighter label color (`rgba(245,215,130,1)`), and the speed/narrate/theme pills get a brighter border + background. The row currently under the cursor reads as the active click target. The SFX toggle-track (which doesn't have a label, so the pill rule doesn't apply) gets a brighter border on row-hover for the matching affordance.
+
+### Dice-result text contrast bumped
+
+`.dice-result` was `#c8a040` (muted bronze) with a faint `0.3` text-shadow and `0.18` border alpha — readable but easy to lose against dark scenery, called out at the table as "barely visible." Now `#f0d27a` (brighter gold) with a stronger amber glow `rgba(255,210,110,0.55)` plus a deep-ink drop shadow for depth, wrapped in a faint dark plate `rgba(40,28,8,0.35)` and a stronger border alpha `0.4`. Light-mode dice-result picks up a matching deep-ink-on-parchment treatment so the gold pill doesn't look like a dark hole on the cream page.
+
 ## [1.12.0] — 2026-05-31 — Light / dark / auto theme picker (vellum mode)
 
 Adds a three-state theme picker to the display companion. Default behavior is unchanged — anyone who doesn't touch the picker continues to see the same dark, atmospheric display the skill has always shipped. The new options ride alongside it:
