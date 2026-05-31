@@ -2169,6 +2169,108 @@
   }
   body.input-only #dice-pending-badge { display: none !important; }
 
+  /* ── Mode switcher (full-view button + input-view "back to full" button) ── */
+  #phone-mode-btn {
+    position: fixed;
+    top: 96px;
+    right: 28px;
+    z-index: 7;
+    background: rgba(10, 6, 2, 0.65);
+    border: 1px solid rgba(180, 140, 60, 0.45);
+    border-radius: 6px;
+    padding: 6px 11px;
+    color: rgba(220, 185, 100, 0.85);
+    font-family: 'Cinzel', serif;
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.2s, color 0.15s, background 0.15s;
+    opacity: 0.42;
+  }
+  #phone-mode-btn:hover {
+    opacity: 1;
+    color: rgba(240, 210, 120, 1);
+    background: rgba(20, 12, 4, 0.85);
+  }
+  /* Make room for the existing #audio-controls cluster — push down when both render */
+  body:not(.input-only) #audio-controls { top: 138px; }
+
+  #phone-mode-menu {
+    position: fixed;
+    top: 132px;
+    right: 28px;
+    z-index: 8;
+    background: rgba(8, 5, 2, 0.98);
+    border: 1px solid rgba(180, 140, 60, 0.55);
+    border-radius: 6px;
+    padding: 5px 0;
+    min-width: 160px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.85), 0 0 0 1px rgba(0,0,0,0.6);
+    display: none;
+  }
+  #phone-mode-menu.open { display: block; }
+  #phone-mode-menu .pm-header {
+    padding: 6px 13px 4px;
+    font-family: 'Cinzel', serif;
+    font-size: 7px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(180, 140, 60, 0.65);
+    pointer-events: none;
+  }
+  #phone-mode-menu .pm-opt {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    padding: 6px 13px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    color: rgba(220, 196, 148, 0.92);
+    transition: background 0.1s, color 0.1s;
+  }
+  #phone-mode-menu .pm-opt:hover {
+    background: rgba(180, 140, 60, 0.14);
+    color: rgba(240, 210, 120, 1);
+  }
+  #phone-mode-menu .pm-empty {
+    padding: 8px 13px;
+    color: rgba(180, 140, 60, 0.6);
+    font-size: 0.75rem;
+    font-style: italic;
+  }
+
+  /* Input-view: small "Full Display" toggle bottom-left */
+  #full-mode-btn {
+    position: fixed;
+    bottom: 14px;
+    left: 14px;
+    z-index: 7;
+    background: rgba(10, 6, 2, 0.55);
+    border: 1px solid rgba(180, 140, 60, 0.35);
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: rgba(180, 140, 60, 0.6);
+    font-family: 'Cinzel', serif;
+    font-size: 8.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s, color 0.15s, background 0.15s;
+    display: none;
+  }
+  body.input-only #full-mode-btn { display: block; }
+  #full-mode-btn:hover {
+    opacity: 1;
+    color: rgba(220, 185, 100, 1);
+    background: rgba(20, 12, 4, 0.85);
+  }
+
   /* Bound character header + Roll-button pulse on DM request */
   #dp-bound {
     text-align: center;
@@ -5531,6 +5633,7 @@ function connect() {
       if (payload.stats.players && payload.stats.players.length > 0) {
         _sidebarBtn.classList.add('visible');
         _buildCharTabs(payload.stats.players);
+        _modeSwitcherCachePlayers(payload.stats.players);
       }
       if (payload.stats.world_time) {
         updateWorldClock(payload.stats.world_time);
@@ -5662,6 +5765,113 @@ connect();
     _initInputTabs();
     _initDicePad();
   }
+  _initModeSwitcher(_inputMode);
+}
+
+// ── Mode switcher ─────────────────────────────────────────────────────────
+// Two entry points to save players from typing the input URL by hand:
+//   - Full DM view → "Phone Mode" button drops a character picker pulled
+//     from the latest SSE `stats` payload; click a name to jump to
+//     ?view=input&char=<Name>.
+//   - Input view → "Full Display" button bottom-left strips query params
+//     and navigates back to the DM view (useful for reading narration off
+//     the phone without losing the binding next reload).
+// Pure client-side. No server changes needed; the dropdown reads the
+// players array that already arrives via the existing /stream SSE.
+let _modePlayersCache = [];
+
+function _modeSwitcherCachePlayers(players) {
+  const names = (players || [])
+    .map(p => (p && (p.name || p.player_name || '')).toString().trim())
+    .filter(n => n);
+  // Dedupe while preserving order
+  const seen = new Set();
+  _modePlayersCache = names.filter(n => {
+    const k = n.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+function _initModeSwitcher(inputMode) {
+  if (inputMode) {
+    // Input-view: drop a "Full Display" button that strips query params
+    const btn = document.createElement('button');
+    btn.id = 'full-mode-btn';
+    btn.type = 'button';
+    btn.title = 'Switch to full DM display (read narration off this device)';
+    btn.textContent = '👁 Full Display';
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      // Strip ?view, ?char, ?character — keep any other harmless params
+      const url = new URL(window.location.href);
+      ['view', 'char', 'character'].forEach(k => url.searchParams.delete(k));
+      window.location.href = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '');
+    });
+    document.body.appendChild(btn);
+    return;
+  }
+
+  // Full-view: "Phone Mode" button + lazy character-picker dropdown
+  const btn = document.createElement('button');
+  btn.id = 'phone-mode-btn';
+  btn.type = 'button';
+  btn.title = 'Switch this device to phone input mode for a character';
+  btn.textContent = '📱 Phone Mode';
+
+  const menu = document.createElement('div');
+  menu.id = 'phone-mode-menu';
+  menu.setAttribute('role', 'menu');
+
+  function _rebuildMenu() {
+    menu.innerHTML = '';
+    const hdr = document.createElement('div');
+    hdr.className = 'pm-header';
+    hdr.textContent = 'Bind this device to…';
+    menu.appendChild(hdr);
+
+    if (_modePlayersCache.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'pm-empty';
+      empty.textContent = 'No characters loaded yet';
+      menu.appendChild(empty);
+      return;
+    }
+
+    _modePlayersCache.forEach(name => {
+      const opt = document.createElement('button');
+      opt.className = 'pm-opt';
+      opt.type = 'button';
+      opt.textContent = _escHtml(name);  // safety: textContent already escapes, but keep symmetry
+      opt.addEventListener('click', e => {
+        e.stopPropagation();
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', 'input');
+        url.searchParams.set('char', name);
+        window.location.href = url.toString();
+      });
+      menu.appendChild(opt);
+    });
+  }
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (menu.classList.contains('open')) {
+      menu.classList.remove('open');
+    } else {
+      _rebuildMenu();
+      menu.classList.add('open');
+    }
+  });
+
+  // Close the menu on any outside click
+  document.addEventListener('click', () => {
+    menu.classList.remove('open');
+  }, { passive: true });
+
+  document.body.appendChild(btn);
+  document.body.appendChild(menu);
 }
 
 // ── Move / Roll tab switcher (input-only mode only) ──────────────────────
@@ -5785,6 +5995,21 @@ function _renderMarkdown(md) {
   return out.join('\n');
 }
 
+// ── Shared HTML-entity escape ────────────────────────────────────────────
+// Server-side input sanitization for labels and character names strips
+// shell metacharacters (` $ \) but does NOT strip < > & — so anything that
+// pours those server-supplied strings into innerHTML must escape here. Used
+// by the dice-pending badge below; safe to reuse anywhere else that does
+// the same template-literal-into-innerHTML pattern.
+function _escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── DM-side "Waiting on Piper, Mira…" badge for unresolved dice-requests ──
 // Driven by the server's dice_pending SSE event (snapshot of all active
 // requests). Hidden when the snapshot is empty.
@@ -5798,9 +6023,12 @@ function _updateDicePendingBadge(snapshot) {
     return;
   }
   // Most recent request first (best-effort: snapshot order is insertion order on the server).
+  // Both `e.pending` member names and `e.label` go through _escHtml — server-side
+  // sanitization strips ` $ \ but not < > &, so any approved-phone caller could
+  // otherwise inject script into the DM browser via those fields.
   const lines = entries.map(e => {
-    const who   = (e.pending || []).join(', ');
-    const label = e.label ? `<span class="dpb-label">${e.label}</span>` : '';
+    const who   = (e.pending || []).map(_escHtml).join(', ');
+    const label = e.label ? `<span class="dpb-label">${_escHtml(e.label)}</span>` : '';
     return `Waiting on: ${who}${label}`;
   }).join('<hr style="border:none;border-top:1px solid rgba(180,140,60,0.25);margin:6px 0">');
   badge.innerHTML = lines;

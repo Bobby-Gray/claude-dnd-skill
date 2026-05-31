@@ -12,6 +12,26 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 - **License formalized as AGPL-3.0-or-later.** Added canonical `LICENSE` file with `Copyright (c) 2026 Neural Initiative LLC` and a `CONTRIBUTING.md` documenting the contribution licensing handshake. The README's prior informal "MIT" footer is replaced with a proper AGPL-3.0-or-later section linking to the LICENSE file. Self-hosting and modification remain explicitly welcome; AGPL protects against closed-source SaaS forks. Contributions made before this change remain available under their original (MIT-as-stated) terms in git history; new contributions are AGPL-3.0-or-later.
 
+## [1.11.0] — 2026-05-31 — Phone-mode switcher + dice-pending badge XSS hardening
+
+Follow-up release on top of the phone companion that landed in #38. Two items: a UX polish surfaced by table-side testing, and one defense-in-depth fix noted during the same session. Both client-side only; no server changes, no new endpoints, no new dependencies.
+
+### Phone-mode switcher on the landing page
+
+Typing `http://<lan-ip>:5001/?view=input&char=<CharacterName>` by hand was real friction the first time you handed a phone to a player. The base URL now carries a small "📱 Phone Mode" button on the right rail (above the existing audio-controls cluster) — click it to drop a character picker populated from the campaign's current player roster (read from the same `stats` payload that already feeds the sidebar and char tabs, so no new server endpoint). Pick a name and the browser navigates to the right `?view=input&char=` URL automatically.
+
+Symmetric "👁 Full Display" button sits bottom-left in input mode for players who want to read recent narration off their own device — strips the `?view` / `?char` query params and jumps back to the base view in one click.
+
+Pure client-side polish; the underlying phone-companion routing from #38 is unchanged. Dim at rest and bright on hover, matching the rest of the auxiliary control aesthetic.
+
+### Dice-pending badge XSS hardening
+
+The "Waiting on Piper, Mira…" badge that appears on the main display while DM-prescribed rolls are outstanding rendered the server's `dice_pending` snapshot via `innerHTML` to support the inline `<span class="dpb-label">` styling on the label string. Server-side validation on `POST /dice-request` strips `` ` ``, `$`, and `\` from the label and character names but leaves `<`, `>`, and `&` intact, which meant an approved phone could inject script into the DM's browser context via either field.
+
+Practical attack surface is small — the X-DND-Token is the existing trust boundary across the codebase and anyone holding it already has substantial privileges — but the fix is one line per sink and worth applying as defense-in-depth. A shared `_escHtml()` helper now wraps both `e.label` and every `e.pending[]` member name before they reach the template literal. The new helper is also used by the mode-switcher dropdown above for symmetry, even though `textContent` would already escape there.
+
+The server side of `POST /dice-request` is unchanged — string escaping at the boundary it pours into innerHTML is the right place for the fix and avoids breaking any caller that does want `<` or `>` literally in a label (rare, but possible).
+
 ## [1.10.0] — 2026-05-28 — Narrator TTS + i18n expansion to all 24 Gemini locales
 
 Two additive features in this release, both opt-in. Existing campaigns are unaffected unless you choose to engage with the new capabilities.
