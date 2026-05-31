@@ -12,6 +12,44 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 - **License formalized as AGPL-3.0-or-later.** Added canonical `LICENSE` file with `Copyright (c) 2026 Neural Initiative LLC` and a `CONTRIBUTING.md` documenting the contribution licensing handshake. The README's prior informal "MIT" footer is replaced with a proper AGPL-3.0-or-later section linking to the LICENSE file. Self-hosting and modification remain explicitly welcome; AGPL protects against closed-source SaaS forks. Contributions made before this change remain available under their original (MIT-as-stated) terms in git history; new contributions are AGPL-3.0-or-later.
 
+## [1.12.0] — 2026-05-31 — Light / dark / auto theme picker (vellum mode)
+
+Adds a three-state theme picker to the display companion. Default behavior is unchanged — anyone who doesn't touch the picker continues to see the same dark, atmospheric display the skill has always shipped. The new options ride alongside it:
+
+- **Dark** *(default)* — the existing ornate, atmospheric look.
+- **Light** — parchment scroll on dark scenery. The body, vignette, and particle backdrop stay dark for contrast; `#text-content` becomes a cream "page" with deep-ink narration. Easier on the eyes during daylight sessions or on bright laptop screens; keeps the moody frame visible at the edges so the world doesn't lose its register.
+- **Auto** — follows the operating system's `prefers-color-scheme`. Switches automatically when the OS toggles light/dark and tracks the change live (no reload).
+
+### Selector placement
+
+Lives as a fourth row in the existing top-right `#audio-controls` cluster, alongside Sound Effects / Type Speed / Auto Narrate. Same dim-at-rest, brighten-on-hover affordance as the other rows. Click to cycle through Dark → Light → Auto → Dark. The label shows the current selection, and the tooltip surfaces the effective resolved theme when in Auto mode (e.g. *"Auto (system: light)"*).
+
+Placement was a deliberate choice — the existing right-side rail is the natural home for display preferences, since the skill doesn't have a free-floating chrome bar at the top of the screen the way some browser-app shells do. If you'd prefer the picker elsewhere (e.g. inside the character `#sidebar` once a campaign is loaded), the row is one stop on the audio-controls flexbox; trivial to move.
+
+### Anti-FOUC
+
+The applied theme persists per-browser in `localStorage["dnd-theme"]`. A small inline `<script>` in `<head>` reads that value and sets the `data-theme` attribute on `<html>` *before* the stylesheet parses — so any explicit Dark or Light choice avoids the dark→light or light→dark flash that would otherwise happen on every page load while the React-free Flask template hydrates. Auto mode leaves the attribute off and lets the `@media (prefers-color-scheme: light)` block in the stylesheet resolve naturally.
+
+### Palette
+
+The vellum palette is carried over directly from the Neural Initiative implementation that landed earlier today, so anyone running both surfaces sees a consistent reading experience:
+
+- **Parchment page:** radial gradient from `rgba(255, 245, 220, 0.96)` at the top center fading to `rgba(238, 224, 188, 0.82)` at the edges.
+- **Deep ink narration:** `rgb(40, 28, 14)` with a soft warm-light shadow `rgba(255, 250, 235, 0.6)` to give the type depth on the cream.
+- **Bronze accents** for headings, NPC names, table borders, world clock, and UI chrome: `rgb(70, 50, 18)` / `rgb(110, 75, 20)` / `rgba(140, 95, 20, *)`.
+- **Block-identity colors preserved** at darker shades: cool player blue `rgb(40, 70, 110)`, DM-tab purple `rgba(100, 55, 160, *)`, NPC bronze `rgba(95, 65, 18, 0.95)`, tutor moss `rgba(200, 230, 200, 0.45)` / `rgb(25, 70, 35)`, tutor-warning amber `rgba(245, 220, 175, 0.55)` / `rgb(110, 60, 15)`.
+- **Action buttons** flip to dark plate + cream text in light mode so the affordance stays visually loud against the parchment.
+- **Modal panels** (character sheet, SRD lookup) get the same parchment treatment with deep-ink text — the modal backdrop itself stays dark to dim the scenery behind it.
+
+### What's covered
+
+Every narration block type, the input panel, character tabs, all the v1.10.0+ TTS chrome (per-block bar, voice dropdown, auto-narrate label), v1.11.0 phone-mode + full-mode buttons, the dice-pending "Waiting on…" badge, both modal types and their content tables. ~430 lines of CSS overrides plus a small JS module driving the picker.
+
+### What's not covered (yet)
+
+- **Particle backdrop palette.** The `#particles` canvas (embers, dust, sparks, etc.) uses scene-tied accent colors that work fine against the dark scenery the light mode preserves around the parchment page. No palette swap needed for v1; revisit if specific scenes wash out at the edges.
+- **Per-campaign override.** Currently global per-browser. The Neural Initiative side supports `localStorage["ni-theme-campaign:<id>"]` overrides; if you want the same in the skill, a `theme_override: light` flag in `state.md → ## Session Flags` is the natural shape and one follow-up away.
+
 ## [1.11.0] — 2026-05-31 — Phone-mode switcher + dice-pending badge XSS hardening
 
 Follow-up release on top of the phone companion that landed in #38. Two items: a UX polish surfaced by table-side testing, and one defense-in-depth fix noted during the same session. Both client-side only; no server changes, no new endpoints, no new dependencies.

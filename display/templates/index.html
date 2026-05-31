@@ -8,6 +8,26 @@
 <meta name="dnd-token" content="{{ lan_token }}">
 <meta name="narrator-voice" content="{{ narrator_voice }}">
 <meta name="tts-available" content="{{ '1' if tts_available else '0' }}">
+
+<!-- Theme anti-FOUC. Runs synchronously before the stylesheet parses so the
+     correct data-theme attribute is on <html> before any rule resolves —
+     prevents a dark→light or light→dark flash on every load. Three states:
+       "dark"  → force dark regardless of system
+       "light" → force light regardless of system
+       "auto"  → defer to prefers-color-scheme (no data-theme attribute set)
+     Persisted to localStorage["dnd-theme"]; matches the picker logic below. -->
+<script>
+  (function () {
+    try {
+      var v = window.localStorage.getItem('dnd-theme');
+      if (v === 'dark' || v === 'light') {
+        document.documentElement.setAttribute('data-theme', v);
+      }
+      // 'auto' or missing → leave the attribute off; CSS @media handles it.
+    } catch (_) { /* private mode / disabled storage — silently fall back to dark */ }
+  })();
+</script>
+
 <title>DnD — Dungeon Master</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2309,6 +2329,459 @@
     70%  { box-shadow: 0 0 0 14px rgba(255,220,140,0); }
     100% { box-shadow: 0 0 0 0   rgba(255,220,140,0); }
   }
+
+  /* ────────────────────────────────────────────────────────────────────
+   * VELLUM / LIGHT-MODE THEME OVERRIDES
+   *
+   * Carries the parchment palette decided on the Neural Initiative side
+   * over to claude-dnd-skill's display. Same architecture: deep-ink
+   * narration on a cream "text-content" page, with the body bg + vignette
+   * + particle scenery kept dark for contrast. The picker in
+   * #audio-controls toggles data-theme="dark|light" on <html>; an empty
+   * attribute (= "auto") defers to the prefers-color-scheme @media block.
+   *
+   * Overrides only the selectors whose dark-mode defaults render as
+   * ghost text or pure white on cream. Everything else inherits cleanly.
+   * Color tokens chosen for legibility, not pure mimicry — keep block-
+   * identity colors (DM purple, NPC bronze, player blue, tutor moss,
+   * tutor-warning amber) but shift to darker shades that read on cream.
+   * ──────────────────────────────────────────────────────────────────── */
+
+  :root[data-theme="light"] body { color: rgb(45, 35, 20); }
+
+  /* The reading "page" — parchment radial-gradient framed by darker scenery */
+  :root[data-theme="light"] #text-content {
+    background:
+      radial-gradient(ellipse at 50% 0%,
+        rgba(255, 245, 220, 0.96),
+        rgba(245, 232, 200, 0.88) 70%,
+        rgba(238, 224, 188, 0.82));
+    border: 1px solid rgba(140, 95, 20, 0.35);
+    border-radius: 4px;
+    padding: 32px 40px;
+    box-shadow:
+      0 0 60px rgba(180, 140, 60, 0.25),
+      inset 0 0 30px rgba(220, 200, 160, 0.4);
+    color: rgb(45, 35, 20);
+  }
+
+  /* DM narration — deep ink with a warm-light shadow instead of the dark mode drop */
+  :root[data-theme="light"] .dm-block p,
+  :root[data-theme="light"] .dm-block table.dm-table {
+    color: rgb(40, 28, 14);
+    text-shadow: 0 1px 1px rgba(255, 250, 235, 0.6);
+  }
+  :root[data-theme="light"] .dm-block p em { color: rgb(110, 70, 20); }
+  :root[data-theme="light"] .dm-block table.dm-table th {
+    background: rgba(180, 140, 60, 0.18);
+    color: rgb(70, 50, 18);
+    border-bottom-color: rgba(140, 95, 20, 0.5);
+  }
+  :root[data-theme="light"] .dm-block table.dm-table td {
+    border-bottom-color: rgba(140, 95, 20, 0.22);
+  }
+  :root[data-theme="light"] .dm-block table.dm-table strong { color: rgb(20, 14, 6); }
+
+  /* Player blocks — preserve cool-blue identity at darker shade */
+  :root[data-theme="light"] .player-block { border-left-color: rgba(50, 90, 140, 0.55); }
+  :root[data-theme="light"] .player-name { color: rgba(40, 80, 130, 0.85); }
+  :root[data-theme="light"] .player-block p {
+    color: rgb(40, 70, 110);
+    text-shadow: 0 1px 1px rgba(255, 250, 235, 0.6);
+  }
+  :root[data-theme="light"] .player-block p em { color: rgba(40, 80, 130, 0.85); }
+
+  /* NPC blocks — bronze name + dark-ink prose, italic emphasis stays bronze */
+  :root[data-theme="light"] .npc-block { border-left-color: rgba(140, 95, 20, 0.55); }
+  :root[data-theme="light"] .npc-name { color: rgba(95, 65, 18, 0.95); }
+  :root[data-theme="light"] .npc-block p {
+    color: rgb(40, 28, 14);
+    text-shadow: 0 1px 1px rgba(255, 250, 235, 0.6);
+  }
+  :root[data-theme="light"] .npc-block p em { color: rgb(110, 70, 20); }
+
+  /* Dice resolution banner — deeper bronze on parchment-tinted bg */
+  :root[data-theme="light"] .dice-block {
+    color: rgb(75, 55, 20);
+    background: rgba(180, 140, 60, 0.10);
+    border-color: rgba(140, 95, 20, 0.4);
+    text-shadow: none;
+  }
+
+  /* Tutor / learning-mode hint blocks — moss-green parchment panel */
+  :root[data-theme="light"] .tutor-block {
+    background: rgba(200, 230, 200, 0.45);
+    border-color: rgba(70, 130, 70, 0.4);
+    border-left-color: rgba(40, 100, 50, 0.7);
+  }
+  :root[data-theme="light"] .tutor-icon,
+  :root[data-theme="light"] .tutor-label,
+  :root[data-theme="light"] .tutor-chevron { color: rgba(30, 90, 45, 0.85); }
+  :root[data-theme="light"] .tutor-body p { color: rgb(25, 70, 35); text-shadow: none; }
+  :root[data-theme="light"] .tutor-block.tutor-warning {
+    background: rgba(245, 220, 175, 0.55);
+    border-color: rgba(160, 100, 30, 0.4);
+    border-left-color: rgba(140, 80, 20, 0.7);
+  }
+  :root[data-theme="light"] .tutor-block.tutor-warning .tutor-icon,
+  :root[data-theme="light"] .tutor-block.tutor-warning .tutor-label,
+  :root[data-theme="light"] .tutor-block.tutor-warning .tutor-chevron { color: rgba(140, 80, 20, 0.9); }
+  :root[data-theme="light"] .tutor-block.tutor-warning .tutor-body p { color: rgb(110, 60, 15); }
+
+  /* Effect-expired banner — brown-orange on cream */
+  :root[data-theme="light"] .effect-expired-result {
+    color: rgb(130, 70, 20);
+    border-color: rgba(160, 100, 30, 0.5);
+    text-shadow: none;
+  }
+
+  /* Input panel — parchment plate with dark-ink text */
+  :root[data-theme="light"] #input-panel {
+    background: rgba(250, 240, 215, 0.94);
+    border-color: rgba(140, 95, 20, 0.4);
+  }
+  :root[data-theme="light"] #input-panel:focus-within { border-color: rgba(140, 95, 20, 0.75); }
+  :root[data-theme="light"] #input-panel-label,
+  :root[data-theme="light"] #input-toggle-arrow { color: rgba(110, 75, 20, 0.85); }
+  :root[data-theme="light"] #input-badge {
+    background: rgba(220, 195, 130, 0.95);
+    border-color: rgba(140, 95, 20, 0.6);
+    color: rgb(70, 50, 18);
+  }
+  :root[data-theme="light"] #player-input-text {
+    background: rgba(255, 248, 225, 0.85);
+    border-color: rgba(140, 95, 20, 0.3);
+    color: rgb(40, 28, 14);
+  }
+  :root[data-theme="light"] #player-input-text:focus { border-color: rgba(140, 95, 20, 0.65); }
+  :root[data-theme="light"] #player-input-text::placeholder { color: rgba(110, 75, 20, 0.45); }
+
+  /* Char tabs — bronze against parchment */
+  :root[data-theme="light"] .char-tab {
+    color: rgba(110, 75, 20, 0.7);
+    border-color: rgba(140, 95, 20, 0.35);
+  }
+  :root[data-theme="light"] .char-tab:hover {
+    color: rgb(70, 50, 18);
+    border-color: rgba(140, 95, 20, 0.7);
+  }
+  :root[data-theme="light"] .char-tab.active {
+    color: rgb(40, 28, 14);
+    border-color: rgba(140, 95, 20, 0.85);
+    background: rgba(220, 195, 130, 0.65);
+  }
+  :root[data-theme="light"] .char-tab-dm {
+    color: rgba(100, 55, 160, 0.75);
+    border-color: rgba(100, 55, 160, 0.4);
+  }
+  :root[data-theme="light"] .char-tab-dm:hover,
+  :root[data-theme="light"] .char-tab-dm.active {
+    color: rgba(70, 30, 130, 1);
+    border-color: rgba(100, 55, 160, 0.7);
+    background: rgba(220, 200, 240, 0.65);
+  }
+  :root[data-theme="light"] .char-tab-npc {
+    color: rgba(170, 95, 30, 0.8);
+    border-color: rgba(170, 95, 30, 0.4);
+  }
+  :root[data-theme="light"] .char-tab-npc:hover,
+  :root[data-theme="light"] .char-tab-npc.active {
+    color: rgba(140, 70, 20, 1);
+    border-color: rgba(170, 95, 30, 0.75);
+    background: rgba(240, 215, 175, 0.7);
+  }
+  :root[data-theme="light"] .staged-char { color: rgba(70, 50, 18, 0.9); }
+  :root[data-theme="light"] .staged-text { color: rgba(40, 28, 14, 0.85); }
+
+  /* Action buttons — dark plate + cream text for affordance against parchment */
+  :root[data-theme="light"] #stage-btn,
+  :root[data-theme="light"] .dm-respond-btn {
+    background: rgb(70, 50, 18);
+    border-color: rgba(140, 95, 20, 0.8);
+    color: rgb(245, 238, 222);
+  }
+  :root[data-theme="light"] #stage-btn:hover:not(:disabled),
+  :root[data-theme="light"] .dm-respond-btn:hover:not(:disabled) {
+    background: rgb(95, 70, 28);
+    border-color: rgba(140, 95, 20, 1);
+    color: rgb(255, 250, 240);
+  }
+  :root[data-theme="light"] #skip-turn-btn {
+    color: rgba(160, 60, 40, 0.85);
+    background: rgba(255, 230, 220, 0.7);
+    border-color: rgba(160, 60, 40, 0.5);
+  }
+  :root[data-theme="light"] #skip-turn-btn:hover {
+    color: rgb(140, 40, 20);
+    background: rgba(255, 215, 200, 0.85);
+    border-color: rgba(160, 60, 40, 0.8);
+  }
+
+  /* Modals — parchment panel + deep-ink text. Backdrop stays dark to dim scenery. */
+  :root[data-theme="light"] #sheet-panel,
+  :root[data-theme="light"] #srd-panel {
+    background: rgba(248, 238, 215, 0.98);
+    border-color: rgba(140, 95, 20, 0.45);
+    box-shadow:
+      0 0 80px rgba(140, 95, 20, 0.4),
+      inset 0 0 30px rgba(220, 200, 160, 0.35);
+    color: rgb(40, 28, 14);
+  }
+  :root[data-theme="light"] #sheet-close,
+  :root[data-theme="light"] #srd-close { color: rgba(110, 75, 20, 0.55); }
+  :root[data-theme="light"] #sheet-close:hover,
+  :root[data-theme="light"] #srd-close:hover { color: rgb(70, 50, 18); }
+  :root[data-theme="light"] .sm-name,
+  :root[data-theme="light"] .sm-section-title,
+  :root[data-theme="light"] #srd-body .srd-title { color: rgb(70, 50, 18); }
+  :root[data-theme="light"] .sm-identity,
+  :root[data-theme="light"] #srd-body .srd-meta { color: rgba(80, 65, 40, 0.85); }
+  :root[data-theme="light"] .sm-divider { background: rgba(140, 95, 20, 0.25); }
+
+  /* Sheet modal stat strip + ability grid + attacks table */
+  :root[data-theme="light"] .sm-stat-label,
+  :root[data-theme="light"] .sm-ab-name,
+  :root[data-theme="light"] .sm-attacks-table th { color: rgb(95, 65, 18); }
+  :root[data-theme="light"] .sm-stat-val,
+  :root[data-theme="light"] .sm-ab-score,
+  :root[data-theme="light"] .sm-attacks-table td.atk-name { color: rgb(35, 22, 8); }
+  :root[data-theme="light"] .sm-xp,
+  :root[data-theme="light"] .sm-ab-mod { color: rgba(95, 65, 18, 0.85); }
+  :root[data-theme="light"] .sm-attacks-table td { color: rgb(50, 35, 18); border-bottom-color: rgba(140, 95, 20, 0.18); }
+  :root[data-theme="light"] .sm-attacks-table td.atk-notes { color: rgba(80, 60, 30, 0.75); }
+  :root[data-theme="light"] .sm-attacks-table th { border-bottom-color: rgba(140, 95, 20, 0.35); }
+  :root[data-theme="light"] .sm-ab-cell-rollable:hover { background: rgba(140, 95, 20, 0.15); }
+  :root[data-theme="light"] .sm-ab-cell-rollable.rolled { background: rgba(180, 140, 60, 0.30); }
+
+  /* SRD modal body */
+  :root[data-theme="light"] #srd-body .srd-desc { color: rgb(40, 28, 14); }
+  :root[data-theme="light"] #srd-body .srd-wikidot-footer a,
+  :root[data-theme="light"] #srd-body .srd-wikidot-body a { color: rgb(40, 80, 130); }
+  :root[data-theme="light"] #srd-body .srd-wikidot-footer a:hover,
+  :root[data-theme="light"] #srd-body .srd-wikidot-body a:hover { color: rgb(20, 50, 100); }
+  :root[data-theme="light"] #srd-not-found,
+  :root[data-theme="light"] #srd-loading { color: rgba(80, 65, 40, 0.85); }
+
+  /* Composing indicator */
+  :root[data-theme="light"] .composing-label,
+  :root[data-theme="light"] .composing-dots span { color: rgba(110, 75, 20, 0.85); }
+
+  /* World clock */
+  :root[data-theme="light"] #world-clock { color: rgba(110, 75, 20, 0.85); }
+
+  /* ── Phone companion (PR #38) and mode-switcher (PR #39) chrome ── */
+  :root[data-theme="light"] #phone-mode-btn {
+    background: rgba(250, 240, 215, 0.92);
+    border-color: rgba(140, 95, 20, 0.5);
+    color: rgb(70, 50, 18);
+  }
+  :root[data-theme="light"] #phone-mode-btn:hover {
+    background: rgba(255, 245, 220, 1);
+    color: rgb(40, 28, 14);
+  }
+  :root[data-theme="light"] #phone-mode-menu {
+    background: rgba(252, 245, 222, 0.99);
+    border-color: rgba(140, 95, 20, 0.55);
+  }
+  :root[data-theme="light"] #phone-mode-menu .pm-header { color: rgba(110, 75, 20, 0.75); }
+  :root[data-theme="light"] #phone-mode-menu .pm-opt { color: rgb(50, 35, 18); }
+  :root[data-theme="light"] #phone-mode-menu .pm-opt:hover {
+    background: rgba(180, 140, 60, 0.18);
+    color: rgb(20, 14, 6);
+  }
+  :root[data-theme="light"] #phone-mode-menu .pm-empty { color: rgba(110, 75, 20, 0.6); }
+  :root[data-theme="light"] #full-mode-btn {
+    background: rgba(250, 240, 215, 0.85);
+    border-color: rgba(140, 95, 20, 0.45);
+    color: rgba(110, 75, 20, 0.85);
+  }
+  :root[data-theme="light"] #full-mode-btn:hover {
+    background: rgba(255, 245, 220, 1);
+    color: rgb(70, 50, 18);
+  }
+
+  /* TTS per-block bar (v1.10.0) — dim bronze against parchment */
+  :root[data-theme="light"] .tts-play-btn,
+  :root[data-theme="light"] .tts-voice-btn { color: rgba(110, 75, 20, 0.35); }
+  :root[data-theme="light"] .dm-block:hover .tts-play-btn,
+  :root[data-theme="light"] .dm-block:hover .tts-voice-btn,
+  :root[data-theme="light"] .npc-block:hover .tts-play-btn,
+  :root[data-theme="light"] .npc-block:hover .tts-voice-btn,
+  :root[data-theme="light"] .tts-bar:focus-within .tts-play-btn,
+  :root[data-theme="light"] .tts-bar:focus-within .tts-voice-btn { color: rgba(110, 75, 20, 0.75); }
+  :root[data-theme="light"] .tts-play-btn:hover,
+  :root[data-theme="light"] .tts-voice-btn:hover {
+    color: rgb(50, 35, 18);
+    background: rgba(180, 140, 60, 0.14);
+  }
+  :root[data-theme="light"] .tts-play-btn.tts-playing { color: rgba(160, 50, 30, 0.95); }
+  :root[data-theme="light"] .tts-play-btn.tts-loading { color: rgba(110, 75, 20, 0.5); }
+  :root[data-theme="light"] .tts-voice-menu {
+    background: rgba(252, 245, 222, 0.99);
+    border-color: rgba(140, 95, 20, 0.55);
+    box-shadow: 0 6px 28px rgba(140, 95, 20, 0.45), 0 0 0 1px rgba(140, 95, 20, 0.15);
+  }
+  :root[data-theme="light"] .tts-voice-group { color: rgba(110, 75, 20, 0.75); }
+  :root[data-theme="light"] .tts-voice-opt { color: rgb(50, 35, 18); }
+  :root[data-theme="light"] .tts-voice-opt:hover {
+    background: rgba(180, 140, 60, 0.18);
+    color: rgb(20, 14, 6);
+  }
+  :root[data-theme="light"] .tts-voice-opt.tts-voice-active { color: rgb(70, 30, 130); font-weight: 500; }
+
+  /* Dice-pending "Waiting on…" badge (PR #38 + #39 hardening) — parchment plate */
+  :root[data-theme="light"] #dice-pending-badge {
+    background: rgba(250, 240, 215, 0.96);
+    color: rgb(70, 50, 18);
+    border-color: rgba(140, 95, 20, 0.55);
+    box-shadow: 0 0 22px rgba(140, 95, 20, 0.35), 0 0 0 0 rgba(220, 180, 90, 0.5);
+  }
+  :root[data-theme="light"] #dice-pending-badge .dpb-label { color: rgba(110, 75, 20, 0.85); }
+
+  /* Audio controls (theme picker home) — deeper ink against parchment */
+  :root[data-theme="light"] .audio-label { color: rgba(110, 75, 20, 0.85); }
+  :root[data-theme="light"] .speed-label,
+  :root[data-theme="light"] .narrate-label,
+  :root[data-theme="light"] .theme-label { color: rgba(110, 75, 20, 0.85); }
+  :root[data-theme="light"] .speed-label:hover,
+  :root[data-theme="light"] .narrate-label:hover,
+  :root[data-theme="light"] .theme-label:hover { color: rgb(70, 50, 18); }
+  :root[data-theme="light"] .narrate-label.on,
+  :root[data-theme="light"] .theme-label.on { color: rgb(40, 28, 14); font-weight: 500; }
+
+  /* ── Auto (system-pref) mode — only applies when no data-theme attribute ── */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme]) body { color: rgb(45, 35, 20); }
+    :root:not([data-theme]) #text-content {
+      background:
+        radial-gradient(ellipse at 50% 0%,
+          rgba(255, 245, 220, 0.96),
+          rgba(245, 232, 200, 0.88) 70%,
+          rgba(238, 224, 188, 0.82));
+      border: 1px solid rgba(140, 95, 20, 0.35);
+      border-radius: 4px;
+      padding: 32px 40px;
+      box-shadow:
+        0 0 60px rgba(180, 140, 60, 0.25),
+        inset 0 0 30px rgba(220, 200, 160, 0.4);
+      color: rgb(45, 35, 20);
+    }
+    :root:not([data-theme]) .dm-block p,
+    :root:not([data-theme]) .dm-block table.dm-table {
+      color: rgb(40, 28, 14);
+      text-shadow: 0 1px 1px rgba(255, 250, 235, 0.6);
+    }
+    :root:not([data-theme]) .dm-block p em { color: rgb(110, 70, 20); }
+    :root:not([data-theme]) .dm-block table.dm-table th {
+      background: rgba(180, 140, 60, 0.18);
+      color: rgb(70, 50, 18);
+      border-bottom-color: rgba(140, 95, 20, 0.5);
+    }
+    :root:not([data-theme]) .dm-block table.dm-table td { border-bottom-color: rgba(140, 95, 20, 0.22); }
+    :root:not([data-theme]) .dm-block table.dm-table strong { color: rgb(20, 14, 6); }
+    :root:not([data-theme]) .player-block { border-left-color: rgba(50, 90, 140, 0.55); }
+    :root:not([data-theme]) .player-name { color: rgba(40, 80, 130, 0.85); }
+    :root:not([data-theme]) .player-block p {
+      color: rgb(40, 70, 110);
+      text-shadow: 0 1px 1px rgba(255, 250, 235, 0.6);
+    }
+    :root:not([data-theme]) .npc-name { color: rgba(95, 65, 18, 0.95); }
+    :root:not([data-theme]) .npc-block p {
+      color: rgb(40, 28, 14);
+      text-shadow: 0 1px 1px rgba(255, 250, 235, 0.6);
+    }
+    :root:not([data-theme]) .npc-block p em { color: rgb(110, 70, 20); }
+    :root:not([data-theme]) #input-panel {
+      background: rgba(250, 240, 215, 0.94);
+      border-color: rgba(140, 95, 20, 0.4);
+    }
+    :root:not([data-theme]) #input-panel-label,
+    :root:not([data-theme]) #input-toggle-arrow { color: rgba(110, 75, 20, 0.85); }
+    :root:not([data-theme]) #player-input-text {
+      background: rgba(255, 248, 225, 0.85);
+      border-color: rgba(140, 95, 20, 0.3);
+      color: rgb(40, 28, 14);
+    }
+    :root:not([data-theme]) #player-input-text::placeholder { color: rgba(110, 75, 20, 0.45); }
+    :root:not([data-theme]) .char-tab {
+      color: rgba(110, 75, 20, 0.7);
+      border-color: rgba(140, 95, 20, 0.35);
+    }
+    :root:not([data-theme]) .char-tab.active {
+      color: rgb(40, 28, 14);
+      border-color: rgba(140, 95, 20, 0.85);
+      background: rgba(220, 195, 130, 0.65);
+    }
+    :root:not([data-theme]) #stage-btn,
+    :root:not([data-theme]) .dm-respond-btn {
+      background: rgb(70, 50, 18);
+      border-color: rgba(140, 95, 20, 0.8);
+      color: rgb(245, 238, 222);
+    }
+    :root:not([data-theme]) .tutor-block {
+      background: rgba(200, 230, 200, 0.45);
+      border-color: rgba(70, 130, 70, 0.4);
+      border-left-color: rgba(40, 100, 50, 0.7);
+    }
+    :root:not([data-theme]) .tutor-icon,
+    :root:not([data-theme]) .tutor-label,
+    :root:not([data-theme]) .tutor-chevron { color: rgba(30, 90, 45, 0.85); }
+    :root:not([data-theme]) .tutor-body p { color: rgb(25, 70, 35); text-shadow: none; }
+    :root:not([data-theme]) .tutor-block.tutor-warning {
+      background: rgba(245, 220, 175, 0.55);
+      border-color: rgba(160, 100, 30, 0.4);
+      border-left-color: rgba(140, 80, 20, 0.7);
+    }
+    :root:not([data-theme]) .tutor-block.tutor-warning .tutor-icon,
+    :root:not([data-theme]) .tutor-block.tutor-warning .tutor-label,
+    :root:not([data-theme]) .tutor-block.tutor-warning .tutor-chevron { color: rgba(140, 80, 20, 0.9); }
+    :root:not([data-theme]) .tutor-block.tutor-warning .tutor-body p { color: rgb(110, 60, 15); }
+    :root:not([data-theme]) .effect-expired-result {
+      color: rgb(130, 70, 20);
+      border-color: rgba(160, 100, 30, 0.5);
+      text-shadow: none;
+    }
+    :root:not([data-theme]) .dice-block {
+      color: rgb(75, 55, 20);
+      background: rgba(180, 140, 60, 0.10);
+      border-color: rgba(140, 95, 20, 0.4);
+      text-shadow: none;
+    }
+    :root:not([data-theme]) #sheet-panel,
+    :root:not([data-theme]) #srd-panel {
+      background: rgba(248, 238, 215, 0.98);
+      border-color: rgba(140, 95, 20, 0.45);
+      color: rgb(40, 28, 14);
+    }
+    :root:not([data-theme]) #srd-body .srd-desc { color: rgb(40, 28, 14); }
+    :root:not([data-theme]) .composing-label { color: rgba(110, 75, 20, 0.85); }
+    :root:not([data-theme]) #world-clock { color: rgba(110, 75, 20, 0.85); }
+    :root:not([data-theme]) .audio-label,
+    :root:not([data-theme]) .speed-label,
+    :root:not([data-theme]) .narrate-label,
+    :root:not([data-theme]) .theme-label { color: rgba(110, 75, 20, 0.85); }
+    :root:not([data-theme]) #phone-mode-btn {
+      background: rgba(250, 240, 215, 0.92);
+      border-color: rgba(140, 95, 20, 0.5);
+      color: rgb(70, 50, 18);
+    }
+    :root:not([data-theme]) #phone-mode-menu {
+      background: rgba(252, 245, 222, 0.99);
+      border-color: rgba(140, 95, 20, 0.55);
+    }
+    :root:not([data-theme]) #phone-mode-menu .pm-opt { color: rgb(50, 35, 18); }
+    :root:not([data-theme]) .tts-voice-menu {
+      background: rgba(252, 245, 222, 0.99);
+      border-color: rgba(140, 95, 20, 0.55);
+    }
+    :root:not([data-theme]) .tts-voice-opt { color: rgb(50, 35, 18); }
+    :root:not([data-theme]) #dice-pending-badge {
+      background: rgba(250, 240, 215, 0.96);
+      color: rgb(70, 50, 18);
+      border-color: rgba(140, 95, 20, 0.55);
+    }
+    :root:not([data-theme]) #dice-pending-badge .dpb-label { color: rgba(110, 75, 20, 0.85); }
+  }
 </style>
 </head>
 <body>
@@ -2360,6 +2833,10 @@
   <div class="audio-row" id="narrate-row" title="Auto-narrate new blocks in this browser only" hidden>
     <span class="audio-label">Auto Narrate</span>
     <span id="narrate-label" class="narrate-label">Off</span>
+  </div>
+  <div class="audio-row" id="theme-row" title="Display theme — Dark / Light / Auto (system)">
+    <span class="audio-label">Theme</span>
+    <span id="theme-label" class="theme-label">Dark</span>
   </div>
 </div>
 
@@ -5096,6 +5573,83 @@ if (_TTS_AVAILABLE) {
     });
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// THEME PICKER (Dark / Light / Auto)
+// Per-browser via localStorage["dnd-theme"]. The anti-FOUC inline script
+// in <head> applies the stored value before CSS parses so there's no
+// flash on load; this module handles runtime toggling.
+// ═══════════════════════════════════════════════════════════════════
+
+const _THEME_CYCLE = ['dark', 'light', 'auto'];
+const _THEME_LABEL = { dark: 'Dark', light: 'Light', auto: 'Auto' };
+
+function _readStoredTheme() {
+  try {
+    const v = localStorage.getItem('dnd-theme');
+    return (v === 'dark' || v === 'light' || v === 'auto') ? v : 'auto';
+  } catch (_) {
+    return 'auto';
+  }
+}
+
+function _applyTheme(theme) {
+  if (theme === 'auto') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+}
+
+function _systemPrefersLight() {
+  try {
+    return window.matchMedia('(prefers-color-scheme: light)').matches;
+  } catch (_) {
+    return false;
+  }
+}
+
+function _effectiveTheme(theme) {
+  if (theme === 'auto') return _systemPrefersLight() ? 'light' : 'dark';
+  return theme;
+}
+
+(function _initThemePicker() {
+  const row = document.getElementById('theme-row');
+  const label = document.getElementById('theme-label');
+  if (!row || !label) return;
+
+  let current = _readStoredTheme();
+  _applyTheme(current);
+
+  function refresh() {
+    label.textContent = _THEME_LABEL[current] || 'Dark';
+    label.classList.toggle('on', current !== 'dark');
+    // Surface the effective theme for "auto" via the tooltip
+    if (current === 'auto') {
+      row.title = `Display theme — Auto (system: ${_effectiveTheme(current)})`;
+    } else {
+      row.title = `Display theme — ${_THEME_LABEL[current]}. Click to cycle.`;
+    }
+  }
+  refresh();
+
+  row.addEventListener('click', () => {
+    const idx = _THEME_CYCLE.indexOf(current);
+    current = _THEME_CYCLE[(idx + 1) % _THEME_CYCLE.length];
+    try { localStorage.setItem('dnd-theme', current); } catch (_) {}
+    _applyTheme(current);
+    refresh();
+  });
+
+  // Track system-pref changes so auto mode stays accurate without reload
+  try {
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    mq.addEventListener('change', () => {
+      if (current === 'auto') refresh();
+    });
+  } catch (_) {}
+})();
 
 // ═══════════════════════════════════════════════════════════════════
 // PLAYER INPUT PANEL
