@@ -56,6 +56,7 @@ Usage:
 """
 
 import sys
+sys.stdin.reconfigure(encoding='utf-8')
 import json
 import argparse
 import os
@@ -66,7 +67,7 @@ import urllib.request
 _DISPLAY_DIR = os.path.dirname(os.path.abspath(__file__))
 _SCHEME_FILE = os.path.join(_DISPLAY_DIR, ".scheme")
 _SCHEME = open(_SCHEME_FILE).read().strip() if os.path.exists(_SCHEME_FILE) else "http"
-BASE_URL    = f"{_SCHEME}://localhost:5001"
+BASE_URL    = f"{_SCHEME}://localhost:3001"
 FLASK_URL   = f"{BASE_URL}/chunk"
 STATS_URL   = f"{BASE_URL}/stats"
 HEALTH_URL  = f"{BASE_URL}/health"

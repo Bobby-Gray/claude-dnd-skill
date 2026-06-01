@@ -16,12 +16,13 @@ One line per character. Same format as autorun-wait.sh output.
 """
 import os
 import sys
+sys.stdout.reconfigure(encoding='utf-8')
 
 QUEUE_FILE = os.path.expanduser("~/.claude/skills/dnd/display/.input_queue")
 
 try:
     if os.path.exists(QUEUE_FILE):
-        with open(QUEUE_FILE) as f:
+        with open(QUEUE_FILE, encoding="utf-8") as f:
             content = f.read().strip()
         os.remove(QUEUE_FILE)
         if content:

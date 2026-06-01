@@ -50,7 +50,7 @@ STATS_FILE     = os.path.expanduser("~/.claude/skills/dnd/display/stats.json")
 CAMP_FILE      = os.path.expanduser("~/.claude/skills/dnd/display/.campaign")
 AUDIT_LOG      = os.path.expanduser("~/.claude/skills/dnd/display/input_log.json")
 TOKEN_FILE     = os.path.expanduser("~/.claude/skills/dnd/display/.token")
-DISPLAY_URL    = "https://127.0.0.1:5001"
+DISPLAY_URL    = "https://127.0.0.1:3001"
 
 # Self-signed cert — skip verification for localhost
 _SSL_CTX = ssl.create_default_context()

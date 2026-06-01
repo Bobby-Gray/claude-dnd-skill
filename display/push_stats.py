@@ -79,7 +79,7 @@ import urllib.request
 _DISPLAY_DIR = os.path.dirname(os.path.abspath(__file__))
 _SCHEME_FILE = os.path.join(_DISPLAY_DIR, ".scheme")
 _SCHEME = open(_SCHEME_FILE).read().strip() if os.path.exists(_SCHEME_FILE) else "http"
-FLASK_URL  = f"{_SCHEME}://localhost:5001/stats"
+FLASK_URL  = f"{_SCHEME}://localhost:3001/stats"
 TOKEN_FILE = os.path.expanduser("~/.claude/skills/dnd/display/.token")
 TIMEOUT    = 2.0
 

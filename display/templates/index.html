@@ -44,7 +44,7 @@
     overflow: hidden;
     background: #000;
     color: #d4c4a0;
-    font-family: 'IM Fell English', Georgia, serif;
+    font-family: 'IM Fell English', Georgia, 'Noto Serif SC', 'Microsoft YaHei', 'SimSun', serif;
     font-size: 20px;
     line-height: 1.85;
   }
@@ -3287,7 +3287,7 @@ class Particle {
       this.vx = 0; this.vy = 0;
       this.size = 1;
       this.maxLife = 300;
-      this._color = '#808080';
+      this._color = '#300180';
     }
   }
 
@@ -5767,7 +5767,16 @@ let _autorunThreshold = null; // null = use player count; int = explicit thresho
 _inputPanelHdr.addEventListener('click', () => {
   _inputPanel.classList.toggle('collapsed');
   _inputArrow.textContent = _inputPanel.classList.contains('collapsed') ? '▲' : '▼';
+  _adjustTextBottomPadding();
 });
+
+// ── Adjust text area bottom padding so the input panel never overlaps narration ──
+function _adjustTextBottomPadding() {
+  const panelH = _inputPanel.classList.contains('collapsed')
+    ? _inputPanel.querySelector('#input-panel-header').offsetHeight
+    : _inputPanel.offsetHeight;
+  textScroll.style.paddingBottom = Math.max(80, panelH + 30) + 'px';
+}
 
 // ── Build character tabs from stats players array ─────────────────
 function _buildCharTabs(players) {
@@ -5855,6 +5864,7 @@ function _renderStagedQueue(data) {
     if (_inputPanel.classList.contains('collapsed')) {
       _inputPanel.classList.remove('collapsed');
       _inputArrow.textContent = '▼';
+      _adjustTextBottomPadding();
     }
   } else {
     _inputBadge.style.display = 'none';
@@ -5896,6 +5906,7 @@ function _startAutorunCountdown(interval, ts) {
   if (_inputPanel && _inputPanel.classList.contains('collapsed')) {
     _inputPanel.classList.remove('collapsed');
     if (_inputArrow) _inputArrow.textContent = '▼';
+    _adjustTextBottomPadding();
   }
 
   function tick() {
@@ -6392,6 +6403,7 @@ function connect() {
   };
 }
 
+_adjustTextBottomPadding();
 connect();
 
 // ── Input-only mode for mobile players ───────────────────────────────────

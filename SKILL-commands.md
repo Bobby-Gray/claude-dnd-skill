@@ -471,7 +471,7 @@ Pull the latest skill changes from `origin/main`.
 ## `/dnd display [start|stop|status]`
 - `start` → ask LAN mode [y/n]; run `bash ~/.claude/skills/dnd/display/start-display.sh [--lan]`; print URL(s)
 - `stop` → `kill $(cat ~/.claude/skills/dnd/display/app.pid) 2>/dev/null && rm -f ~/.claude/skills/dnd/display/app.pid`
-- `status` → `curl -sk $(cat ~/.claude/skills/dnd/display/.scheme 2>/dev/null || echo http)://localhost:5001/ping` — reachable or unreachable
+- `status` → `curl -sk $(cat ~/.claude/skills/dnd/display/.scheme 2>/dev/null || echo http)://localhost:3001/ping` — reachable or unreachable
 - No argument → print quick-start instructions
 
 ---

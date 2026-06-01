@@ -87,7 +87,7 @@ Claude Code CLI  ──→  /dnd commands  ──→  campaign files (~/.claude/
                                               session-log.md · characters/
 
 Display pipeline (autorun mode):
-  Players (phone/tablet)  ──→  Companion UI  ──→  Flask SSE server (localhost:5001)
+  Players (phone/tablet)  ──→  Companion UI  ──→  Flask SSE server (localhost:3001)
                                                           ↓
                                                    autorun-wait.sh
                                                           ↓
@@ -330,7 +330,7 @@ bash ~/.claude/skills/dnd/display/start-display.sh --lan
 bash ~/.claude/skills/dnd/display/start-display.sh --lan --tls
 ```
 
-Then open `http://localhost:5001` in your browser. HTTP is the default — no certificate warnings. For LAN devices use the IP URL printed at startup (e.g. `http://192.168.1.x:5001`). Use `--tls` only when the network is public or untrusted.
+Then open `http://localhost:3001` in your browser. HTTP is the default — no certificate warnings. For LAN devices use the IP URL printed at startup (e.g. `http://192.168.1.x:3001`). Use `--tls` only when the network is public or untrusted.
 
 ### Viewing Options
 
@@ -340,17 +340,17 @@ Open the display URL in a browser, then choose how to show it:
 |--------|-----|
 | **TV — Cast tab** | Chrome → three-dot menu → Cast → Cast tab; select your Chromecast or smart TV |
 | **TV — Screen mirror** | macOS: Control Centre → Screen Mirroring → Apple TV / AirPlay receiver |
-| **iPad / tablet** | Start with `--lan`, open `http://<your-ip>:5001` in Safari or Chrome; works in landscape |
-| **Second monitor** | Open `http://localhost:5001` in a browser window and drag it to the second display |
+| **iPad / tablet** | Start with `--lan`, open `http://<your-ip>:3001` in Safari or Chrome; works in landscape |
+| **Second monitor** | Open `http://localhost:3001` in a browser window and drag it to the second display |
 
 ### TLS / HTTPS (optional)
 
 HTTP is the default. Use `--tls` only when the network is public or untrusted. When `--tls` is passed to `start-display.sh`:
 - A self-signed cert is auto-generated (10-year validity) if `cert.pem` is not already present
-- A plain HTTP server starts on `:8080` to serve `cert.pem` for download
+- A plain HTTP server starts on `:3001` to serve `cert.pem` for download
 - Per-platform install instructions are printed to the terminal (iOS, Android, Mac)
 
-For iOS: open `http://<your-ip>:8080/cert.pem` in Safari → tap Allow → Settings → General → VPN & Device Management → install profile → Certificate Trust Settings → enable full trust.
+For iOS: open `http://<your-ip>:3001/cert.pem` in Safari → tap Allow → Settings → General → VPN & Device Management → install profile → Certificate Trust Settings → enable full trust.
 
 ### Player Input from the Companion UI
 

@@ -174,9 +174,9 @@ def main() -> None:
 
 def _print_urls(lan_ip: Optional[str]) -> None:
     print("Access URLs (after restart):")
-    print("  Localhost : https://localhost:5001")
+    print("  Localhost : https://localhost:3001")
     if lan_ip:
-        print(f"  LAN       : https://{lan_ip}:5001")
+        print(f"  LAN       : https://{lan_ip}:3001")
     print()
     print("Phone/tablet: open the LAN URL, accept the browser security warning")
     print("(one-time — tap Advanced → Proceed).")

@@ -41,6 +41,7 @@ python3 "$PUSH" --autorun-waiting true --autorun-cycle "$INTERVAL"
 # ── Poll loop — exits when queue file appears, session changes, or 9 min pass ──
 AUTORUN=$(python3 - "$MY_SESSION" "$QFILE" "$SESSION_FILE" << 'PYEOF'
 import sys, os, time
+sys.stdout.reconfigure(encoding='utf-8')
 
 my_session, qfile, session_file = sys.argv[1], sys.argv[2], sys.argv[3]
 max_count = 1800   # 0.3s * 1800 = 9 minutes
@@ -49,7 +50,7 @@ for _ in range(max_count):
     # Queue file appeared — consume and return content
     if os.path.exists(qfile):
         try:
-            content = open(qfile).read()
+            content = open(qfile, encoding='utf-8').read()
             os.unlink(qfile)
             print(content, end='')
         except Exception:
@@ -81,7 +82,7 @@ try:
     ctx = None
     if scheme == 'https':
         ctx = ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
-    req = urllib.request.Request(f'{scheme}://localhost:5001/queue/consumed', data=b'', method='POST', headers={'X-DND-Token': token})
+    req = urllib.request.Request(f'{scheme}://localhost:3001/queue/consumed', data=b'', method='POST', headers={'X-DND-Token': token})
     urllib.request.urlopen(req, timeout=1, context=ctx)
 except: pass
 " 2>/dev/null

@@ -368,16 +368,31 @@ def _check_auto_trigger() -> None:
         enough          = len(_staged) >= threshold or everybody_ready
         if not (all_ready and enough):
             return
-        char_names = list(_staged.keys())
-        lines      = [f'[{c}]: {e["text"]}' for c, e in _staged.items()]
-        content    = "\n".join(lines)
+        staged_items = list(_staged.items())
+        char_names   = [c for c, _ in staged_items]
+        lines        = [f'[{c}]: {e["text"]}' for c, e in staged_items]
+        content      = "\n".join(lines)
         _staged.clear()
 
     try:
-        with open(QUEUE_FILE, "w") as f:
+        with open(QUEUE_FILE, "w", encoding="utf-8") as f:
             f.write(content)
     except Exception:
         char_names = []
+
+    # Echo each staged action into the main narration feed as an action block
+    for char_name, entry in staged_items:
+        action_text = entry["text"]
+        if not action_text.strip():
+            continue
+        log_entry = {"text": action_text, "action": char_name}
+        with _text_log_lock:
+            _text_log.append(log_entry)
+        with _tail_lock:
+            _tail_buffer.append(log_entry)
+        _persist_log()
+        _persist_tail()
+        _broadcast({"text": action_text, "action": char_name})
 
     if char_names:
         with _queue_status_lock:
@@ -464,7 +479,7 @@ SCENES: dict[str, dict] = {
             "drawbridge", "moat", "throne", "great hall", "manor",
         ],
         "colors": ["#0e0e1a", "#1a1a2e"],
-        "accent": "#8080c0",
+        "accent": "#3001c0",
         "particles": "dust",
         "label": "The Castle",
     },
@@ -2381,14 +2396,14 @@ def submit_now():
     if not _token_ok():
         return "Forbidden", 403
     try:
-        content = open(QUEUE_FILE).read()
+        content = open(QUEUE_FILE, encoding="utf-8").read()
         os.unlink(QUEUE_FILE)
     except FileNotFoundError:
         return "No queue", 204
     except Exception:
         return "Error", 500
     try:
-        with open(TRIGGER_FILE, "w") as f:
+        with open(TRIGGER_FILE, "w", encoding="utf-8") as f:
             f.write(content)
     except Exception:
         return "Error", 500
@@ -2506,7 +2521,7 @@ def stream():
 
     resp = Response(
         generate(),
-        mimetype="text/event-stream",
+        mimetype="text/event-stream; charset=utf-8",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
@@ -2543,13 +2558,13 @@ if __name__ == "__main__":
         pass
 
     if _LAN_MODE:
-        print(f"DnD DM Display — LAN mode (0.0.0.0:5001) [{scheme.upper()}]")
-        print(f"  Local:  {scheme}://localhost:5001")
+        print(f"DnD DM Display — LAN mode (0.0.0.0:3001) [{scheme.upper()}]")
+        print(f"  Local:  {scheme}://localhost:3001")
         print("  Token stored at:", TOKEN_FILE)
         print("  POST endpoints require X-DND-Token header (send.py/push_stats.py handle this automatically)")
         print()
     else:
-        print(f"DnD DM Display — Flask server starting on {scheme}://localhost:5001")
-        print(f"Open {scheme}://localhost:5001 in your browser, then Chromecast the tab.")
+        print(f"DnD DM Display — Flask server starting on {scheme}://localhost:3001")
+        print(f"Open {scheme}://localhost:3001 in your browser, then Chromecast the tab.")
         print()
-    app.run(host=host, port=5001, threaded=True, debug=False, ssl_context=ssl_ctx)
+    app.run(host=host, port=3001, threaded=True, debug=False, ssl_context=ssl_ctx)

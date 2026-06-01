@@ -7,12 +7,12 @@ You continue typing in the terminal as normal.
 ```
 Terminal (you type here — claude runs directly, no wrapper needed)
     ↓ send.py calls (narration, dice, NPC dialogue, stat changes)
- Flask on http://localhost:5001
+ Flask on http://localhost:3001
     ↓ SSE stream
  Browser tab (any device on your network)
     TV — Cast tab or screen mirror
     iPad / tablet — open in Safari or Chrome via LAN
-    Second monitor — open http://localhost:5001 in a local window
+    Second monitor — open http://localhost:3001 in a local window
 ```
 
 ---
@@ -44,7 +44,7 @@ with no setup required. This is the recommended mode for home and trusted networ
 
 **`--tls` is an explicit opt-in** for public or untrusted networks. When `--tls` is used:
 - A self-signed certificate is auto-generated (10-year validity, LAN IP in SAN)
-- A plain HTTP server starts on `:8080` so devices can download `cert.pem`
+- A plain HTTP server starts on `:3001` so devices can download `cert.pem`
 - Full per-platform install instructions are printed to the CLI (iOS, Android, Mac)
 
 In LAN mode a token is generated and stored at `.token`. The `send.py` and `push_stats.py`
@@ -53,17 +53,17 @@ scripts read this file automatically.
 ### 3. Open the browser tab
 
 ```
-http://localhost:5001
+http://localhost:3001
 # or from another device (LAN mode):
-http://<your-machine-ip>:5001
+http://<your-machine-ip>:3001
 # with --tls:
-https://<your-machine-ip>:5001
+https://<your-machine-ip>:3001
 ```
 
 **To display on a TV or other device:**
 - **Cast tab** — Chrome → three-dot menu → Cast → Cast tab → select your Chromecast or smart TV
 - **Screen mirror** — macOS Control Centre → Screen Mirroring → Apple TV / AirPlay receiver
-- **iPad / tablet** — start with `--lan`, open `http://<your-ip>:5001` in Safari or Chrome
+- **iPad / tablet** — start with `--lan`, open `http://<your-ip>:3001` in Safari or Chrome
 - **Second monitor** — drag the browser window to the second display
 
 ### 4. Start your Claude session
@@ -217,7 +217,7 @@ The Sound Effects toggle in the top-right corner of the display enables/disables
 ## Troubleshooting
 
 **Nothing appears on screen**
-- Confirm Flask is running: `curl -s http://localhost:5001/ping` should return `ok` (use `https://` if started with `--tls`)
+- Confirm Flask is running: `curl -s http://localhost:3001/ping` should return `ok` (use `https://` if started with `--tls`)
 - Confirm you're running the DM skill (`/dnd load`) rather than bare `claude`
 - Check the browser console for SSE connection errors
 
@@ -244,11 +244,11 @@ The Sound Effects toggle in the top-right corner of the display enables/disables
 - Mist and ripples use canvas ellipses; leaves use `save()/restore()` — reduce these first
 
 **LAN mode — browsers on other devices can't connect**
-- Confirm the server started with `--lan` (look for `LAN mode (0.0.0.0:5001)` in output)
-- Check your machine's firewall allows port 5001 inbound TCP
+- Confirm the server started with `--lan` (look for `LAN mode (0.0.0.0:3001)` in output)
+- Check your machine's firewall allows port 3001 inbound TCP
 
 **TLS cert install — iOS**
-- In Safari, open `http://<your-ip>:8080/cert.pem` → tap Allow to download
+- In Safari, open `http://<your-ip>:3001/cert.pem` → tap Allow to download
 - Go to Settings → General → VPN & Device Management → install the downloaded profile
 - Go to Settings → General → About → Certificate Trust Settings → enable full trust for the cert
 
@@ -267,9 +267,9 @@ bash $DISPLAY/start-display.sh --lan
 bash $DISPLAY/start-display.sh --lan --tls
 
 # Open the display BEFORE starting your session
-open http://localhost:5001   # same machine
-# or: open http://<your-ip>:5001  (LAN device)
-# with --tls: open https://<your-ip>:5001
+open http://localhost:3001   # same machine
+# or: open http://<your-ip>:3001  (LAN device)
+# with --tls: open https://<your-ip>:3001
 
 # Start a session — no wrapper needed
 claude   # then: /dnd load <campaign>

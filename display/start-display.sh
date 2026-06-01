@@ -52,12 +52,12 @@ if $TLS_MODE; then
     || { echo "Error: openssl not found. Install it or use HTTP mode (remove --tls)."; exit 1; }
   fi
 
-  # Start cert server (plain HTTP on :8080 so devices can download the cert)
+  # Start cert server (plain HTTP on :3001 so devices can download the cert)
   if [[ -f "$CERT_SERVER_PID" ]]; then
     kill "$(cat "$CERT_SERVER_PID")" 2>/dev/null || true
     rm -f "$CERT_SERVER_PID"
   fi
-  python3 -m http.server 8080 --directory "$DISPLAY_DIR" > /dev/null 2>&1 &
+  python3 -m http.server 3001 --directory "$DISPLAY_DIR" > /dev/null 2>&1 &
   echo $! > "$CERT_SERVER_PID"
 else
   # HTTP mode: shut down any leftover cert server from a previous TLS session
@@ -84,7 +84,7 @@ $TLS_MODE && APP_ARGS="$APP_ARGS --tls"
 nohup python3 "$DISPLAY_DIR/dnd-display-app.py" $APP_ARGS > "$LOG" 2>&1 &
 echo $! > "$PID_FILE"
 
-LOCAL_URL="${SCHEME}://localhost:5001"
+LOCAL_URL="${SCHEME}://localhost:3001"
 
 # Wait up to 5 s for the server to become ready
 for i in $(seq 1 10); do
@@ -92,7 +92,7 @@ for i in $(seq 1 10); do
   if curl -sk "$LOCAL_URL/ping" > /dev/null 2>&1; then
     echo ""
     echo "Display started — $LOCAL_URL"
-    [[ -n "$LAN_IP" ]] && echo "LAN access:     ${SCHEME}://${LAN_IP}:5001"
+    [[ -n "$LAN_IP" ]] && echo "LAN access:     ${SCHEME}://${LAN_IP}:3001"
 
     if $TLS_MODE; then
       echo ""
@@ -100,11 +100,11 @@ for i in $(seq 1 10); do
       echo "  TLS MODE — one-time certificate install required per device"
       echo "══════════════════════════════════════════════════════════════"
       echo ""
-      echo "  A plain HTTP server is running on :8080 so devices can"
+      echo "  A plain HTTP server is running on :3001 so devices can"
       echo "  download the cert without needing to trust it first."
       echo ""
       echo "  Step 1 — on each new device, open:"
-      echo "           http://${LAN_IP}:8080/cert.pem"
+      echo "           http://${LAN_IP}:3001/cert.pem"
       echo ""
       echo "  iOS (iPhone / iPad):"
       echo "    Safari will say 'Allow' to download → tap Allow"
@@ -117,10 +117,10 @@ for i in $(seq 1 10); do
       echo "  Mac (other than this machine):"
       echo "    Open cert.pem → Keychain Access → mark as Always Trust"
       echo ""
-      echo "  Step 2 — open  https://${LAN_IP}:5001  in the device browser."
+      echo "  Step 2 — open  https://${LAN_IP}:3001  in the device browser."
       echo "  No further warnings after the cert is trusted."
       echo ""
-      echo "  The cert server on :8080 runs until the display is stopped."
+      echo "  The cert server on :3001 runs until the display is stopped."
       echo ""
       echo "  NOTE: TLS is only needed on public or untrusted networks."
       echo "  For home/trusted LANs, plain HTTP (--lan, no --tls) is"
