@@ -36,12 +36,13 @@ try:
 except Exception:
     _paths = None
 
-# Resolve the bundled-data dir via paths.py (honors CLAUDE_PLUGIN_ROOT / __file__).
-# Fall back to the legacy standalone location only if the import failed.
+# Resolve the bundled-data dir via paths.py (honors CLAUDE_SKILL_DIR / __file__).
+# Fall back to a __file__-relative path if the import somehow failed (this file
+# is <skill>/scripts/lookup.py, so data is one level up).
 if _paths is not None:
     _DATA_DIR = str(_paths.data_dir())
 else:
-    _DATA_DIR = os.path.expanduser("~/.claude/skills/dnd/data")
+    _DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "data")
 DATA_FILE_2014    = os.path.join(_DATA_DIR, "dnd5e_srd.json")
 DATA_FILE_2024    = os.path.join(_DATA_DIR, "dnd5e_srd_2024.json")
 SUPPLEMENTAL_FILE_2014 = os.path.join(_DATA_DIR, "dnd5e_supplemental.json")
@@ -539,10 +540,11 @@ def main() -> None:
     srd_file = _srd_path_for(ruleset)
     if not os.path.exists(srd_file):
         print(f"Dataset not found: {srd_file}")
+        _build = os.path.join(os.path.dirname(os.path.abspath(__file__)), "build_srd.py")
         if ruleset == "2024":
-            print("Run: python3 ~/.claude/skills/dnd/scripts/build_srd.py --ruleset 2024")
+            print(f'Run: python3 "{_build}" --ruleset 2024   (or: /dnd data sync --ruleset 2024)')
         else:
-            print("Run: python3 ~/.claude/skills/dnd/scripts/build_srd.py")
+            print(f'Run: python3 "{_build}"   (or: /dnd data sync)')
         sys.exit(1)
 
     _set_active(ruleset)
