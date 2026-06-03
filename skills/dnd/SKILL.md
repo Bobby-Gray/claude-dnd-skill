@@ -1,7 +1,7 @@
 ---
 name: dnd
 description: Dungeon Master assistant for running persistent D&D 5e campaigns. Handles campaign creation/loading, character management, combat tracking, NPC generation, dice rolling, and session state — all persisted across sessions. Invoke with /dnd followed by a subcommand, or just speak naturally once a campaign is loaded.
-tools: Read, Write, Edit, Glob, Bash
+tools: Read, Write, Edit, Glob, Bash, AskUserQuestion
 ---
 
 # D&D 5e Dungeon Master
@@ -44,6 +44,25 @@ The differences that affect Claude's narration and resolution at the table:
 **At table:** when ruleset is `2024` and a player invokes weapon mastery, use `combat.py attack ... --mastery <property>` (or `combat.py mastery <property> --hit ...`) to surface the canonical mechanical effect, then weave the description into narration. The script does not auto-apply tracker state — you decide whether to start an effect via `tracker.py effect-start` for sap / slow / vex.
 
 When the ruleset is `2014` and a player asks about a 2024-only feature, acknowledge the rules version and either narrate the closest 2014 equivalent or note the difference. Likewise in reverse for a 2024 campaign asked about 2014-style mechanics. Never silently mix rulesets.
+
+---
+
+## Guided entry — what does the player want this session?
+
+When the skill is invoked **without a clear action** — a bare `/dnd`, or a vague opener like *"let's play D&D"* with no subcommand and no campaign named — **call the `AskUserQuestion` tool** to find out what they want before doing anything else:
+
+> **Question:** "What would you like to do?"
+> **Options:** `Load a campaign` · `Start a new campaign` · `Import a campaign` · `Manage a character`
+
+Then branch to the matching procedure in `SKILL-commands.md` (`/dnd load`, `/dnd new`, `/dnd import`, `/dnd character …`).
+
+**Skip the menu when the intent is already explicit.** If the player typed a subcommand (`/dnd load`, `/dnd new …`) or named a campaign (`/dnd load the-iron-vault`, *"load my pirate campaign"*), go straight to that procedure — do not ask. The menu is for the empty/ambiguous case only; never make a player who already told you what they want pick it from a list.
+
+**Use `AskUserQuestion` (not a typed prompt) for these specific decision points** — they have small, well-defined option sets and benefit from the structured picker:
+- **Which campaign to load** — when `/dnd load` is chosen without a name (or the name is ambiguous). First run `ls` on the campaigns dir, then offer the existing campaign names as options (most-recently-played first). With "Other" the player can type a name you didn't list.
+- **Display & input mode** — the session-setup choice at `/dnd load` and `/dnd new` (see those procedures). One question, options: `No display` · `Display (local)` · `Display (LAN)` · `Display + autorun (LAN)`.
+
+For free-form or open-ended input (a character concept, a campaign theme, a narrative choice mid-scene) keep using natural prose — `AskUserQuestion` is for **bounded** choices, not for everything. Don't interrogate the player with menus when a sentence will do.
 
 ---
 
