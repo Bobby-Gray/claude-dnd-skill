@@ -110,17 +110,38 @@ The Flask server receives narration text, player actions, dice results, and char
 
 ## Installation
 
-```bash
-# 1. Clone into your Claude skills directory
-git clone https://github.com/Bobby-Gray/claude-dnd-skill ~/.claude/skills/dnd
+### Option A — install as a Claude Code plugin (recommended)
 
-# 2. Install display companion dependencies (optional)
-pip3 install flask flask-cors numpy cryptography
-
-# 3. That's it — no other setup required
+```
+/plugin marketplace add ethan-piper/claude-dnd-skill
+/plugin install dnd@ethan-piper
 ```
 
-> **Claude Code skills** live in `~/.claude/skills/`. Once cloned, the `/dnd` command is available in any Claude Code session.
+Then invoke it as **`/dnd:dnd`** (plugin skills are namespaced `plugin:skill`), or just describe what you want once a campaign is loaded. Update with `/plugin update dnd`.
+
+```bash
+# Optional — install the display-companion dependencies (one-time).
+# Core gameplay works without these; they power the live screen + audio.
+pip3 install flask flask-cors numpy cryptography
+```
+
+### Option B — manual install as a standalone skill
+
+```bash
+git clone https://github.com/ethan-piper/claude-dnd-skill /tmp/claude-dnd-skill
+cp -R /tmp/claude-dnd-skill/skills/dnd ~/.claude/skills/dnd
+pip3 install flask flask-cors numpy cryptography   # optional (display)
+```
+
+Invoked as `/dnd`. Update with `/dnd update` (fast-forward git pull).
+
+> **Migrating from an older standalone install?** Earlier versions placed the
+> skill files at the repo root and you cloned the whole repo to `~/.claude/skills/dnd`.
+> This version nests everything under `skills/dnd/`. If you install the **plugin**,
+> first remove the old standalone copy to avoid a duplicate `/dnd`:
+> `rm -rf ~/.claude/skills/dnd`. **Your campaigns and characters are untouched** —
+> they live under `~/.claude/dnd/` (or `$DND_CAMPAIGN_ROOT`), entirely separate
+> from the skill code, and survive any reinstall.
 
 ---
 
@@ -135,7 +156,9 @@ The skill tracks releases via a top-level `VERSION` file and per-release notes i
 /dnd update            # pulls if you're behind (fast-forward only; refuses on dirty tree)
 ```
 
-The `--check` output now includes both sides' version strings so you can see at a glance whether you've fallen behind. After pulling, restart Claude Code so the new `SKILL.md` and command procedures load.
+**Plugin installs update through the plugin manager** — run `/plugin update dnd` instead. `/dnd update` detects a plugin install and points you there rather than git-pulling under the manager's tracked state.
+
+The `--check` output includes both sides' version strings so you can see at a glance whether you've fallen behind. After updating, restart Claude Code so the new `SKILL.md` and command procedures load.
 
 The skill follows [semantic versioning](https://semver.org/): `MAJOR.MINOR.PATCH`. Breaking changes that require campaign-data migration bump MAJOR; new opt-in features bump MINOR; bug fixes bump PATCH. Active campaigns continue to work across MINOR/PATCH bumps without action.
 

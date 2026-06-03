@@ -77,6 +77,20 @@ fi
 pkill -9 -f "dnd-display-app\.py" 2>/dev/null || true
 sleep 0.3
 
+# ── Dependency check (first run) ──────────────────────────────────────────────
+# The display companion is optional — core gameplay (dice, combat, tracker, XP,
+# state) is pure stdlib and runs without it. But if the user asked for the
+# display, fail with the exact one-time install command rather than a silent
+# "server may not have started" further down.
+if ! python3 -c "import flask, flask_cors" 2>/dev/null; then
+  echo "The display companion needs its Python dependencies (one-time install):"
+  echo "    pip3 install -r \"$DISPLAY_DIR/requirements.txt\""
+  echo ""
+  echo "Core gameplay works without the display — you can keep playing and add"
+  echo "the companion later by running the command above, then /dnd display start."
+  exit 1
+fi
+
 # ── Start Flask ───────────────────────────────────────────────────────────────
 APP_ARGS="$LAN_FLAG"
 $TLS_MODE && APP_ARGS="$APP_ARGS --tls"

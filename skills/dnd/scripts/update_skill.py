@@ -1,31 +1,59 @@
 """
-update_skill.py — check for and apply updates to the dnd skill from origin/main.
+update_skill.py — check for and apply updates to the dnd skill.
 
 Usage:
     python3 update_skill.py            # check, show diff, prompt to pull
     python3 update_skill.py --check    # check only, no pull
     python3 update_skill.py --yes      # pull without prompting
 
-Refuses to update if the working tree is dirty (protects local patches), and
-uses --ff-only so it never silently merges divergent history.
+Install-mode aware:
+  * Plugin install (managed by Claude Code) — defers to `/plugin update dnd`
+    rather than git-pulling under the plugin manager's feet.
+  * Dev clone / legacy standalone (a plain git checkout) — fast-forwards from
+    origin. Refuses if the working tree is dirty; uses --ff-only so it never
+    silently merges divergent history.
 """
+from __future__ import annotations  # PEP 604 (X | None) annotations on Python 3.9
+
 import argparse
+import os
 import pathlib
 import subprocess
 import sys
 
-SKILL_DIR = pathlib.Path("~/.claude/skills/dnd").expanduser()
+from paths import skill_root as _skill_root
+
+# The skill dir holds SKILL.md + scripts/data/display. The git checkout root is
+# the repo root: skill dir is <repo>/skills/dnd, so the repo is two levels up.
+# (Legacy standalone installs had the repo == skill dir; walk up to find .git.)
+SKILL_DIR = _skill_root()
+
+
+def _find_git_root(start: pathlib.Path) -> pathlib.Path | None:
+    for d in (start, *start.parents):
+        if (d / ".git").exists():
+            return d
+    return None
+
+
+GIT_ROOT = _find_git_root(SKILL_DIR)
+
+# Heuristic: a Claude-Code-managed plugin install lives under a `plugins/` tree
+# or exposes CLAUDE_PLUGIN_ROOT. Such installs update via `/plugin update`.
+PLUGIN_MODE = bool(os.environ.get("CLAUDE_PLUGIN_ROOT")) or (
+    os.sep + "plugins" + os.sep in str(SKILL_DIR)
+)
 
 
 def git(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["git", "-C", str(SKILL_DIR), *args],
+        ["git", "-C", str(GIT_ROOT), *args],
         capture_output=True, text=True, check=check,
     )
 
 
 def _read_local_version() -> str:
-    f = SKILL_DIR / "VERSION"
+    f = (GIT_ROOT or SKILL_DIR) / "VERSION"
     if not f.exists():
         return "(no VERSION file — pre-1.6 baseline)"
     return f.read_text().strip()
@@ -48,11 +76,20 @@ def main() -> int:
     p.add_argument("--yes", action="store_true", help="pull without prompting")
     args = p.parse_args()
 
-    if not (SKILL_DIR / ".git").exists():
-        print(f"Skill at {SKILL_DIR} is not a git checkout.", file=sys.stderr)
+    if PLUGIN_MODE:
+        print("This is a Claude Code plugin install — update it with the plugin manager:")
+        print("    /plugin update dnd")
+        print("\n(Manual git updates are managed by Claude Code here; `/dnd update` "
+              "defers to it to avoid conflicting with the plugin's tracked state.)")
+        return 0
+
+    if GIT_ROOT is None:
+        print(f"Skill at {SKILL_DIR} is not a git checkout and not a plugin install.",
+              file=sys.stderr)
         print(
-            "Reinstall via: git clone https://github.com/Bobby-Gray/claude-dnd-skill "
-            "~/.claude/skills/dnd",
+            "If you installed manually, reinstall via:\n"
+            "    git clone https://github.com/ethan-piper/claude-dnd-skill\n"
+            "or install it as a plugin (see README).",
             file=sys.stderr,
         )
         return 2
