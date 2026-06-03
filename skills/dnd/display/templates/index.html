@@ -24,6 +24,11 @@
         document.documentElement.setAttribute('data-theme', v);
       }
       // 'auto' or missing → leave the attribute off; CSS @media handles it.
+      // Skin axis: "vellum" (default, attr absent) or "editorial" (Colossal redesign).
+      var sk = window.localStorage.getItem('dnd-skin');
+      if (sk === 'editorial') {
+        document.documentElement.setAttribute('data-skin', 'editorial');
+      }
     } catch (_) { /* private mode / disabled storage — silently fall back to dark */ }
   })();
 </script>
@@ -32,6 +37,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<!-- Editorial skin fonts (Colossal redesign) — loaded always, used only under data-skin="editorial" -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
 <link rel="icon" type="image/x-icon"  href="/favicon.ico">
 <link rel="icon" type="image/png" sizes="32x32"  href="/icons/app_icon_32.png">
 <link rel="apple-touch-icon" sizes="180x180"      href="/icons/app_icon_180.png">
@@ -2875,6 +2882,92 @@
     }
     :root:not([data-theme]) #dice-pending-badge .dpb-label { color: rgba(110, 75, 20, 0.85); }
   }
+  /* ════════════════════════════════════════════════════════════════════
+     EDITORIAL SKIN  ·  data-skin="editorial"  (Colossal-inspired redesign)
+     Reuses the theme axis: (dark/auto-dark) = Dark, [data-theme="light"]
+     /auto-light = Bold. "strong" vars drive the chrome (party rail, scene
+     kicker); plain vars drive the reading content. Overrides the vellum
+     base by specificity + source order.
+     ════════════════════════════════════════════════════════════════════ */
+  :root[data-skin="editorial"]{
+    --e-canvas:#16130E; --e-ink:#E3DCCB; --e-mut:rgba(237,230,214,.55);
+    --e-accent:#FF7A2D; --e-accent-ink:#FF9A55; --e-dice-text:#16130E;
+    --e-block:#221C16; --e-on-block:#EDE6D6; --e-hair:rgba(237,230,214,.16); --e-track:rgba(237,230,214,.14);
+    --e-strong:#221C16; --e-on-strong:#EDE6D6; --e-hair-strong:rgba(237,230,214,.16); --e-track-strong:rgba(237,230,214,.14);
+  }
+  :root[data-skin="editorial"][data-theme="light"]{
+    --e-canvas:#F3EFE4; --e-ink:#14110C; --e-mut:rgba(20,17,12,.6);
+    --e-accent:#E5481E; --e-accent-ink:#C23A14; --e-dice-text:#F3EFE4;
+    --e-block:#FBF8F0; --e-on-block:#14110C; --e-hair:rgba(20,17,12,.16); --e-track:rgba(20,17,12,.14);
+    --e-strong:#14110C; --e-on-strong:#F3EFE4; --e-hair-strong:rgba(243,239,228,.22); --e-track-strong:rgba(243,239,228,.22);
+  }
+  @media (prefers-color-scheme: light){
+    :root[data-skin="editorial"]:not([data-theme]){
+      --e-canvas:#F3EFE4; --e-ink:#14110C; --e-mut:rgba(20,17,12,.6);
+      --e-accent:#E5481E; --e-accent-ink:#C23A14; --e-dice-text:#F3EFE4;
+      --e-block:#FBF8F0; --e-on-block:#14110C; --e-hair:rgba(20,17,12,.16); --e-track:rgba(20,17,12,.14);
+      --e-strong:#14110C; --e-on-strong:#F3EFE4; --e-hair-strong:rgba(243,239,228,.22); --e-track-strong:rgba(243,239,228,.22);
+    }
+  }
+
+  /* canvas + retire the vellum chrome */
+  :root[data-skin="editorial"] body{ background:var(--e-canvas); color:var(--e-ink); font-family:'Newsreader',Georgia,serif; }
+  :root[data-skin="editorial"] .bg-layer,
+  :root[data-skin="editorial"] #vignette,
+  :root[data-skin="editorial"] #frame,
+  :root[data-skin="editorial"] #sky,
+  :root[data-skin="editorial"] #particles{ display:none !important; }
+
+  /* scene kicker */
+  :root[data-skin="editorial"] #scene-indicator{
+    font-family:'Syne',sans-serif; font-weight:800; font-size:12px; letter-spacing:.34em; color:var(--e-accent); }
+
+  /* reading column */
+  :root[data-skin="editorial"] #text-content{ max-width:880px; }
+  :root[data-skin="editorial"] .dm-block p{
+    color:var(--e-ink); text-shadow:none; font-family:'Newsreader',serif; font-size:1.02em; line-height:1.6; }
+  :root[data-skin="editorial"] .dm-block p em{ color:var(--e-accent-ink); font-style:italic; }
+
+  /* NPC dialogue — the hero pull-quote, large & legible */
+  :root[data-skin="editorial"] .npc-block{ border-left:4px solid var(--e-accent); padding-left:1.1em; }
+  :root[data-skin="editorial"] .npc-name{
+    font-family:'Syne',sans-serif; font-weight:800; font-size:12px; letter-spacing:.18em; color:var(--e-accent); }
+  :root[data-skin="editorial"] .npc-block p,
+  :root[data-skin="editorial"] .npc-block p em{
+    color:var(--e-ink); font-family:'Newsreader',serif; font-style:italic; font-weight:500;
+    font-size:1.5em; line-height:1.26; text-shadow:none; }
+
+  /* player action */
+  :root[data-skin="editorial"] .player-block{ border-left:4px solid color-mix(in srgb, var(--e-accent) 45%, transparent); padding-left:1.1em; }
+  :root[data-skin="editorial"] .player-name{
+    font-family:'Syne',sans-serif; font-weight:800; font-size:11px; letter-spacing:.16em; color:var(--e-mut); }
+  :root[data-skin="editorial"] .player-block p{ color:var(--e-ink); opacity:.85; font-family:'Newsreader',serif; text-shadow:none; }
+
+  /* action intent */
+  :root[data-skin="editorial"] .action-tag{ font-family:'Syne',sans-serif; font-weight:700; color:var(--e-mut); }
+  :root[data-skin="editorial"] .action-block p{ color:var(--e-ink); opacity:.6; text-shadow:none; }
+
+  /* dice — accent banner */
+  :root[data-skin="editorial"] .dice-result{
+    font-family:'Syne',sans-serif; font-weight:800; letter-spacing:.04em; font-size:13px;
+    color:var(--e-dice-text); background:var(--e-accent); border:0; border-radius:0; text-shadow:none; padding:.42em 1.1em; }
+
+  /* world clock */
+  :root[data-skin="editorial"] #world-clock,
+  :root[data-skin="editorial"] #wc-date,
+  :root[data-skin="editorial"] #wc-sub{ font-family:'Syne',sans-serif; color:var(--e-ink); }
+  :root[data-skin="editorial"] #ruleset-badge{ font-family:'Syne',sans-serif; color:var(--e-accent); }
+
+  /* party rail (sidebar) = strong chrome */
+  :root[data-skin="editorial"] #sidebar{ background:var(--e-strong); color:var(--e-on-strong); border-right:1px solid var(--e-hair-strong); }
+  :root[data-skin="editorial"] .sb-player{ border-bottom:1px solid var(--e-hair-strong); }
+  :root[data-skin="editorial"] .sb-name{ font-family:'Syne',sans-serif; font-weight:800; letter-spacing:.06em; color:var(--e-on-strong); }
+  :root[data-skin="editorial"] .sb-identity{ color:var(--e-on-strong); opacity:.55; }
+  :root[data-skin="editorial"] .sb-label{ font-family:'Syne',sans-serif; color:var(--e-accent); }
+  :root[data-skin="editorial"] .sb-hp-nums{ font-family:'Syne',sans-serif; color:var(--e-on-strong); }
+  :root[data-skin="editorial"] .sb-bar-track{ background:var(--e-track-strong); border:0; }
+  :root[data-skin="editorial"] .sb-bar-fill{ background:var(--e-accent); }
+  :root[data-skin="editorial"] #sidebar-toggle{ font-family:'Syne',sans-serif; color:var(--e-accent); }
 </style>
 </head>
 <body>
@@ -2930,6 +3023,10 @@
   <div class="audio-row" id="theme-row" title="Display theme — Dark / Light / Auto (system)">
     <span class="audio-label">Theme</span>
     <span id="theme-label" class="theme-label">Dark</span>
+  </div>
+  <div class="audio-row" id="skin-row" title="Display style — Vellum (classic) / Editorial (new)">
+    <span class="audio-label">Style</span>
+    <span id="skin-label" class="theme-label">Vellum</span>
   </div>
 </div>
 
@@ -5734,6 +5831,27 @@ function _effectiveTheme(theme) {
     _applyTheme(current);
     refresh();
   });
+
+  // ── Skin picker (Vellum ↔ Editorial) — parallel axis to theme ──
+  (function _initSkinPicker() {
+    const srow = document.getElementById('skin-row');
+    const slabel = document.getElementById('skin-label');
+    if (!srow || !slabel) return;
+    let skin = 'vellum';
+    try { if (localStorage.getItem('dnd-skin') === 'editorial') skin = 'editorial'; } catch (_) {}
+    function applySkin() {
+      if (skin === 'editorial') document.documentElement.setAttribute('data-skin', 'editorial');
+      else document.documentElement.removeAttribute('data-skin');
+      slabel.textContent = skin === 'editorial' ? 'Editorial' : 'Vellum';
+      slabel.classList.toggle('on', skin === 'editorial');
+    }
+    applySkin();
+    srow.addEventListener('click', () => {
+      skin = (skin === 'editorial') ? 'vellum' : 'editorial';
+      try { localStorage.setItem('dnd-skin', skin); } catch (_) {}
+      applySkin();
+    });
+  })();
 
   // Track system-pref changes so auto mode stays accurate without reload
   try {
