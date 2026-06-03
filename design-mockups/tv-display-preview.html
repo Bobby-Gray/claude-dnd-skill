@@ -121,8 +121,8 @@
     <div class="brand">D&D Display · <span>Preview</span></div>
     <div class="spacer"></div>
     <div class="seg" id="iters">
-      <button data-it="itA" class="active">A · Faithful</button>
-      <button data-it="itB">B · Gallery</button>
+      <button data-it="itA">A · Faithful</button>
+      <button data-it="itB" class="active">B · Gallery</button>
       <button data-it="itC">C · Speaker</button>
     </div>
     <div class="toggle" id="themeToggle" title="Toggle light / dark">
@@ -134,7 +134,7 @@
   </div>
 
   <div class="stage-wrap">
-    <section class="screen dark itA" id="screen"></section>
+    <section class="screen dark itB" id="screen"></section>
   </div>
 
   <script>
@@ -180,7 +180,7 @@
 
     const screen = document.getElementById('screen');
     screen.innerHTML = CONTENT;
-    let theme = 'dark', iter = 'itA';
+    let theme = 'dark', iter = 'itB';
 
     function apply(){
       screen.className = 'screen ' + theme + ' ' + iter;

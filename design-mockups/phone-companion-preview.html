@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D&D Phone Companion — Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+<style>
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  :root{ --bar:56px; }
+  body{ height:100vh; overflow:hidden; font-family:'Syne',sans-serif; background:#2a2722; color:#EDE6D6;
+    display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; }
+
+  /* control bar (preview chrome) */
+  .controls{ height:var(--bar); flex:none; display:flex; align-items:center; gap:16px; padding:0 18px;
+    background:#1b1916; border-bottom:1px solid #34302a; }
+  .brand{ font-weight:800; font-size:14px; text-transform:uppercase; letter-spacing:.02em; }
+  .brand span{ color:#FF7A2D; }
+  .spacer{ flex:1; }
+  .seg{ display:flex; background:#252119; border:1px solid #38332b; border-radius:8px; overflow:hidden; }
+  .seg button{ font-family:inherit; font-weight:700; font-size:12px; letter-spacing:.06em; text-transform:uppercase;
+    color:#b8ae9c; background:transparent; border:0; padding:8px 14px; cursor:pointer; transition:.15s; }
+  .seg button:hover{ color:#EDE6D6; }
+  .seg button.active{ background:#FF7A2D; color:#1b1916; }
+  .toggle{ display:flex; align-items:center; gap:9px; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#b8ae9c; }
+  .sw{ width:46px; height:24px; border-radius:100px; background:#3a342b; border:1px solid #4a4438; position:relative; cursor:pointer; transition:.2s; }
+  .sw::after{ content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#EDE6D6; transition:.2s cubic-bezier(.2,.8,.2,1); }
+  body.is-light .sw{ background:#E5481E; border-color:#E5481E; } body.is-light .sw::after{ left:24px; background:#fff; }
+  body.is-light .toggle .lm{ color:#FF7A2D; } body:not(.is-light) .toggle .dm{ color:#FF7A2D; }
+  .hint{ font-size:11px; color:#6f685c; }
+
+  /* stage */
+  .stage-wrap{ flex:1; min-height:0; display:grid; place-items:center; padding:20px;
+    background:radial-gradient(120% 90% at 50% 0%, #322e28, #232019); }
+
+  /* ---------- phone frame ---------- */
+  .phone{ container-type:size; aspect-ratio:9 / 19.5;
+    height:min(calc(100vh - var(--bar) - 44px), 884px);
+    position:relative; overflow:hidden; border-radius:34px;
+    background:var(--canvas); color:var(--text);
+    box-shadow:0 30px 70px -24px rgba(0,0,0,.7), 0 0 0 2px #000, 0 0 0 9px #1c1a16, 0 0 0 10px #2c2924;
+    display:flex; flex-direction:column; }
+  .notch{ position:absolute; top:1.6cqw; left:50%; transform:translateX(-50%); width:30%; height:2.6cqw;
+    background:#000; border-radius:100px; z-index:20; }
+  .grain{ position:absolute; inset:0; pointer-events:none; z-index:15; opacity:.4;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode:var(--grain-blend); }
+
+  /* status strip */
+  .status{ flex:none; display:flex; align-items:center; justify-content:space-between;
+    padding:4.2cqw 5cqw 1.2cqw; font-size:2.7cqw; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text); }
+  .status .live{ display:flex; align-items:center; gap:1.4cqw; color:var(--accent); }
+  .status .live::before{ content:""; width:1.8cqw; height:1.8cqw; border-radius:50%; background:var(--accent); }
+
+  /* hero — character header block */
+  .hero{ flex:none; background:var(--block); color:var(--on-block); margin:0 0 0; padding:3.4cqw 5cqw 3.8cqw;
+    border-bottom:var(--block-key); }
+  .hero .who{ display:flex; align-items:flex-end; justify-content:space-between; gap:2cqw; }
+  .hero .name{ font-weight:800; font-size:6.4cqw; line-height:.9; letter-spacing:-.01em; text-transform:uppercase; }
+  .hero .cls{ font-weight:600; font-size:3cqw; letter-spacing:.12em; text-transform:uppercase; opacity:.6; margin-top:1.2cqw; }
+  .hero .lvl{ font-weight:800; font-size:3cqw; color:var(--accent); letter-spacing:.1em; }
+  .hero .hpwrap{ margin-top:3cqw; }
+  .hero .hplabel{ display:flex; justify-content:space-between; align-items:baseline; font-weight:700; font-size:2.6cqw; letter-spacing:.1em; text-transform:uppercase; margin-bottom:1.2cqw; }
+  .hero .hplabel b{ font-size:3.4cqw; font-variant-numeric:tabular-nums; }
+  .hero .hptrack{ height:1.8cqw; background:var(--track); position:relative; overflow:hidden; }
+  .hero .hpfill{ position:absolute; inset:0 auto 0 0; width:var(--hp,87%); background:var(--accent); }
+  .hero .stats{ display:flex; gap:2cqw; margin-top:3cqw; }
+  .hero .stat{ flex:1; border:.4cqw solid var(--hairline-block); padding:1.6cqw 2cqw; }
+  .hero .stat .k{ font-weight:700; font-size:2.2cqw; letter-spacing:.12em; text-transform:uppercase; opacity:.6; }
+  .hero .stat .v{ font-weight:800; font-size:5cqw; line-height:1; margin-top:.6cqw; }
+
+  /* scrolling body */
+  .body{ flex:1; min-height:0; overflow:auto; padding:4cqw 5cqw 22cqw; }
+  .body::-webkit-scrollbar{ display:none; }
+  .kicker{ font-weight:800; font-size:2.6cqw; letter-spacing:.22em; text-transform:uppercase; color:var(--accent);
+    display:flex; align-items:center; gap:2cqw; margin:0 0 2.6cqw; }
+  .kicker::before{ content:""; width:4cqw; height:.7cqw; background:var(--accent); }
+  .kicker.mt{ margin-top:6cqw; }
+
+  /* screen visibility */
+  .screen{ display:none; } body.s-play .screen-play, body.s-dice .screen-dice, body.s-sheet .screen-sheet{ display:block; }
+
+  /* PLAY — scene recap + composer */
+  .nowcard{ background:var(--surf); border:.4cqw solid var(--hairline); padding:3.4cqw; }
+  .nowcard p{ font-family:'Newsreader',serif; font-size:4cqw; line-height:1.46; }
+  .nowcard .npc{ font-style:italic; color:var(--accent-ink); }
+  .composer{ margin-top:2cqw; }
+  .ta{ width:100%; min-height:26cqw; background:var(--surf); border:.4cqw solid var(--hairline); padding:3.2cqw;
+    font-family:'Newsreader',serif; font-style:italic; font-size:4cqw; color:var(--text); resize:none; line-height:1.4; }
+  .ta::placeholder{ color:var(--text); opacity:.4; }
+  .quick{ display:flex; gap:2cqw; flex-wrap:wrap; margin-top:2.6cqw; }
+  .chip{ font-weight:700; font-size:2.7cqw; letter-spacing:.06em; text-transform:uppercase;
+    border:.4cqw solid var(--hairline); padding:1.4cqw 2.6cqw; background:transparent; color:var(--text); cursor:pointer; }
+  .chip.on{ background:var(--accent); color:var(--dice-text); border-color:var(--accent); }
+  .actions{ display:flex; gap:2.4cqw; margin-top:3.4cqw; }
+  .btn{ flex:1; font-family:inherit; font-weight:800; font-size:3.4cqw; letter-spacing:.06em; text-transform:uppercase;
+    padding:3.4cqw; border:.5cqw solid var(--block); cursor:pointer; }
+  .btn.ghost{ background:transparent; color:var(--text); }
+  .btn.fill{ background:var(--accent); border-color:var(--accent); color:var(--dice-text); }
+  .staged{ margin-top:4cqw; border-top:.4cqw solid var(--hairline); padding-top:3cqw; }
+  .staged .row{ display:flex; align-items:center; gap:2.4cqw; }
+  .staged .tagq{ font-weight:800; font-size:2.4cqw; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); }
+  .staged p{ font-family:'Newsreader',serif; font-style:italic; font-size:3.6cqw; line-height:1.4; margin-top:1.2cqw; opacity:.85; }
+
+  /* DICE */
+  .prescribed{ background:var(--block); color:var(--on-block); padding:4cqw; position:relative; }
+  .prescribed::after{ content:""; position:absolute; inset:1.4cqw -1.4cqw -1.4cqw 1.4cqw; border:.6cqw solid var(--accent); z-index:-1; }
+  .prescribed .ask{ font-weight:700; font-size:2.6cqw; letter-spacing:.12em; text-transform:uppercase; opacity:.7; }
+  .prescribed .what{ font-weight:800; font-size:6cqw; line-height:1; margin:1.6cqw 0 1cqw; text-transform:uppercase; }
+  .prescribed .formula{ font-family:'Newsreader',serif; font-style:italic; font-size:4cqw; opacity:.8; }
+  .rollbtn{ width:100%; margin-top:3.4cqw; font-family:inherit; font-weight:800; font-size:5cqw; letter-spacing:.08em; text-transform:uppercase;
+    padding:4.4cqw; background:var(--accent); color:var(--dice-text); border:0; cursor:pointer; }
+  .tray{ display:grid; grid-template-columns:repeat(4,1fr); gap:2.4cqw; }
+  .die{ aspect-ratio:1; border:.5cqw solid var(--hairline); display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-weight:800; cursor:pointer; background:var(--surf); }
+  .die:hover{ border-color:var(--accent); }
+  .die .d{ font-size:5cqw; line-height:1; } .die .lab{ font-size:2.2cqw; letter-spacing:.1em; opacity:.55; margin-top:1cqw; }
+  .recent .rr{ display:flex; align-items:center; justify-content:space-between; padding:2.6cqw 0; border-bottom:.4cqw solid var(--hairline); }
+  .recent .rr .lhs{ font-family:'Newsreader',serif; font-size:3.6cqw; }
+  .recent .rr .res{ font-weight:800; font-size:4.4cqw; color:var(--accent); }
+  .recent .rr .hit{ font-weight:800; font-size:2.4cqw; letter-spacing:.1em; text-transform:uppercase; background:var(--accent); color:var(--dice-text); padding:.4cqw 1.4cqw; margin-left:2cqw; }
+
+  /* SHEET */
+  .abil{ display:grid; grid-template-columns:repeat(3,1fr); gap:2.2cqw; }
+  .abil .a{ border:.4cqw solid var(--hairline); padding:2.4cqw 1cqw; text-align:center; }
+  .abil .a .k{ font-weight:700; font-size:2.3cqw; letter-spacing:.1em; text-transform:uppercase; opacity:.6; }
+  .abil .a .m{ font-weight:800; font-size:6cqw; line-height:1; margin:1cqw 0 .4cqw; color:var(--accent-ink); }
+  .abil .a .s{ font-weight:700; font-size:2.6cqw; opacity:.55; }
+  .lst .li{ display:flex; align-items:baseline; justify-content:space-between; gap:2cqw; padding:2.4cqw 0; border-bottom:.4cqw solid var(--hairline); }
+  .lst .li .nm{ font-weight:800; font-size:3.6cqw; text-transform:uppercase; letter-spacing:.02em; }
+  .lst .li .sub{ font-family:'Newsreader',serif; font-style:italic; font-size:3.2cqw; opacity:.7; }
+  .lst .li .val{ font-weight:800; font-size:3.8cqw; color:var(--accent); white-space:nowrap; }
+
+  /* DM HELP floating */
+  .dmhelp{ position:absolute; right:5cqw; bottom:19cqw; z-index:18; font-family:inherit; font-weight:800;
+    font-size:3cqw; letter-spacing:.06em; text-transform:uppercase; padding:2.6cqw 4cqw; border-radius:100px;
+    background:var(--block); color:var(--on-block); border:.5cqw solid var(--accent); cursor:pointer;
+    box-shadow:0 4cqw 8cqw -2cqw rgba(0,0,0,.4); display:flex; align-items:center; gap:1.6cqw; }
+  .dmhelp::before{ content:"?"; display:grid; place-items:center; width:4.4cqw; height:4.4cqw; border-radius:50%;
+    background:var(--accent); color:var(--dice-text); font-size:3cqw; }
+
+  /* tab bar */
+  .tabbar{ position:absolute; left:0; right:0; bottom:0; z-index:16; display:flex; background:var(--block); color:var(--on-block);
+    border-top:var(--block-key); }
+  .tabbar button{ flex:1; font-family:inherit; font-weight:800; font-size:2.9cqw; letter-spacing:.1em; text-transform:uppercase;
+    background:transparent; color:var(--on-block); border:0; padding:4cqw 0 6cqw; cursor:pointer; opacity:.5; position:relative; }
+  .tabbar button.on{ opacity:1; }
+  .tabbar button.on::after{ content:""; position:absolute; top:0; left:25%; right:25%; height:.8cqw; background:var(--accent); }
+
+  /* themes */
+  .light{ --canvas:#F3EFE4; --surf:#FBF8F0; --text:#14110C; --block:#14110C; --on-block:#F3EFE4; --accent:#E5481E; --accent-ink:#C23A14; --dice-text:#F3EFE4;
+    --track:rgba(243,239,228,.22); --hairline:rgba(20,17,12,.2); --hairline-block:rgba(243,239,228,.22); --block-key:none; --grain-blend:multiply; }
+  .dark{ --canvas:#16130E; --surf:#1d1913; --text:#E3DCCB; --block:#221C16; --on-block:#EDE6D6; --accent:#FF7A2D; --accent-ink:#FF9A55; --dice-text:#16130E;
+    --track:rgba(237,230,214,.14); --hairline:rgba(237,230,214,.16); --hairline-block:rgba(237,230,214,.16); --block-key:.3cqw solid rgba(255,122,45,.4); --grain-blend:soft-light; }
+</style>
+</head>
+<body class="s-play">
+  <div class="controls">
+    <div class="brand">Phone Companion · <span>Preview</span></div>
+    <div class="spacer"></div>
+    <div class="seg" id="screens">
+      <button data-s="s-play" class="active">Play</button>
+      <button data-s="s-dice">Dice</button>
+      <button data-s="s-sheet">Sheet</button>
+    </div>
+    <div class="toggle" id="themeToggle" title="Toggle light / dark">
+      <span class="dm">Dark</span><div class="sw"></div><span class="lm">Light</span>
+    </div>
+    <span class="hint">T · 1/2/3</span>
+  </div>
+
+  <div class="stage-wrap">
+    <section class="phone dark" id="phone">
+      <div class="notch"></div>
+      <div class="grain"></div>
+
+      <div class="status">
+        <span>The Pale Ledger</span>
+        <span class="live">Live · Session 14</span>
+      </div>
+
+      <div class="hero">
+        <div class="who">
+          <div>
+            <div class="name">Ben Bones</div>
+            <div class="cls">Half-Elf Rogue <span class="lvl">· LVL 4</span></div>
+          </div>
+        </div>
+        <div class="hpwrap">
+          <div class="hplabel"><span>Hit Points</span><b>27 / 31</b></div>
+          <div class="hptrack"><div class="hpfill" style="--hp:87%"></div></div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="k">Armor</div><div class="v">15</div></div>
+          <div class="stat"><div class="k">Init</div><div class="v">+4</div></div>
+          <div class="stat"><div class="k">Speed</div><div class="v">30</div></div>
+          <div class="stat"><div class="k">Pass·Prc</div><div class="v">14</div></div>
+        </div>
+      </div>
+
+      <div class="body">
+        <!-- PLAY -->
+        <div class="screen screen-play">
+          <div class="kicker">Now — your turn</div>
+          <div class="nowcard">
+            <p>Sorn waits across the table, three pale tokens at her wrist. <span class="npc">“So — what exactly did he show you?”</span> The room has gone quiet around you.</p>
+          </div>
+          <div class="kicker mt">Your move</div>
+          <div class="composer">
+            <textarea class="ta" placeholder="Describe what Ben does…">I keep my hands on the table where she can see them, and slide one of my own tokens out beside hers.</textarea>
+            <div class="quick">
+              <button class="chip on">Talk</button><button class="chip">Attack</button>
+              <button class="chip">Sneak</button><button class="chip">Insight</button><button class="chip">Other</button>
+            </div>
+            <div class="actions">
+              <button class="btn ghost">Stage</button>
+              <button class="btn fill">Send now</button>
+            </div>
+          </div>
+          <div class="staged">
+            <div class="row"><span class="tagq">Staged · waiting for DM</span></div>
+            <p>“Maybe. Show me yours and I'll show you mine.” — Ben, low, watching her hands.</p>
+          </div>
+        </div>
+
+        <!-- DICE -->
+        <div class="screen screen-dice">
+          <div class="kicker">The DM asks for a roll</div>
+          <div class="prescribed">
+            <div class="ask">Sleight of Hand</div>
+            <div class="what">Palm the Token</div>
+            <div class="formula">d20 + 7 &nbsp;·&nbsp; advantage</div>
+            <button class="rollbtn">Tap to roll</button>
+          </div>
+          <div class="kicker mt">Manual roll</div>
+          <div class="tray">
+            <div class="die"><span class="d">4</span><span class="lab">D4</span></div>
+            <div class="die"><span class="d">6</span><span class="lab">D6</span></div>
+            <div class="die"><span class="d">8</span><span class="lab">D8</span></div>
+            <div class="die"><span class="d">10</span><span class="lab">D10</span></div>
+            <div class="die"><span class="d">12</span><span class="lab">D12</span></div>
+            <div class="die"><span class="d">20</span><span class="lab">D20</span></div>
+            <div class="die"><span class="d">%</span><span class="lab">D100</span></div>
+            <div class="die"><span class="d">+</span><span class="lab">Mod</span></div>
+          </div>
+          <div class="kicker mt">Recent</div>
+          <div class="recent">
+            <div class="rr"><span class="lhs">Rapier attack · d20+5</span><span><span class="res">22</span><span class="hit">Hit</span></span></div>
+            <div class="rr"><span class="lhs">Sneak damage · 1d8+1 +1d6</span><span class="res">13</span></div>
+            <div class="rr"><span class="lhs">Perception · d20+4</span><span class="res">17</span></div>
+          </div>
+        </div>
+
+        <!-- SHEET -->
+        <div class="screen screen-sheet">
+          <div class="kicker">Ability scores</div>
+          <div class="abil">
+            <div class="a"><div class="k">Str</div><div class="m">+0</div><div class="s">10</div></div>
+            <div class="a"><div class="k">Dex</div><div class="m">+4</div><div class="s">18</div></div>
+            <div class="a"><div class="k">Con</div><div class="m">+2</div><div class="s">14</div></div>
+            <div class="a"><div class="k">Int</div><div class="m">+1</div><div class="s">12</div></div>
+            <div class="a"><div class="k">Wis</div><div class="m">+2</div><div class="s">14</div></div>
+            <div class="a"><div class="k">Cha</div><div class="m">+3</div><div class="s">16</div></div>
+          </div>
+          <div class="kicker mt">Attacks</div>
+          <div class="lst">
+            <div class="li"><div><div class="nm">Rapier</div><div class="sub">finesse · 1d8 piercing</div></div><div class="val">+7</div></div>
+            <div class="li"><div><div class="nm">Shortbow</div><div class="sub">80/320 · 1d6 piercing</div></div><div class="val">+7</div></div>
+            <div class="li"><div><div class="nm">Dagger</div><div class="sub">thrown 20/60 · 1d4</div></div><div class="val">+7</div></div>
+          </div>
+          <div class="kicker mt">Features</div>
+          <div class="lst">
+            <div class="li"><div><div class="nm">Sneak Attack</div><div class="sub">once per turn, with advantage or ally adjacent</div></div><div class="val">2d6</div></div>
+            <div class="li"><div><div class="nm">Cunning Action</div><div class="sub">dash · disengage · hide as a bonus action</div></div><div class="val">—</div></div>
+            <div class="li"><div><div class="nm">Uncanny Dodge</div><div class="sub">halve one attacker's damage (reaction)</div></div><div class="val">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="dmhelp">Ask the DM</button>
+      <nav class="tabbar" id="tabs">
+        <button data-s="s-play" class="on">Play</button>
+        <button data-s="s-dice">Dice</button>
+        <button data-s="s-sheet">Sheet</button>
+      </nav>
+    </section>
+  </div>
+
+  <script>
+    const phone = document.getElementById('phone');
+    let theme='dark', scr='s-play';
+    function apply(){
+      phone.className='phone '+theme;
+      document.body.className=scr+(theme==='light'?' is-light':'');
+      document.querySelectorAll('#screens button').forEach(b=>b.classList.toggle('active',b.dataset.s===scr));
+      document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.s===scr));
+    }
+    function setScr(s){ scr=s; apply(); }
+    document.getElementById('themeToggle').addEventListener('click',()=>{ theme=theme==='dark'?'light':'dark'; apply(); });
+    document.querySelectorAll('#screens button, #tabs button').forEach(b=>b.addEventListener('click',()=>setScr(b.dataset.s)));
+    addEventListener('keydown',e=>{ if(e.key==='t'||e.key==='T'){theme=theme==='dark'?'light':'dark';apply();}
+      if(e.key==='1')setScr('s-play'); if(e.key==='2')setScr('s-dice'); if(e.key==='3')setScr('s-sheet'); });
+    apply();
+  </script>
+</body>
+</html>
