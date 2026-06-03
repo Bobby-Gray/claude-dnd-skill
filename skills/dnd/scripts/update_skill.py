@@ -7,7 +7,7 @@ Usage:
     python3 update_skill.py --yes      # pull without prompting
 
 Install-mode aware:
-  * Plugin install (managed by Claude Code) — defers to `/plugin update dnd`
+  * Plugin install (managed by Claude Code) — defers to `/plugin update dm`
     rather than git-pulling under the plugin manager's feet.
   * Dev clone / legacy standalone (a plain git checkout) — fast-forwards from
     origin. Refuses if the working tree is dirty; uses --ff-only so it never
@@ -78,7 +78,7 @@ def main() -> int:
 
     if PLUGIN_MODE:
         print("This is a Claude Code plugin install — update it with the plugin manager:")
-        print("    /plugin update dnd")
+        print("    /plugin update dm")
         print("\n(Manual git updates are managed by Claude Code here; `/dnd update` "
               "defers to it to avoid conflicting with the plugin's tracked state.)")
         return 0

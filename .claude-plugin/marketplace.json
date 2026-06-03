@@ -10,7 +10,7 @@
   },
   "plugins": [
     {
-      "name": "dnd",
+      "name": "dm",
       "source": "./",
       "description": "Dungeon Master assistant for persistent D&D 5e campaigns — campaign/character management, combat, NPCs, dice, an optional live display companion, and full session state across sessions.",
       "version": "1.12.1",

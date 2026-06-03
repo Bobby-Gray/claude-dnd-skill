@@ -114,10 +114,10 @@ The Flask server receives narration text, player actions, dice results, and char
 
 ```
 /plugin marketplace add ethan-piper/claude-dnd-skill
-/plugin install dnd@ethan-piper
+/plugin install dm@ethan-piper
 ```
 
-Then invoke it as **`/dnd:dnd`** (plugin skills are namespaced `plugin:skill`), or just describe what you want once a campaign is loaded. Update with `/plugin update dnd`.
+Then invoke it as **`/dm:dnd`** (plugin skills are namespaced `plugin:skill` — the `dm` plugin provides the `dnd` skill), or just describe what you want once a campaign is loaded. Update with `/plugin update dm`.
 
 ```bash
 # Optional — install the display-companion dependencies (one-time).
@@ -156,7 +156,7 @@ The skill tracks releases via a top-level `VERSION` file and per-release notes i
 /dnd update            # pulls if you're behind (fast-forward only; refuses on dirty tree)
 ```
 
-**Plugin installs update through the plugin manager** — run `/plugin update dnd` instead. `/dnd update` detects a plugin install and points you there rather than git-pulling under the manager's tracked state.
+**Plugin installs update through the plugin manager** — run `/plugin update dm` instead. `/dnd update` detects a plugin install and points you there rather than git-pulling under the manager's tracked state.
 
 The `--check` output includes both sides' version strings so you can see at a glance whether you've fallen behind. After updating, restart Claude Code so the new `SKILL.md` and command procedures load.
 
