@@ -10,6 +10,10 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [2.1.3] — 2026-06-04 — TCC-safe autorun wait
+
+- **Autorun mode no longer breaks under macOS TCC.** The blocking autorun wait was a shell script (`autorun-wait.sh`) whose `echo > .autorun-session` redirect is silently blocked by macOS TCC when the data root lives under `~/Documents` — so autorun/taxi mode failed to drive the turn loop. Replaced with `autorun_wait.py`, a pure-python implementation doing the identical job (session invalidation, `autorun_interval` from `state.md`, waiting-indicator broadcast, 9-minute input-queue poll, `/queue/consumed` POST) using python file I/O, which TCC permits. Output contract is unchanged, so the DM turn loop is identical. The old shell script is retired.
+
 ## [2.1.2] — 2026-06-04 — Editorial character-sheet theming
 
 - **Character-sheet modal fully themed for Editorial.** The sheet frame was already editorial, but its inner sections still rendered in Vellum gold on the paper canvas. Section titles and ability modifiers are now vermilion; ability scores, feature names, and feature text are ink (readable, no faint gold); spell/cantrip tags and dividers use subtle ink hairlines. The portrait icon drops its purple drop-shadow, and a 404'd class icon is removed (`onerror`) instead of leaving a broken-image box.

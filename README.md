@@ -89,7 +89,7 @@ Claude Code CLI  ──→  /dnd commands  ──→  campaign files (~/.claude/
 Display pipeline (autorun mode):
   Players (phone/tablet)  ──→  Companion UI  ──→  Flask SSE server (localhost:5001)
                                                           ↓
-                                                   autorun-wait.sh
+                                                   autorun_wait.py
                                                           ↓
                                                    Claude processes turn
                                                           ↓
@@ -715,7 +715,7 @@ ${CLAUDE_SKILL_DIR}/
 ├── display/
 │   ├── app.py                # Flask SSE server
 │   ├── audio.py              # SFX synthesis and browser trigger (numpy)
-│   ├── autorun-wait.sh       # Blocking wait script for autorun mode
+│   ├── autorun_wait.py       # Blocking wait for autorun mode (TCC-safe, pure python)
 │   ├── check_input.py        # Non-blocking player input queue poll (mid-turn check)
 │   ├── send.py               # Direct send for narration/dice/player actions
 │   ├── push_stats.py         # Character and combat stat updates

@@ -12,7 +12,7 @@ Output format (when non-empty):
   [CharName]: action text
   [CharName2]: action text
 
-One line per character. Same format as autorun-wait.sh output.
+One line per character. Same format as autorun_wait.py output.
 """
 import os
 import sys

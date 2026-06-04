@@ -250,7 +250,7 @@ When autorun is active, Claude drives the turn loop — no DM Enter required and
 
 ```bash
 # Autorun wait — Ctrl+C to return to manual mode
-AUTORUN=$(bash ${CLAUDE_SKILL_DIR}/display/autorun-wait.sh)
+AUTORUN=$(python3 ${CLAUDE_SKILL_DIR}/display/autorun_wait.py)
 echo "$AUTORUN"
 ```
 

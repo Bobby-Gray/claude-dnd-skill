@@ -2607,7 +2607,7 @@ if __name__ == "__main__":
     ssl_ctx = (_cert, _key) if (_TLS_MODE and os.path.exists(_cert) and os.path.exists(_key)) else None
     scheme  = "https" if ssl_ctx else "http"
 
-    # Write .scheme so push_stats.py / send.py / autorun-wait.sh know which to use
+    # Write .scheme so push_stats.py / send.py / autorun_wait.py know which to use
     try:
         with open(os.path.join(_display_dir, ".scheme"), "w") as _sf:
             _sf.write(scheme)
