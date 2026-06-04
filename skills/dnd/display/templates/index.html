@@ -3106,8 +3106,11 @@
   :root[data-skin="editorial"] body:not(.input-only) #ed-rail .ed-ic{ font-size:19px; line-height:1; }
   /* phone-mode = prominent, always-accent, larger tap target */
   :root[data-skin="editorial"] body:not(.input-only) #ed-rail #phone-mode-btn{
-    background:var(--e-accent); color:var(--e-dice-text); border-color:var(--e-accent); min-height:78px; gap:5px; }
-  :root[data-skin="editorial"] body:not(.input-only) #ed-rail #phone-mode-btn .ed-ic{ font-size:26px; }
+    background:var(--e-accent); color:var(--e-dice-text); border-color:var(--e-accent); min-height:78px; gap:6px; }
+  /* phone handset glyph — small in Vellum's chip, prominent in the editorial rail */
+  #phone-mode-btn .ed-ic svg{ width:15px; height:15px; vertical-align:middle; display:inline-block; }
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail #phone-mode-btn .ed-ic{ font-size:0; line-height:0; }
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail #phone-mode-btn .ed-ic svg{ width:28px; height:28px; }
   :root[data-skin="editorial"] body:not(.input-only) #ed-rail #phone-mode-btn:hover{
     background:var(--e-accent-ink); color:var(--e-dice-text); border-color:var(--e-accent-ink); }
 
@@ -6945,7 +6948,12 @@ connect();
     // Give Phone Mode an icon-forward layout (big phone glyph + label). The space
     // between spans keeps Vellum's inline "📱 Phone Mode" reading intact.
     const _pm = document.getElementById('phone-mode-btn');
-    if (_pm) _pm.innerHTML = '<span class="ed-ic">☎️</span> <span class="ed-lbl">Phone</span>';
+    if (_pm) _pm.innerHTML =
+      '<span class="ed-ic" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" />' +
+      '</svg>' +
+      '</span> <span class="ed-lbl">Phone</span>';
     const launchers = Array.from(rail.querySelectorAll('.ed-launch'));
     const drawerIds = ['input-panel', 'audio-controls'];
 
