@@ -3218,6 +3218,47 @@
   :root[data-skin="editorial"] #sheet-panel strong{ color:var(--e-accent-ink); }
   :root[data-skin="editorial"] #sheet-close{ color:var(--e-mut); }
   :root[data-skin="editorial"] #sheet-close:hover{ color:var(--e-accent); }
+  /* character-sheet inner sections — retype the Vellum gold to the editorial system */
+  :root[data-skin="editorial"] #sheet-panel .sm-identity{ font-family:'Syne',sans-serif; color:var(--e-mut); }
+  :root[data-skin="editorial"] #sheet-panel .sm-xp{ font-family:'Syne',sans-serif; color:var(--e-mut); }
+  :root[data-skin="editorial"] #sheet-panel .sm-section-title{
+    font-family:'Syne',sans-serif; font-weight:800; letter-spacing:.22em; color:var(--e-accent); }
+  :root[data-skin="editorial"] #sheet-panel .sm-divider{ background:color-mix(in srgb, var(--e-ink), transparent 84%); }
+  /* ability scores */
+  :root[data-skin="editorial"] #sheet-panel .sm-ab-name{ font-family:'Syne',sans-serif; color:var(--e-mut); }
+  :root[data-skin="editorial"] #sheet-panel .sm-ab-score{ font-family:'Syne',sans-serif; font-weight:700; color:var(--e-ink); }
+  :root[data-skin="editorial"] #sheet-panel .sm-ab-mod{ font-family:'Syne',sans-serif; color:var(--e-accent); }
+  /* combat / HP strip */
+  :root[data-skin="editorial"] #sheet-panel .sm-stat-label{ font-family:'Syne',sans-serif; color:var(--e-mut); }
+  :root[data-skin="editorial"] #sheet-panel .sm-stat-val{ font-family:'Syne',sans-serif; font-weight:700; color:var(--e-ink); }
+  /* attacks table */
+  :root[data-skin="editorial"] #sheet-panel .sm-attacks-table th{
+    font-family:'Syne',sans-serif; font-weight:800; letter-spacing:.06em; color:var(--e-ink);
+    border-bottom-color:color-mix(in srgb, var(--e-ink), transparent 78%); }
+  :root[data-skin="editorial"] #sheet-panel .sm-attacks-table td{
+    font-family:'Newsreader',serif; color:var(--e-ink); border-bottom-color:color-mix(in srgb, var(--e-ink), transparent 88%); }
+  :root[data-skin="editorial"] #sheet-panel .sm-attacks-table td.atk-name{ color:var(--e-ink); }
+  :root[data-skin="editorial"] #sheet-panel .sm-attacks-table td.atk-notes{ color:var(--e-mut); font-style:italic; }
+  /* features & passives */
+  :root[data-skin="editorial"] #sheet-panel .sm-feature-name{ font-family:'Syne',sans-serif; font-weight:700; color:var(--e-ink); }
+  :root[data-skin="editorial"] #sheet-panel .sm-feature-name[data-srd-name]{ color:var(--e-accent); cursor:pointer; }
+  :root[data-skin="editorial"] #sheet-panel .sm-feature-name[data-srd-name]:hover{ color:var(--e-accent-ink); }
+  :root[data-skin="editorial"] #sheet-panel .sm-feature-text{ font-family:'Newsreader',serif; color:var(--e-ink); opacity:.82; }
+  /* spell/cantrip labels + tags */
+  :root[data-skin="editorial"] #sheet-panel .sm-sub-label{ font-family:'Syne',sans-serif; color:var(--e-mut); }
+  :root[data-skin="editorial"] #sheet-panel .sm-spell-meta{ font-family:'Newsreader',serif; color:var(--e-mut); }
+  :root[data-skin="editorial"] #sheet-panel .sm-spell-tag{
+    font-family:'Newsreader',serif; color:var(--e-ink);
+    background:transparent; border:1px solid color-mix(in srgb, var(--e-ink), transparent 78%); border-radius:3px; }
+  :root[data-skin="editorial"] #sheet-panel .sm-spell-tag:hover{ border-color:var(--e-accent); color:var(--e-accent); }
+  /* relationships + empty state */
+  :root[data-skin="editorial"] #sheet-panel .sm-rel-name{ font-family:'Syne',sans-serif; color:var(--e-accent); }
+  :root[data-skin="editorial"] #sheet-panel .sm-rel-role{ color:var(--e-mut); }
+  :root[data-skin="editorial"] #sheet-panel .sm-rel-note{ color:var(--e-ink); opacity:.78; }
+  :root[data-skin="editorial"] #sheet-panel .sm-no-data{ font-family:'Newsreader',serif; color:var(--e-mut); }
+  /* portrait icon: drop the purple drop-shadow on the editorial paper (broken
+     icons are removed via onerror in JS, so no clumsy placeholder box) */
+  :root[data-skin="editorial"] #sheet-panel .sm-header-icon{ filter:none; opacity:.85; }
 
   /* F — Party Input drawer composer fills the abundant vertical space */
   :root[data-skin="editorial"] body:not(.input-only) #input-panel #player-input-text{
@@ -5255,6 +5296,7 @@ function openSheet(name) {
     const ico = document.createElement('img');
     ico.id = 'sm-class-ico'; ico.className = 'sm-header-icon';
     ico.src = sheetClassIco; ico.alt = '';
+    ico.onerror = () => ico.remove();   // no broken-image box if the icon 404s
     panel.appendChild(ico);
   }
 
