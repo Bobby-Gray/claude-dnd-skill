@@ -2923,7 +2923,12 @@
     font-family:'Syne',sans-serif; font-weight:800; font-size:12px; letter-spacing:.34em; color:var(--e-accent); }
 
   /* reading column */
-  :root[data-skin="editorial"] #text-content{ max-width:880px; }
+  /* reading area fills the width between the party rail and the launcher rail; flat (no parchment card) */
+  :root[data-skin="editorial"] body:not(.input-only) #text-scroll{ padding:84px 132px 88px 252px; }
+  :root[data-skin="editorial"] body:not(.input-only) #text-scroll.sidebar-hidden{ padding-left:80px; }
+  :root[data-skin="editorial"] #text-content{
+    max-width:1180px; margin:0 auto 0 0;
+    background:none !important; border:0 !important; border-radius:0 !important; box-shadow:none !important; padding:0 !important; }
   :root[data-skin="editorial"] .dm-block p{
     color:var(--e-ink); text-shadow:none; font-family:'Newsreader',serif; font-size:1.02em; line-height:1.6; }
   :root[data-skin="editorial"] .dm-block p em{ color:var(--e-accent-ink); font-style:italic; }
@@ -3176,6 +3181,30 @@
   .ph-set-opt:last-child{ border-bottom:0; }
   .ph-set-opt strong{ color:#FF7A2D; font-weight:800; font-size:12px; }
   .ph-set-opt:active{ background:rgba(255,255,255,.06); }
+
+  /* ══ Phone character-select first screen (#char-select) ══ */
+  #char-select{ display:none; }
+  body.input-only #char-select:not([hidden]){
+    display:flex; position:fixed; inset:0; z-index:70;
+    align-items:center; justify-content:center; padding:24px;
+    background:#14110C; }
+  #cs-card{ width:100%; max-width:440px; display:flex; flex-direction:column; gap:6px; }
+  #cs-kicker{ font-family:'Syne',sans-serif; font-weight:800; font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:#FF7A2D; }
+  #cs-title{ font-family:'Newsreader',serif; font-style:italic; font-size:30px; line-height:1.1; color:#F3EFE4; margin-bottom:18px; }
+  #cs-list{ display:flex; flex-direction:column; gap:10px; }
+  .cs-opt{
+    display:block; width:100%; text-align:left; cursor:pointer;
+    background:#221C16; color:#EDE6D6; border:1px solid rgba(237,230,214,.16); border-radius:6px;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:17px; letter-spacing:.02em;
+    padding:18px 20px; -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+    transition:background .12s, border-color .12s; }
+  .cs-opt:active{ background:#FF7A2D; color:#14110C; border-color:#FF7A2D; }
+  .cs-empty{ font-family:'Newsreader',serif; font-style:italic; color:rgba(237,230,214,.5); padding:8px 2px; }
+  #cs-skip{
+    margin-top:18px; align-self:flex-start; background:none; border:0; cursor:pointer;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:rgba(237,230,214,.5); padding:8px 2px; }
+  #cs-skip:active{ color:#FF7A2D; }
 </style>
 </head>
 <body>
@@ -3252,6 +3281,17 @@
   <button class="ed-launch" id="ed-launch-settings" type="button" data-drawer="audio-controls" title="Display settings">
     <span class="ed-ic">⚙</span><span>Settings</span>
   </button>
+</div>
+
+<!-- Phone first-screen: pick which character this device controls (shown when input
+     view is opened without a ?char= binding, e.g. via the Phone Mode button). -->
+<div id="char-select" hidden>
+  <div id="cs-card">
+    <div id="cs-kicker">Phone Controller</div>
+    <div id="cs-title">Who are you playing?</div>
+    <div id="cs-list"><div class="cs-empty">Loading party…</div></div>
+    <button id="cs-skip" type="button">Enter a name instead</button>
+  </div>
 </div>
 
 <!-- Phone-only display-settings popover — lets each phone pick its own Theme / Style -->
@@ -6759,6 +6799,8 @@ connect();
     if (ip) ip.classList.remove('collapsed');
     _initInputTabs();
     _initDicePad();
+    // No character bound yet → show the first-screen picker (Phone Mode flow).
+    if (!_qp.has('char') && !_qp.has('character')) _initCharSelect();
   }
   _initModeSwitcher(_inputMode);
 }
@@ -6846,7 +6888,7 @@ connect();
 //     the phone without losing the binding next reload).
 // Pure client-side. No server changes needed; the dropdown reads the
 // players array that already arrives via the existing /stream SSE.
-let _modePlayersCache = [];
+var _modePlayersCache = [];   // var (hoisted) so the first-screen picker can read it pre-init
 
 function _modeSwitcherCachePlayers(players) {
   const names = (players || [])
@@ -6860,6 +6902,43 @@ function _modeSwitcherCachePlayers(players) {
     seen.add(k);
     return true;
   });
+  _refreshCharSelect();   // keep the phone first-screen picker in sync with SSE
+}
+
+// ── Phone first-screen character picker (#char-select) ──────────────────────
+// Shown when the input view is opened without a ?char= binding (e.g. via the
+// "Phone Mode" button). Selecting a name reloads bound to that character.
+function _refreshCharSelect() {
+  const list = document.getElementById('cs-list');
+  if (!list) return;
+  const names = _modePlayersCache || [];
+  if (!names.length) {
+    list.innerHTML = '<div class="cs-empty">Loading party…</div>';
+    return;
+  }
+  list.innerHTML = '';
+  names.forEach(name => {
+    const b = document.createElement('button');
+    b.className = 'cs-opt';
+    b.type = 'button';
+    b.textContent = name;
+    b.addEventListener('click', () => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'input');
+      url.searchParams.set('char', name);
+      window.location.href = url.toString();
+    });
+    list.appendChild(b);
+  });
+}
+
+function _initCharSelect() {
+  const cs = document.getElementById('char-select');
+  if (!cs) return;
+  cs.hidden = false;
+  _refreshCharSelect();
+  const skip = document.getElementById('cs-skip');
+  if (skip) skip.addEventListener('click', () => { cs.hidden = true; });
 }
 
 function _initModeSwitcher(inputMode) {
@@ -6881,65 +6960,21 @@ function _initModeSwitcher(inputMode) {
     return;
   }
 
-  // Full-view: "Phone Mode" button + lazy character-picker dropdown
+  // Full-view: "Phone Mode" converts THIS device into a phone input controller.
+  // Tapping navigates straight to the input view; the player then picks their
+  // character on the first screen there (see #char-select / _initCharSelect).
   const btn = document.createElement('button');
   btn.id = 'phone-mode-btn';
   btn.type = 'button';
-  btn.title = 'Switch this device to phone input mode for a character';
+  btn.title = 'Use this device as a phone input controller';
   btn.textContent = '📱 Phone Mode';
-
-  const menu = document.createElement('div');
-  menu.id = 'phone-mode-menu';
-  menu.setAttribute('role', 'menu');
-
-  function _rebuildMenu() {
-    menu.innerHTML = '';
-    const hdr = document.createElement('div');
-    hdr.className = 'pm-header';
-    hdr.textContent = 'Bind this device to…';
-    menu.appendChild(hdr);
-
-    if (_modePlayersCache.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'pm-empty';
-      empty.textContent = 'No characters loaded yet';
-      menu.appendChild(empty);
-      return;
-    }
-
-    _modePlayersCache.forEach(name => {
-      const opt = document.createElement('button');
-      opt.className = 'pm-opt';
-      opt.type = 'button';
-      opt.textContent = _escHtml(name);  // safety: textContent already escapes, but keep symmetry
-      opt.addEventListener('click', e => {
-        e.stopPropagation();
-        const url = new URL(window.location.href);
-        url.searchParams.set('view', 'input');
-        url.searchParams.set('char', name);
-        window.location.href = url.toString();
-      });
-      menu.appendChild(opt);
-    });
-  }
-
   btn.addEventListener('click', e => {
     e.stopPropagation();
-    if (menu.classList.contains('open')) {
-      menu.classList.remove('open');
-    } else {
-      _rebuildMenu();
-      menu.classList.add('open');
-    }
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', 'input');
+    window.location.href = url.toString();
   });
-
-  // Close the menu on any outside click
-  document.addEventListener('click', () => {
-    menu.classList.remove('open');
-  }, { passive: true });
-
   document.body.appendChild(btn);
-  document.body.appendChild(menu);
 }
 
 // ── Move / Roll tab switcher (input-only mode only) ──────────────────────
