@@ -10,6 +10,12 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-06-04 — Reading text size, narration length, phone turn-flow
+
+- **Reading text size control.** A `Text Size` stepper in Settings (`A−` / `A+`, click the % to reset) scales the reading column via a font-size multiplier — *font size, not page zoom* — so narration stays legible across the room from a Chromecast. Persists per-browser (`localStorage["dnd-text-scale"]`), applied anti-FOUC.
+- **Narration length slider.** A `Narration` slider in Settings (250–2500 words) sets the target the DM aims for each turn. The value POSTs to `/narration-pref`; `check_input.py` prepends a `[[Narration length…]]` directive to queued player input so the DM honors it as a hard budget that turn (SKILL.md instructs it). Quick "keep turns short" control for time-pressed tables.
+- **Phone turn-flow redesign.** The phone input view now shows a plain status strip — *Your move → Sending… → Sent to the DM* (accent banner) → back — so a player can always tell whether their turn is in. Staging is **one tap** (auto-ready: the action sends immediately). And device approval now defaults to trusting any LAN device (`DND_REQUIRE_APPROVAL=1` restores the approve/deny gate), removing the "Awaiting approval" button-clip and the approval-card overlap on a casual home network.
+
 ## [2.0.0] — 2026-06-04 — Plugin-only · Neural Initiative org · v1→v2 migration
 
 - **Plugin-only distribution.** The standalone skill flavor (`~/.claude/skills/dnd`, `/dnd`) is retired; the skill ships solely as the Claude Code plugin **`dm@neural-initiative`**, invoked as **`/dm:dnd`**. Install with `/plugin marketplace add neuralinitiative/claude-dnd-skill` then `/plugin install dm@neural-initiative`. The v1.x standalone is frozen on a `legacy-1.x` branch (unmaintained). Maintaining both flavors doubled the test matrix and diverged silently; one packaging path is the supported path going forward.
