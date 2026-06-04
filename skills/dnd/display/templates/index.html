@@ -3159,6 +3159,54 @@
   :root[data-skin="editorial"] body:not(.input-only) #phone-mode-menu .pm-opt{ font-family:'Newsreader',serif; color:var(--e-on-strong); }
   :root[data-skin="editorial"] body:not(.input-only) #phone-mode-menu .pm-opt:hover{ background:color-mix(in srgb,var(--e-strong),#000 18%); color:var(--e-accent); }
 
+  /* ══ Layer 4: party rail fill + logo, dice readability, modals, composer sizing ══ */
+
+  /* B1 — party rail fills full height; the d20 logo nests in its top */
+  :root[data-skin="editorial"] body:not(.input-only) #sidebar{
+    top:0; bottom:0; height:100vh; padding-top:108px; }
+  :root[data-skin="editorial"] body:not(.input-only) #corner-logo{
+    top:26px; left:30px; width:60px; height:60px; opacity:.95; z-index:33; }
+
+  /* B2 — dice call-out: readable line-height when it wraps */
+  :root[data-skin="editorial"] .dice-result{ line-height:1.5; padding:.6em 1.15em; }
+
+  /* D1 — phone "Full Display" return button, themed + tappable */
+  :root[data-skin="editorial"] body.input-only #full-mode-btn{
+    background:var(--e-strong); color:var(--e-on-strong);
+    border:1px solid var(--e-hair-strong); border-left:3px solid var(--e-accent); border-radius:7px;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+    opacity:1; padding:11px 16px; min-height:40px; }
+
+  /* D2 — phone composer keeps comfortable padding at any font size */
+  :root[data-skin="editorial"] body.input-only #player-input-text{
+    padding:16px !important; box-sizing:border-box; }
+
+  /* E — character sheet modal themed (was vellum parchment) */
+  :root[data-skin="editorial"] #sheet-modal{ background:rgba(0,0,0,.55); }
+  :root[data-skin="editorial"] #sheet-panel{
+    background:var(--e-canvas); color:var(--e-ink);
+    border:1px solid var(--e-hair-strong); border-radius:4px;
+    box-shadow:0 30px 90px rgba(0,0,0,.5); }
+  :root[data-skin="editorial"] #sheet-panel .sm-name{
+    font-family:'Syne',sans-serif; font-weight:800; letter-spacing:.16em; color:var(--e-accent); }
+  :root[data-skin="editorial"] #sheet-panel .sm-stat-label,
+  :root[data-skin="editorial"] #sheet-panel .sm-label{
+    font-family:'Syne',sans-serif; color:var(--e-mut); }
+  :root[data-skin="editorial"] #sheet-panel .sm-stat-val,
+  :root[data-skin="editorial"] #sheet-panel .sm-value{ font-family:'Syne',sans-serif; color:var(--e-ink); }
+  :root[data-skin="editorial"] #sheet-panel,
+  :root[data-skin="editorial"] #sheet-panel p,
+  :root[data-skin="editorial"] #sheet-panel li,
+  :root[data-skin="editorial"] #sheet-panel td,
+  :root[data-skin="editorial"] #sheet-panel th{ font-family:'Newsreader',serif; color:var(--e-ink); }
+  :root[data-skin="editorial"] #sheet-panel strong{ color:var(--e-accent-ink); }
+  :root[data-skin="editorial"] #sheet-close{ color:var(--e-mut); }
+  :root[data-skin="editorial"] #sheet-close:hover{ color:var(--e-accent); }
+
+  /* F — Party Input drawer composer fills the abundant vertical space */
+  :root[data-skin="editorial"] body:not(.input-only) #input-panel #player-input-text{
+    min-height:240px; padding:18px; font-size:16px; line-height:1.5; }
+
   /* ══ Phone display-settings popover (#phone-settings) — both skins, phone only ══ */
   #phone-settings{ display:none; }
   body.input-only #phone-settings{
@@ -3182,29 +3230,46 @@
   .ph-set-opt strong{ color:#FF7A2D; font-weight:800; font-size:12px; }
   .ph-set-opt:active{ background:rgba(255,255,255,.06); }
 
-  /* ══ Phone character-select first screen (#char-select) ══ */
+  /* ══ Phone character-select first screen (#char-select) — theme-aware via
+        editorial vars with dark fallbacks (works in Vellum too) ══ */
   #char-select{ display:none; }
   body.input-only #char-select:not([hidden]){
     display:flex; position:fixed; inset:0; z-index:70;
     align-items:center; justify-content:center; padding:24px;
-    background:#14110C; }
+    background:var(--e-canvas, #14110C); }
   #cs-card{ width:100%; max-width:440px; display:flex; flex-direction:column; gap:6px; }
-  #cs-kicker{ font-family:'Syne',sans-serif; font-weight:800; font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:#FF7A2D; }
-  #cs-title{ font-family:'Newsreader',serif; font-style:italic; font-size:30px; line-height:1.1; color:#F3EFE4; margin-bottom:18px; }
+  #cs-kicker{ font-family:'Syne',sans-serif; font-weight:800; font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:var(--e-accent, #FF7A2D); }
+  #cs-title{ font-family:'Newsreader',serif; font-style:italic; font-size:30px; line-height:1.1; color:var(--e-ink, #F3EFE4); margin-bottom:18px; }
   #cs-list{ display:flex; flex-direction:column; gap:10px; }
   .cs-opt{
     display:block; width:100%; text-align:left; cursor:pointer;
-    background:#221C16; color:#EDE6D6; border:1px solid rgba(237,230,214,.16); border-radius:6px;
+    background:var(--e-strong, #221C16); color:var(--e-on-strong, #EDE6D6);
+    border:1px solid var(--e-hair-strong, rgba(237,230,214,.16)); border-radius:6px;
     font-family:'Syne',sans-serif; font-weight:700; font-size:17px; letter-spacing:.02em;
     padding:18px 20px; -webkit-tap-highlight-color:transparent; touch-action:manipulation;
     transition:background .12s, border-color .12s; }
-  .cs-opt:active{ background:#FF7A2D; color:#14110C; border-color:#FF7A2D; }
-  .cs-empty{ font-family:'Newsreader',serif; font-style:italic; color:rgba(237,230,214,.5); padding:8px 2px; }
-  #cs-skip{
-    margin-top:18px; align-self:flex-start; background:none; border:0; cursor:pointer;
+  .cs-opt:active{ background:var(--e-accent, #FF7A2D); color:var(--e-dice-text, #14110C); border-color:var(--e-accent, #FF7A2D); }
+  .cs-empty{ font-family:'Newsreader',serif; font-style:italic; color:var(--e-mut, rgba(237,230,214,.5)); padding:8px 2px; }
+  #cs-foot{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:20px; }
+  #cs-skip, #cs-back{
+    background:none; border:0; cursor:pointer;
     font-family:'Syne',sans-serif; font-weight:700; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-    color:rgba(237,230,214,.5); padding:8px 2px; }
-  #cs-skip:active{ color:#FF7A2D; }
+    color:var(--e-mut, rgba(237,230,214,.5)); padding:10px 2px; -webkit-tap-highlight-color:transparent; }
+  #cs-back{ color:var(--e-accent, #FF7A2D); }
+  #cs-skip:active, #cs-back:active{ opacity:.6; }
+
+  /* ══ Toast ══ */
+  #toast{
+    position:fixed; left:50%; bottom:36px;
+    transform:translateX(-50%) translateY(20px);
+    z-index:200; max-width:min(440px, 86vw);
+    background:var(--e-strong, rgba(14,12,10,.98)); color:var(--e-on-strong, #ECE4D2);
+    border:1px solid var(--e-hair-strong, rgba(255,255,255,.16)); border-left:3px solid var(--e-accent, #FF7A2D);
+    border-radius:7px; box-shadow:0 14px 44px rgba(0,0,0,.5);
+    font-family:'Syne',sans-serif; font-weight:600; font-size:13px; letter-spacing:.02em;
+    padding:13px 18px; opacity:0; pointer-events:none;
+    transition:opacity .22s ease, transform .22s ease; }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -3290,9 +3355,15 @@
     <div id="cs-kicker">Phone Controller</div>
     <div id="cs-title">Who are you playing?</div>
     <div id="cs-list"><div class="cs-empty">Loading party…</div></div>
-    <button id="cs-skip" type="button">Enter a name instead</button>
+    <div id="cs-foot">
+      <button id="cs-skip" type="button">Enter a name instead</button>
+      <button id="cs-back" type="button">← Back to display</button>
+    </div>
   </div>
 </div>
+
+<!-- Transient toast (DM Help status, etc.) -->
+<div id="toast" role="status" aria-live="polite"></div>
 
 <!-- Phone-only display-settings popover — lets each phone pick its own Theme / Style -->
 <div id="phone-settings">
@@ -4553,6 +4624,7 @@ function renderTutorBlock(text, isReplay) {
 
   // Reset DM Help button — hint arrived, execution complete
   clearTimeout(_helpResetTimer);
+  if (_helpPending && !isReplay) _showToast('DM hint ready ↓');
   _dmHelpReset();
 }
 
@@ -5673,12 +5745,24 @@ function _dmHelpReset() {
   _dmHelpBtn.textContent = '◈ DM Help';
 }
 
+// Transient toast (status messages). Auto-dismisses; call again to replace.
+let _toastTimer = null;
+function _showToast(msg, ms) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), ms || 3200);
+}
+
 _dmHelpBtn.addEventListener('click', async () => {
   if (_helpPending) return;
   _helpPending = true;
   _dmHelpBtn.disabled = true;
   _dmHelpBtn.classList.add('pending');
   _dmHelpBtn.textContent = '◈ Thinking…';
+  _showToast('DM Help requested — thinking…');
 
   try {
     const res = await fetch('/help-request', {
@@ -5690,6 +5774,7 @@ _dmHelpBtn.addEventListener('click', async () => {
       _dmHelpBtn.classList.remove('pending');
       _dmHelpBtn.classList.add('locked');
       _dmHelpBtn.textContent = '◈ Running…';
+      _showToast('A hint is already on the way…');
       // Auto-reset when the tutor block arrives (see renderTutorBlock)
       // Safety timeout in case it never arrives
       clearTimeout(_helpResetTimer);
@@ -5700,9 +5785,11 @@ _dmHelpBtn.addEventListener('click', async () => {
       clearTimeout(_helpResetTimer);
       _helpResetTimer = setTimeout(_dmHelpReset, 20000);
     } else {
+      _showToast('DM Help isn’t available right now');
       _dmHelpReset();
     }
   } catch (_) {
+    _showToast('Couldn’t reach the server for DM Help');
     _dmHelpReset();
   }
 });
@@ -6939,6 +7026,12 @@ function _initCharSelect() {
   _refreshCharSelect();
   const skip = document.getElementById('cs-skip');
   if (skip) skip.addEventListener('click', () => { cs.hidden = true; });
+  const back = document.getElementById('cs-back');
+  if (back) back.addEventListener('click', () => {
+    const url = new URL(window.location.href);
+    ['view', 'char', 'character'].forEach(k => url.searchParams.delete(k));
+    window.location.href = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '');
+  });
 }
 
 function _initModeSwitcher(inputMode) {
