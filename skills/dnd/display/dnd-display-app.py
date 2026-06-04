@@ -282,6 +282,13 @@ _load_approved_devices()
 _load_pending_devices()
 
 
+# A casual home-LAN game doesn't need a per-device approval gate — it's friction
+# (every phone sits on "Awaiting approval" until the DM taps a card). Default:
+# trust any device that can already reach the server. Set DND_REQUIRE_APPROVAL=1
+# to restore the approve/deny gate (e.g. on an untrusted/shared network).
+_REQUIRE_APPROVAL = os.environ.get("DND_REQUIRE_APPROVAL", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def _device_ok(device_id: str, ip: str) -> str:
     """Return 'approved', 'pending', or 'denied' for a given device."""
     if not device_id:
@@ -293,11 +300,12 @@ def _device_ok(device_id: str, ip: str) -> str:
             return "approved"
         if device_id in _denied_devices:
             return "denied"
-        # Localhost always auto-approved
-        if ip in ("127.0.0.1", "::1"):
+        # Auto-approve localhost always, and every reachable device unless the
+        # approval gate is explicitly required.
+        if not _REQUIRE_APPROVAL or ip in ("127.0.0.1", "::1"):
             _approved_devices.add(device_id)
             _need_persist_approved = True
-        # New LAN device — hold and notify DM
+        # New LAN device with the gate on — hold and notify DM
         elif device_id not in _pending_devices:
             _pending_devices[device_id] = {
                 "id":         device_id,

@@ -3337,6 +3337,19 @@
   .vb-wrap{ display:inline-flex; align-items:center; gap:10px; }
   #vb-slider{ width:120px; max-width:42vw; accent-color:var(--e-accent, #c8a040); cursor:pointer; }
   #vb-val{ min-width:44px; text-align:right; }
+
+  /* ══ Phone turn-status strip — tells the player exactly where the turn is ══ */
+  #phone-status{ display:none; }
+  body.input-only #phone-status{
+    display:block; margin:2px 0 14px; padding:15px 16px; border-radius:9px;
+    font-family:'Syne',sans-serif; font-weight:800; font-size:13.5px; letter-spacing:.04em; line-height:1.35;
+    border:1px solid var(--e-hair-strong, rgba(255,255,255,.14));
+    background:var(--e-strong, rgba(255,255,255,.05)); color:var(--e-on-strong, #ECE4D2);
+    transition:background .15s, color .15s, border-color .15s; }
+  body.input-only #phone-status.ps-sent{
+    background:var(--e-accent, #FF7A2D); color:var(--e-dice-text, #14110C); border-color:var(--e-accent, #FF7A2D); }
+  body.input-only #phone-status.ps-sending{ opacity:.8; }
+  body.input-only #phone-status.ps-resolving{ color:var(--e-accent, #FF7A2D); }
 </style>
 </head>
 <body>
@@ -3486,6 +3499,7 @@
       <button class="dp-tab"        data-tab="roll" type="button">Roll</button>
       <button class="dp-tab"        data-tab="character" type="button">Sheet</button>
     </div>
+    <div id="phone-status" data-tab-section="move"></div>
     <div id="staged-queue" data-tab-section="move"></div>
     <div id="waiting-indicator" data-tab-section="move"></div>
     <div id="char-tabs" data-tab-section="move">
@@ -6394,6 +6408,31 @@ function _buildCharTabs(players) {
 }
 
 // ── Render staged queue ───────────────────────────────────────────
+// ── Phone turn-status strip ───────────────────────────────────────
+// One plain line telling the player where the turn is: compose → sending →
+// sent (waiting for the DM) → (resolving). Transient states (sending/resolving)
+// hold until cleared; otherwise the state is derived from the staged queue.
+const _PS_TEXT = {
+  compose:   '✎ Your move — type your action below',
+  sending:   '↑ Sending…',
+  sent:      '✓ Sent to the DM — sit tight',
+  resolving: '⟳ The DM is narrating…',
+};
+function _setPhoneStatus(state) {
+  const el = document.getElementById('phone-status');
+  if (!el || !document.body.classList.contains('input-only')) return;
+  el.className = 'ps-' + state;
+  el.dataset.state = state;
+  el.textContent = _PS_TEXT[state] || _PS_TEXT.compose;
+}
+function _refreshPhoneStatus() {
+  const el = document.getElementById('phone-status');
+  if (!el) return;
+  if (el.dataset.state === 'sending' || el.dataset.state === 'resolving') return;  // transient holds
+  const mine = _stagedData && (_stagedData[_selectedChar] || _stagedData['Everybody']);
+  _setPhoneStatus(mine ? 'sent' : 'compose');
+}
+
 function _renderStagedQueue(data) {
   _stagedData = data || {};
   _stagedQueueEl.innerHTML = '';
@@ -6448,6 +6487,8 @@ function _renderStagedQueue(data) {
     entry.appendChild(acts);
     _stagedQueueEl.appendChild(entry);
   });
+
+  _refreshPhoneStatus();
 
   // Badge + auto-open
   if (entries.length > 0) {
@@ -6560,6 +6601,7 @@ async function _stageAction() {
   if (!text) return;
   _stageBtn.disabled = true;
   _stageBtn.textContent = '…';
+  _setPhoneStatus('sending');
 
   // Cache submission in localStorage so text survives page reload
   localStorage.setItem('dnd_staged_input', JSON.stringify({ char: _selectedChar, text, ts: Date.now() }));
@@ -6584,6 +6626,8 @@ async function _stageAction() {
         localStorage.removeItem('dnd_staged_input');
         localStorage.removeItem('dnd_awaiting_approval');
         _inputText.value = '';
+        _toggleReady(_selectedChar);   // one-tap: staging immediately sends to the DM
+        _setPhoneStatus('sent');
         break;
       }
       // Non-retriable error (403, 400, etc.)
@@ -7014,6 +7058,7 @@ connect();
     if (ip) ip.classList.remove('collapsed');
     _initInputTabs();
     _initDicePad();
+    _refreshPhoneStatus();   // seed the turn-status strip
     // No character bound yet → show the first-screen picker (Phone Mode flow).
     if (!_qp.has('char') && !_qp.has('character')) _initCharSelect();
   }
