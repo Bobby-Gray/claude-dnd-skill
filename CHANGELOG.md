@@ -10,6 +10,10 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [2.1.2] — 2026-06-04 — Editorial character-sheet theming
+
+- **Character-sheet modal fully themed for Editorial.** The sheet frame was already editorial, but its inner sections still rendered in Vellum gold on the paper canvas. Section titles and ability modifiers are now vermilion; ability scores, feature names, and feature text are ink (readable, no faint gold); spell/cantrip tags and dividers use subtle ink hairlines. The portrait icon drops its purple drop-shadow, and a 404'd class icon is removed (`onerror`) instead of leaving a broken-image box.
+
 ## [2.1.1] — 2026-06-04 — Enforced roll handling + move-received confirmation
 
 - **Roll handling is now explicit and enforced.** The DM no longer silently auto-rolls a player's PC (the bug where it fell back to `dice.py` `[auto]` when the physical-dice server was down). Roll handling is chosen at game start — `/dnd new` and `/dnd load` now ask *"Dice rolls?"* — and stored as `roll_mode` in `state.md → ## Session Flags` (default `players`). SKILL.md hard-wires it: under `players` the DM calls for each PC d20 by name and **waits**, never rolling it for them; under `auto` it rolls PCs openly with full math. Initiative and all NPC/monster rolls stay DM-rolled.
