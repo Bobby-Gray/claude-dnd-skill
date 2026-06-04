@@ -2989,9 +2989,9 @@
 
   /* character tabs */
   :root[data-skin="editorial"] .char-tab{
-    font-family:'Syne',sans-serif; font-weight:700; font-size:8px; letter-spacing:.12em;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:11px; letter-spacing:.1em;
     color:var(--e-on-strong); opacity:.62; background:transparent;
-    border:1px solid var(--e-hair-strong); border-radius:2px; }
+    border:1px solid var(--e-hair-strong); border-radius:3px; padding:10px 16px; }
   :root[data-skin="editorial"] .char-tab:hover{ opacity:1; border-color:var(--e-accent); color:var(--e-on-strong); }
   :root[data-skin="editorial"] .char-tab.active{
     opacity:1; color:var(--e-dice-text); background:var(--e-accent); border-color:var(--e-accent); }
@@ -3006,9 +3006,11 @@
 
   /* footer buttons */
   :root[data-skin="editorial"] #stage-btn{
-    font-family:'Syne',sans-serif; font-weight:800; font-size:9px; letter-spacing:.14em;
+    font-family:'Syne',sans-serif; font-weight:800; font-size:13px; letter-spacing:.14em;
     color:var(--e-dice-text); background:var(--e-accent);
-    border:1px solid var(--e-accent); border-radius:2px; }
+    border:1px solid var(--e-accent); border-radius:3px; padding:13px 32px; }
+  /* in the TV drawer give Stage real presence */
+  :root[data-skin="editorial"] body:not(.input-only) #input-panel #stage-btn{ font-size:15px; padding:16px 40px; }
   :root[data-skin="editorial"] #stage-btn:hover{ background:var(--e-accent-ink); border-color:var(--e-accent-ink); color:var(--e-dice-text); }
   :root[data-skin="editorial"] #skip-turn-btn{
     font-family:'Syne',sans-serif; font-weight:700; font-size:9px; letter-spacing:.12em;
@@ -3079,7 +3081,7 @@
 
   :root[data-skin="editorial"] body:not(.input-only) #ed-rail{
     display:flex; flex-direction:column; gap:10px;
-    position:fixed; top:50%; right:0; transform:translateY(-50%);
+    position:fixed; top:auto; bottom:28px; right:0; transform:none;
     z-index:36; padding:8px;
     transition:right .32s cubic-bezier(.4,0,.1,1); }
   :root[data-skin="editorial"] body:not(.input-only).ed-drawer-open #ed-rail{ right:var(--ed-drawer-w); }
@@ -3168,7 +3170,7 @@
     top:26px; left:30px; width:60px; height:60px; opacity:.95; z-index:33; }
 
   /* B2 — dice call-out: readable line-height when it wraps */
-  :root[data-skin="editorial"] .dice-result{ line-height:1.5; padding:.6em 1.15em; }
+  :root[data-skin="editorial"] .dice-result{ line-height:1.85; padding:.85em 1.2em; }
 
   /* D1 — phone "Full Display" return button, themed + tappable */
   :root[data-skin="editorial"] body.input-only #full-mode-btn{
