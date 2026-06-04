@@ -3062,6 +3062,120 @@
   :root[data-skin="editorial"] body.input-only .dp-tab.active{
     color:var(--e-accent); opacity:1; background:transparent; border-bottom-color:var(--e-accent); }
   :root[data-skin="editorial"] body.input-only .dp-tab:active{ background:color-mix(in srgb, var(--e-strong), #000 14%); }
+
+  /* ══ Layer 3: right-edge rail + sliding drawers (editorial, TV view only) ══ */
+  :root[data-skin="editorial"]{ --ed-drawer-w: min(400px, 92vw); }
+
+  /* Off in vellum: rail is layout-neutral (its fixed children keep their own
+     placement), launchers + scrim hidden. */
+  #ed-rail{ display:contents; }
+  #ed-scrim{ display:none; }
+  .ed-launch{ display:none; }
+
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail{
+    display:flex; flex-direction:column; gap:10px;
+    position:fixed; top:50%; right:0; transform:translateY(-50%);
+    z-index:36; padding:8px;
+    transition:right .32s cubic-bezier(.4,0,.1,1); }
+  :root[data-skin="editorial"] body:not(.input-only).ed-drawer-open #ed-rail{ right:var(--ed-drawer-w); }
+
+  /* uniform rail buttons (new launchers + adopted action buttons) */
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail .ed-launch,
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail #dm-help-btn,
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail #phone-mode-btn{
+    position:static !important; inset:auto !important; opacity:1 !important;
+    display:flex !important; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    width:76px; min-height:64px; box-sizing:border-box; padding:9px 6px;
+    background:var(--e-strong); color:var(--e-on-strong);
+    border:1px solid var(--e-hair-strong); border-radius:5px;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:9px; letter-spacing:.1em; text-transform:uppercase;
+    line-height:1.2; text-align:center; cursor:pointer; box-shadow:none;
+    transition:background .15s, color .15s, border-color .15s; }
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail .ed-launch:hover,
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail #dm-help-btn:hover{
+    border-color:var(--e-accent); color:var(--e-accent); background:var(--e-strong); }
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail .ed-launch.active{
+    background:var(--e-accent); color:var(--e-dice-text); border-color:var(--e-accent); }
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail .ed-ic{ font-size:19px; line-height:1; }
+  /* phone-mode = prominent, always-accent, larger tap target */
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail #phone-mode-btn{
+    background:var(--e-accent); color:var(--e-dice-text); border-color:var(--e-accent); min-height:76px; }
+  :root[data-skin="editorial"] body:not(.input-only) #ed-rail #phone-mode-btn:hover{
+    background:var(--e-accent-ink); color:var(--e-dice-text); border-color:var(--e-accent-ink); }
+
+  /* scrim */
+  :root[data-skin="editorial"] body:not(.input-only) #ed-scrim{ position:fixed; inset:0; z-index:29; background:rgba(0,0,0,.2); display:none; }
+  :root[data-skin="editorial"] body:not(.input-only) #ed-scrim.on{ display:block; }
+
+  /* PARTY INPUT drawer — override layer-2 bottom-center placement on the TV */
+  :root[data-skin="editorial"] body:not(.input-only) #input-panel{
+    top:0; bottom:0; left:auto; right:0; transform:translateX(102%);
+    width:var(--ed-drawer-w); height:100vh; max-height:100vh;
+    border:0; border-left:1px solid var(--e-hair-strong); border-radius:0;
+    display:flex; flex-direction:column; z-index:32; backdrop-filter:none;
+    box-shadow:-2px 0 50px rgba(0,0,0,.4);
+    transition:transform .32s cubic-bezier(.4,0,.1,1); }
+  :root[data-skin="editorial"] body:not(.input-only) #input-panel.ed-open{ transform:translateX(0); }
+  :root[data-skin="editorial"] body:not(.input-only) #input-panel #input-body{
+    display:flex !important; flex:1 1 auto; overflow-y:auto; padding:14px 18px 20px; }
+  :root[data-skin="editorial"] body:not(.input-only) #input-panel #input-panel-header{
+    padding:18px 18px 13px; border-bottom:1px solid var(--e-hair-strong); cursor:default; }
+  :root[data-skin="editorial"] body:not(.input-only) #input-panel #input-panel-label{ font-size:11px; letter-spacing:.28em; }
+  :root[data-skin="editorial"] body:not(.input-only) #input-panel #input-toggle-arrow{ display:none; }
+
+  /* SETTINGS drawer (audio-controls) */
+  :root[data-skin="editorial"] body:not(.input-only) #audio-controls{
+    top:0; bottom:0; right:0; left:auto; transform:translateX(102%);
+    width:var(--ed-drawer-w); height:100vh; z-index:32;
+    display:flex; flex-direction:column; gap:0; padding:0;
+    background:var(--e-strong); color:var(--e-on-strong);
+    border-left:1px solid var(--e-hair-strong); box-shadow:-2px 0 50px rgba(0,0,0,.4);
+    transition:transform .32s cubic-bezier(.4,0,.1,1); }
+  :root[data-skin="editorial"] body:not(.input-only) #audio-controls.ed-open{ transform:translateX(0); }
+  :root[data-skin="editorial"] body:not(.input-only) #audio-controls::before{
+    content:"Settings"; display:block; padding:18px 18px 13px;
+    font-family:'Syne',sans-serif; font-weight:800; font-size:11px; letter-spacing:.28em; color:var(--e-accent);
+    border-bottom:1px solid var(--e-hair-strong); }
+  :root[data-skin="editorial"] body:not(.input-only) #audio-controls .audio-row{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 18px; border-bottom:1px solid var(--e-hair-strong); cursor:pointer; }
+  :root[data-skin="editorial"] body:not(.input-only) #audio-controls .audio-label{
+    font-family:'Syne',sans-serif; font-weight:700; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--e-on-strong); opacity:.75; }
+  :root[data-skin="editorial"] body:not(.input-only) #audio-controls .theme-label,
+  :root[data-skin="editorial"] body:not(.input-only) #audio-controls .speed-label,
+  :root[data-skin="editorial"] body:not(.input-only) #audio-controls .narrate-label{
+    font-family:'Syne',sans-serif; font-weight:800; font-size:11px; letter-spacing:.06em; color:var(--e-accent); text-transform:uppercase; }
+
+  /* phone-mode character menu, repositioned beside the rail */
+  :root[data-skin="editorial"] body:not(.input-only) #phone-mode-menu{
+    top:auto; bottom:24px; right:100px; left:auto;
+    background:var(--e-strong); border:1px solid var(--e-hair-strong); border-radius:6px; box-shadow:-2px 0 40px rgba(0,0,0,.45); }
+  :root[data-skin="editorial"] body:not(.input-only) #phone-mode-menu .pm-header{ font-family:'Syne',sans-serif; color:var(--e-accent); }
+  :root[data-skin="editorial"] body:not(.input-only) #phone-mode-menu .pm-opt{ font-family:'Newsreader',serif; color:var(--e-on-strong); }
+  :root[data-skin="editorial"] body:not(.input-only) #phone-mode-menu .pm-opt:hover{ background:color-mix(in srgb,var(--e-strong),#000 18%); color:var(--e-accent); }
+
+  /* ══ Phone display-settings popover (#phone-settings) — both skins, phone only ══ */
+  #phone-settings{ display:none; }
+  body.input-only #phone-settings{
+    display:block; position:fixed; z-index:60;
+    top:calc(env(safe-area-inset-top) + 8px); right:calc(env(safe-area-inset-right) + 10px); }
+  #ph-set-toggle{
+    width:42px; height:42px; border-radius:9px; background:rgba(0,0,0,.5); color:#ECE4D2;
+    border:1px solid rgba(255,255,255,.2); font-size:18px; line-height:1; cursor:pointer;
+    -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+  #ph-set-menu{
+    display:none; position:absolute; top:50px; right:0; min-width:190px;
+    background:rgba(14,12,10,.98); border:1px solid rgba(255,255,255,.16); border-radius:11px;
+    overflow:hidden; box-shadow:0 14px 44px rgba(0,0,0,.6); }
+  #ph-set-menu.open{ display:block; }
+  .ph-set-opt{
+    display:flex; align-items:center; justify-content:space-between; gap:18px; width:100%;
+    background:none; border:0; border-bottom:1px solid rgba(255,255,255,.08);
+    color:#CFC7B5; font-family:'Syne',sans-serif; font-weight:700; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    padding:15px 16px; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+  .ph-set-opt:last-child{ border-bottom:0; }
+  .ph-set-opt strong{ color:#FF7A2D; font-weight:800; font-size:12px; }
+  .ph-set-opt:active{ background:rgba(255,255,255,.06); }
 </style>
 </head>
 <body>
@@ -3126,6 +3240,28 @@
 
 <!-- DM Help — on-demand hint button -->
 <button id="dm-help-btn" title="Request a DM hint for the current scene">◈ DM Help</button>
+
+<!-- Editorial right-edge rail + drawer scrim (shown only under data-skin="editorial" on the TV view).
+     #dm-help-btn and #phone-mode-btn are adopted into the rail at load; they are position:fixed,
+     so Vellum (rail = display:contents) keeps their original placement untouched. -->
+<div id="ed-scrim"></div>
+<div id="ed-rail" aria-label="Display controls">
+  <button class="ed-launch" id="ed-launch-input" type="button" data-drawer="input-panel" title="Party input">
+    <span class="ed-ic">✎</span><span>Party</span>
+  </button>
+  <button class="ed-launch" id="ed-launch-settings" type="button" data-drawer="audio-controls" title="Display settings">
+    <span class="ed-ic">⚙</span><span>Settings</span>
+  </button>
+</div>
+
+<!-- Phone-only display-settings popover — lets each phone pick its own Theme / Style -->
+<div id="phone-settings">
+  <button id="ph-set-toggle" type="button" title="Display settings" aria-label="Display settings">⚙</button>
+  <div id="ph-set-menu" role="menu">
+    <button class="ph-set-opt" id="ph-theme-opt" type="button"><span>Theme</span><strong id="ph-theme-val">Dark</strong></button>
+    <button class="ph-set-opt" id="ph-skin-opt" type="button"><span>Style</span><strong id="ph-skin-val">Vellum</strong></button>
+  </div>
+</div>
 
 <!-- Device approval cards — shown when a new LAN device requests input access -->
 <div id="device-approvals"></div>
@@ -6626,6 +6762,79 @@ connect();
   }
   _initModeSwitcher(_inputMode);
 }
+
+// ── Editorial right-rail drawers (TV view) + phone settings popover ──────────
+(function _initEditorialChrome() {
+  const rail  = document.getElementById('ed-rail');
+  const scrim = document.getElementById('ed-scrim');
+  if (rail && scrim) {
+    // Adopt the existing fixed-position action buttons into the rail. Because
+    // they are position:fixed, Vellum (#ed-rail: display:contents) leaves them
+    // exactly where they were; Editorial lays them out as a vertical column.
+    ['dm-help-btn', 'phone-mode-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.parentElement !== rail) rail.appendChild(el);
+    });
+    const launchers = Array.from(rail.querySelectorAll('.ed-launch'));
+    const drawerIds = ['input-panel', 'audio-controls'];
+
+    function closeAll() {
+      drawerIds.forEach(id => {
+        const d = document.getElementById(id);
+        if (d) d.classList.remove('ed-open');
+      });
+      launchers.forEach(b => b.classList.remove('active'));
+      document.body.classList.remove('ed-drawer-open');
+      scrim.classList.remove('on');
+    }
+    function toggle(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const willOpen = !el.classList.contains('ed-open');
+      closeAll();
+      if (willOpen) {
+        if (id === 'input-panel') el.classList.remove('collapsed');
+        el.classList.add('ed-open');
+        const b = rail.querySelector('.ed-launch[data-drawer="' + id + '"]');
+        if (b) b.classList.add('active');
+        document.body.classList.add('ed-drawer-open');
+        scrim.classList.add('on');
+      }
+    }
+    launchers.forEach(b => b.addEventListener('click', e => {
+      e.stopPropagation();
+      toggle(b.dataset.drawer);
+    }));
+    scrim.addEventListener('click', closeAll);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
+  }
+
+  // Phone-only display settings — reuse the hidden Theme / Style pickers so each
+  // phone chooses its own look (their click handlers fire even while display:none).
+  (function _initPhoneSettings() {
+    const wrap = document.getElementById('phone-settings');
+    if (!wrap || !document.body.classList.contains('input-only')) return;
+    const tog    = document.getElementById('ph-set-toggle');
+    const menu   = document.getElementById('ph-set-menu');
+    const tVal   = document.getElementById('ph-theme-val');
+    const sVal   = document.getElementById('ph-skin-val');
+    const tRow   = document.getElementById('theme-row');
+    const sRow   = document.getElementById('skin-row');
+    const tLabel = document.getElementById('theme-label');
+    const sLabel = document.getElementById('skin-label');
+    function refresh() {
+      if (tLabel && tVal) tVal.textContent = tLabel.textContent;
+      if (sLabel && sVal) sVal.textContent = sLabel.textContent;
+    }
+    refresh();
+    if (tog) tog.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('open'); });
+    const tOpt = document.getElementById('ph-theme-opt');
+    const sOpt = document.getElementById('ph-skin-opt');
+    if (tOpt) tOpt.addEventListener('click', e => { e.stopPropagation(); if (tRow) tRow.click(); refresh(); });
+    if (sOpt) sOpt.addEventListener('click', e => { e.stopPropagation(); if (sRow) sRow.click(); refresh(); });
+    document.addEventListener('click', () => menu.classList.remove('open'));
+  })();
+})();
 
 // ── Mode switcher ─────────────────────────────────────────────────────────
 // Two entry points to save players from typing the input URL by hand:
