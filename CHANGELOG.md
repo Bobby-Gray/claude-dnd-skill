@@ -10,6 +10,12 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [2.1.1] — 2026-06-04 — Enforced roll handling + move-received confirmation
+
+- **Roll handling is now explicit and enforced.** The DM no longer silently auto-rolls a player's PC (the bug where it fell back to `dice.py` `[auto]` when the physical-dice server was down). Roll handling is chosen at game start — `/dnd new` and `/dnd load` now ask *"Dice rolls?"* — and stored as `roll_mode` in `state.md → ## Session Flags` (default `players`). SKILL.md hard-wires it: under `players` the DM calls for each PC d20 by name and **waits**, never rolling it for them; under `auto` it rolls PCs openly with full math. Initiative and all NPC/monster rolls stay DM-rolled.
+- **Per-player roll override.** A `Rolls` toggle in the phone Settings (shown when the device is bound to a PC) flips that character between *Players* and *Auto-roll*; it POSTs to `/roll-pref` and `check_input.py` surfaces it to the DM as a `[[<Char> roll mode: …]]` directive that overrides the campaign default for that character.
+- **"Move received" confirmation on the phone.** When the DM actually picks up the queued action (not just when it's staged), the phone shows a `✓ The DM has your move` toast and the status strip flips to *The DM is narrating…*, then back to *Your move*. Closes the loop the status strip was missing.
+
 ## [2.1.0] — 2026-06-04 — Reading text size, narration length, phone turn-flow
 
 - **Reading text size control.** A `Text Size` stepper in Settings (`A−` / `A+`, click the % to reset) scales the reading column via a font-size multiplier — *font size, not page zoom* — so narration stays legible across the room from a Chromecast. Persists per-browser (`localStorage["dnd-text-scale"]`), applied anti-FOUC.
