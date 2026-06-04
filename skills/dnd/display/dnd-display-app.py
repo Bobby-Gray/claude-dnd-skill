@@ -1682,6 +1682,33 @@ def audio_toggle():
     return state, 200
 
 
+@app.route("/narration-pref", methods=["POST"])
+def narration_pref():
+    """Set the narration-length target the DM aims for each turn.
+
+    Body: {"target_words": int}.  0 clears the preference. Persisted to the
+    runtime dir as a plain integer; check_input.py reads it and prepends a
+    directive to queued player input so the DM honors it that turn — no
+    separate file read required on the DM side.
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        n = int(data.get("target_words", 0))
+    except (TypeError, ValueError):
+        n = 0
+    n = max(0, min(5000, n))
+    pref = rt("narration_target")
+    try:
+        if n:
+            with open(pref, "w") as f:
+                f.write(str(n))
+        elif os.path.exists(pref):
+            os.remove(pref)
+    except OSError:
+        pass
+    return {"target_words": n}, 200
+
+
 # ─── Narrator voice (Gemini Flash TTS) ────────────────────────────────────────
 # Voice selection persists per-campaign in state.md → ## Session Flags →
 # `tts_voice: <name>`. Read at /index render, written by POST /voice.

@@ -20,6 +20,21 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from runtime_paths import rt          # writable runtime dir (update-safe)
 QUEUE_FILE = rt(".input_queue")
+NARRATION_TARGET = rt("narration_target")  # set by the display's Narration slider
+
+
+def _narration_directive():
+    """A bracketed length directive the DM honors this turn, or '' if unset."""
+    try:
+        if os.path.exists(NARRATION_TARGET):
+            n = open(NARRATION_TARGET).read().strip()
+            if n.isdigit() and int(n) > 0:
+                return (f"[[Narration length for this turn: aim for ~{n} words. "
+                        f"The table set this — keep it concise; do not pad.]]")
+    except Exception:
+        pass
+    return ""
+
 
 try:
     if os.path.exists(QUEUE_FILE):
@@ -27,6 +42,9 @@ try:
             content = f.read().strip()
         os.remove(QUEUE_FILE)
         if content:
+            directive = _narration_directive()
+            if directive:
+                print(directive)
             print(content)
 except Exception:
     pass

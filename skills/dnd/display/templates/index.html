@@ -29,6 +29,12 @@
       if (sk === 'editorial') {
         document.documentElement.setAttribute('data-skin', 'editorial');
       }
+      // Reading text size — a font-size multiplier (not page zoom). Applied here
+      // to avoid a flash at the default size before the picker JS runs.
+      var ts = parseFloat(window.localStorage.getItem('dnd-text-scale'));
+      if (ts && ts >= 0.5 && ts <= 3) {
+        document.documentElement.style.setProperty('--text-scale', String(ts));
+      }
     } catch (_) { /* private mode / disabled storage — silently fall back to dark */ }
   })();
 </script>
@@ -162,6 +168,10 @@
     max-width: 820px;
     margin: 0 auto;
     transition: opacity 0.35s ease;
+    /* Reading text-size control — a font-size multiplier (NOT page zoom). The
+       narration/NPC/player blocks size in em, so they scale from here; set via
+       the "Text Size" control in Settings (localStorage["dnd-text-scale"]). */
+    font-size: calc(1em * var(--text-scale, 1));
   }
 
   .dm-block {
@@ -3312,6 +3322,21 @@
     padding:13px 18px; opacity:0; pointer-events:none;
     transition:opacity .22s ease, transform .22s ease; }
   #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ══ Settings: Text Size stepper + Narration slider (both skins) ══ */
+  .ts-stepper{ display:inline-flex; align-items:center; gap:8px; }
+  .ts-btn{
+    min-width:30px; min-height:26px; padding:3px 8px; cursor:pointer;
+    background:transparent; color:var(--e-on-strong, rgba(200,165,80,0.95));
+    border:1px solid var(--e-hair-strong, rgba(180,140,60,0.4)); border-radius:4px;
+    font-family:'Syne',sans-serif; font-weight:800; font-size:12px; line-height:1;
+    -webkit-tap-highlight-color:transparent; touch-action:manipulation; transition:transform .08s ease; }
+  .ts-btn:hover{ border-color:var(--e-accent, rgba(220,180,90,0.9)); color:var(--e-accent, rgba(220,185,100,1)); }
+  .ts-btn:active{ transform:scale(0.92); }
+  #ts-val{ min-width:42px; text-align:center; }
+  .vb-wrap{ display:inline-flex; align-items:center; gap:10px; }
+  #vb-slider{ width:120px; max-width:42vw; accent-color:var(--e-accent, #c8a040); cursor:pointer; }
+  #vb-val{ min-width:44px; text-align:right; }
 </style>
 </head>
 <body>
@@ -3356,6 +3381,13 @@
     <span class="audio-label">Sound Effects</span>
     <div class="toggle-track" id="sfx-track"><div class="toggle-thumb"></div></div>
   </div>
+  <div class="audio-row" id="verbosity-row" title="Narration length the DM targets each turn — shorter = faster turns">
+    <span class="audio-label">Narration</span>
+    <span class="vb-wrap">
+      <input id="vb-slider" type="range" min="250" max="2500" step="250" value="500" aria-label="Narration length target in words">
+      <span id="vb-val" class="theme-label">500w</span>
+    </span>
+  </div>
   <div class="audio-row" id="speed-row" title="Typing speed — click to cycle">
     <span class="audio-label">Type Speed</span>
     <span id="speed-label" class="speed-label">Normal</span>
@@ -3371,6 +3403,14 @@
   <div class="audio-row" id="skin-row" title="Display style — Vellum (classic) / Editorial (new)">
     <span class="audio-label">Style</span>
     <span id="skin-label" class="theme-label">Vellum</span>
+  </div>
+  <div class="audio-row" id="textsize-row" title="Reading text size — font size, not page zoom">
+    <span class="audio-label">Text Size</span>
+    <span class="ts-stepper">
+      <button id="ts-dec" class="ts-btn" type="button" aria-label="Smaller text">A−</button>
+      <span id="ts-val" class="theme-label">100%</span>
+      <button id="ts-inc" class="ts-btn" type="button" aria-label="Bigger text">A+</button>
+    </span>
   </div>
 </div>
 
@@ -6258,6 +6298,53 @@ function _effectiveTheme(theme) {
       if (current === 'auto') refresh();
     });
   } catch (_) {}
+})();
+
+// ── Text-size control (font-size multiplier, not page zoom) ─────────────────
+(function _initTextSize() {
+  const dec = document.getElementById('ts-dec');
+  const inc = document.getElementById('ts-inc');
+  const val = document.getElementById('ts-val');
+  if (!dec || !inc || !val) return;
+  const MIN = 0.8, MAX = 2.0, STEP = 0.1;
+  let scale = parseFloat(localStorage.getItem('dnd-text-scale'));
+  if (!(scale >= MIN && scale <= MAX)) scale = 1;
+  const clamp = x => Math.min(MAX, Math.max(MIN, Math.round(x * 100) / 100));
+  function apply() {
+    document.documentElement.style.setProperty('--text-scale', String(scale));
+    val.textContent = Math.round(scale * 100) + '%';
+    try { localStorage.setItem('dnd-text-scale', String(scale)); } catch (_) {}
+  }
+  apply();
+  dec.addEventListener('click', e => { e.stopPropagation(); scale = clamp(scale - STEP); apply(); });
+  inc.addEventListener('click', e => { e.stopPropagation(); scale = clamp(scale + STEP); apply(); });
+  val.addEventListener('click', e => { e.stopPropagation(); scale = 1; apply(); });  // click % to reset
+})();
+
+// ── Narration-length (verbosity) control — sets the word target the DM aims
+// for each turn. Persists locally for the slider and POSTs to the server so
+// check_input.py can hand the directive to the DM at the start of the turn.
+(function _initVerbosity() {
+  const slider = document.getElementById('vb-slider');
+  const val = document.getElementById('vb-val');
+  if (!slider || !val) return;
+  const stored = parseInt(localStorage.getItem('dnd-narration-words') || '', 10);
+  if (stored >= 250 && stored <= 2500) slider.value = String(stored);
+  function label() { val.textContent = slider.value + 'w'; }
+  label();
+  function persist() {
+    const n = parseInt(slider.value, 10);
+    try { localStorage.setItem('dnd-narration-words', String(n)); } catch (_) {}
+    const headers = { 'Content-Type': 'application/json' };
+    if (_dndToken) headers['X-DND-Token'] = _dndToken;
+    fetch('/narration-pref', {
+      method: 'POST', headers, body: JSON.stringify({ target_words: n }),
+    }).catch(() => {});
+  }
+  slider.addEventListener('input', e => { e.stopPropagation(); label(); });
+  slider.addEventListener('change', e => { e.stopPropagation(); persist(); });
+  // Push the persisted value once on load so a fresh server learns the target.
+  persist();
 })();
 
 // ═══════════════════════════════════════════════════════════════════
