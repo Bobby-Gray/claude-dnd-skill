@@ -3465,6 +3465,7 @@
   <div id="ph-set-menu" role="menu">
     <button class="ph-set-opt" id="ph-theme-opt" type="button"><span>Theme</span><strong id="ph-theme-val">Dark</strong></button>
     <button class="ph-set-opt" id="ph-skin-opt" type="button"><span>Style</span><strong id="ph-skin-val">Vellum</strong></button>
+    <button class="ph-set-opt" id="ph-roll-opt" type="button" hidden><span>Rolls</span><strong id="ph-roll-val">Players</strong></button>
   </div>
 </div>
 
@@ -6944,6 +6945,16 @@ function connect() {
     }
     if (payload.dm_processing) {
       _showProcessingIndicator();
+      // Phone: confirm the DM actually picked up the move (not just that it queued).
+      if (document.body.classList.contains('input-only')) {
+        _showToast('✓ The DM has your move');
+        _setPhoneStatus('resolving');
+        clearTimeout(window._psResolveTimer);
+        window._psResolveTimer = setTimeout(() => {
+          const el = document.getElementById('phone-status');
+          if (el && el.dataset.state === 'resolving') { el.dataset.state = ''; _refreshPhoneStatus(); }
+        }, 8000);
+      }
     }
     if (payload.autorun_threshold !== undefined) {
       _autorunThreshold = payload.autorun_threshold;
@@ -7143,6 +7154,33 @@ connect();
     const sOpt = document.getElementById('ph-skin-opt');
     if (tOpt) tOpt.addEventListener('click', e => { e.stopPropagation(); if (tRow) tRow.click(); refresh(); });
     if (sOpt) sOpt.addEventListener('click', e => { e.stopPropagation(); if (sRow) sRow.click(); refresh(); });
+
+    // Per-player roll override — only meaningful when this phone is bound to a PC.
+    const boundChar = new URLSearchParams(location.search).get('char')
+                   || new URLSearchParams(location.search).get('character');
+    const rOpt = document.getElementById('ph-roll-opt');
+    const rVal = document.getElementById('ph-roll-val');
+    if (rOpt && rVal && boundChar) {
+      rOpt.hidden = false;
+      let mode = localStorage.getItem('dnd-roll-' + boundChar) || 'players';
+      const labels = { players: 'Players', auto: 'Auto-roll' };
+      function applyRoll(post) {
+        rVal.textContent = labels[mode] || 'Players';
+        try { localStorage.setItem('dnd-roll-' + boundChar, mode); } catch (_) {}
+        if (!post) return;
+        const headers = { 'Content-Type': 'application/json' };
+        if (_dndToken) headers['X-DND-Token'] = _dndToken;
+        fetch('/roll-pref', { method: 'POST', headers,
+          body: JSON.stringify({ character: boundChar, mode }) }).catch(() => {});
+      }
+      applyRoll(true);   // push current pref so the server learns it on load
+      rOpt.addEventListener('click', e => {
+        e.stopPropagation();
+        mode = (mode === 'auto') ? 'players' : 'auto';
+        applyRoll(true);
+      });
+    }
+
     document.addEventListener('click', () => menu.classList.remove('open'));
   })();
 })();

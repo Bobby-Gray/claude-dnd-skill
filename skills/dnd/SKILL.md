@@ -262,9 +262,18 @@ Autorun security model: device approval in dnd-display-app.py gates who can writ
 
 Do NOT run the autorun wait when: combat is resolving individual turns, a dice roll is pending a player's response, or the DM has explicitly sent a message this turn.
 
-**Dice convention:**
-- **Initiative** — always auto-rolled via `combat.py init` for all combatants (PCs and NPCs)
-- **Attack/skill/save rolls during combat** — player rolls for their own PC; you resolve all NPC/monster rolls via `dice.py`, show math inline:
+**Dice convention — who rolls (read `roll_mode` and obey it):**
+
+Roll handling is chosen at game start and stored as `roll_mode` in `state.md → ## Session Flags` (default **players**). Read it at every `/dnd load` and honor it all session:
+
+- **`roll_mode: players` (default) — players roll their own PCs.** For *any* PC d20 (attack, skill/ability check, save, death save), **call for the roll by name and STOP — wait for the player's result before resolving.** Do **not** roll it for them. ⚠ **Never fall back to `dice.py` or an `[auto]` result for a PC** just because the physical-dice phone server isn't running — if no roll comes back, ask the player for the number out loud. You roll **only** NPC/monster dice. (This is a hard constraint: silently auto-rolling a PC is the #1 thing players notice and dislike.)
+- **`roll_mode: auto` — you roll everything openly.** Resolve PC d20s yourself via `dice.py` and show full math inline (`Piper — Perception: d20+5 = 18 → …`), no waiting. For solo / fast play.
+
+**Initiative** is always DM-rolled via `combat.py init` for all combatants (PCs and NPCs) regardless of `roll_mode`.
+
+**Per-player override:** a player can flip their own PC via the phone Settings → *Rolls* toggle. When that player has a queued action, `check_input.py` prepends a `[[<Char> roll mode: auto|players]]` directive — honor it for that character, overriding the campaign default. Precedence: **per-character directive > campaign `roll_mode`**.
+
+**NPC/monster rolls are always yours** — resolve via `dice.py`, show math inline:
   `Goblin attacks: d20+4 = 17 vs AC 16 — hit! 1d6+2 = 5 piercing damage`
 
 ---

@@ -7,11 +7,19 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 ---
 
 ## `/dnd new <campaign-name> [theme]`
-1. **Session setup — call `AskUserQuestion`** (one question): *"Display & input mode?"* with options:
+1. **Session setup — call `AskUserQuestion`** with **two questions**:
+
+   **Q1 *"Display & input mode?"***
    - `No display` → continue without display.
    - `Display (local)` → `bash ${CLAUDE_SKILL_DIR}/display/start-display.sh`, print URL, set `_display_running = true`, then `python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --clear`.
    - `Display (LAN)` → `bash ${CLAUDE_SKILL_DIR}/display/start-display.sh --lan`, print both URLs, set `_display_running = true`, then `--clear` as above.
    - `Display + autorun (LAN)` → as **Display (LAN)**, and write `autorun: true` to `state.md → ## Session Flags`.
+
+   **Q2 *"Dice rolls?"*** — set how PC d20s are handled (see SKILL.md "Dice convention"):
+   - `Players roll their own` (default) → write `roll_mode: players` to `state.md → ## Session Flags`. You will call for each PC roll and wait — never auto-roll a PC.
+   - `DM rolls everything openly` → write `roll_mode: auto`. You resolve PC rolls yourself with full math shown.
+
+   Default to `roll_mode: players` if the question is dismissed.
 2. **Ruleset selection (added 2026-05-08).** Ask: *"D&D 5e ruleset for this campaign? **2014** (SRD 5.1, default — full mechanics, classic Player's Handbook structure) or **2024** (SRD 5.2, weapon mastery + origin feats + background ASIs + revised exhaustion)?"* Default to `2014` if no answer or ambiguous. Write the chosen value to `state.md` header line as `**Ruleset:** 2014` or `**Ruleset:** 2024`.
 
    If 2024 was chosen: verify the dataset exists with `ls ${CLAUDE_SKILL_DIR}/data/dnd5e_srd_2024.json`. If missing, run `python3 ${CLAUDE_SKILL_DIR}/scripts/build_srd.py --ruleset 2024` (one-time, ~3 min). Until the dataset exists, lookup-based features will fall back to 2014.
@@ -60,12 +68,19 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 
 ## `/dnd load <campaign-name>`
 0. **Pick the campaign if none was named.** If `<campaign-name>` was supplied (or the player clearly named one), use it. Otherwise `ls` the campaigns dir (`~/.claude/dnd/campaigns/` or `$DND_CAMPAIGN_ROOT/campaigns/`) and **call `AskUserQuestion`**: *"Which campaign?"* with the existing campaign names as options (most-recently-played first — sort by `state.md` mtime). The player can pick "Other" to type a name. If there are no campaigns, tell them and offer `/dnd new`.
-1. **Session setup — call `AskUserQuestion`** (one question, not a typed y/n/n prompt): *"Display & input mode?"* with options:
+1. **Session setup — call `AskUserQuestion`** with **two questions** (not typed y/n prompts):
+
+   **Q1 *"Display & input mode?"***
    - `No display` → continue without display.
    - `Display (local)` → `bash ${CLAUDE_SKILL_DIR}/display/start-display.sh`, print URL, set `_display_running = true`.
    - `Display (LAN)` → `bash ${CLAUDE_SKILL_DIR}/display/start-display.sh --lan`, print both URLs, set `_display_running = true`.
    - `Display + autorun (LAN)` → as **Display (LAN)**, and also write `autorun: true` to `state.md → ## Session Flags`; enter the autorun wait after the recap.
-   - (Defaults if the player dismisses: no display, no autorun.)
+
+   **Q2 *"Dice rolls?"*** — confirm how PC d20s are handled this session (see SKILL.md "Dice convention"). Pre-fill the recommended option from the existing `roll_mode` in `state.md` if present, else `players`:
+   - `Players roll their own` → write `roll_mode: players`. Call for each PC roll and wait — never auto-roll a PC.
+   - `DM rolls everything openly` → write `roll_mode: auto`. Resolve PC rolls yourself with full math shown.
+
+   - (Defaults if the player dismisses: no display, no autorun, `roll_mode: players` — or the existing saved value.)
    - **Session tail replay:** before clearing the display, check if the campaign's `session_tail.json` exists. The campaign-side path is the authoritative one — `~/.claude/dnd/campaigns/<name>/session_tail.json`. **Do NOT read** the legacy/fallback at `${CLAUDE_SKILL_DIR}/display/session_tail.json`; that file may exist from older sessions or other campaigns and will mislead the replay. If the campaign-side file does not exist, skip replay (display starts blank). If it does, read it. After `--clear` and full stats push (step 4 below), replay the tail by sending each entry via the appropriate `send.py` flag. Entry type → flag mapping:
      - `player` key present → `send.py --player <name>` with text via stdin
      - `npc` key present → `send.py --npc <name>` with text via stdin

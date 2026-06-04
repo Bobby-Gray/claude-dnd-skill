@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from runtime_paths import rt          # writable runtime dir (update-safe)
 QUEUE_FILE = rt(".input_queue")
 NARRATION_TARGET = rt("narration_target")  # set by the display's Narration slider
+ROLL_PREFS = rt("roll_prefs.json")         # per-character roll overrides (Settings → Rolls)
 
 
 def _narration_directive():
@@ -36,15 +37,30 @@ def _narration_directive():
     return ""
 
 
+def _roll_directives():
+    """One [[<Char> roll mode: …]] line per per-character override, or '' if none."""
+    try:
+        if os.path.exists(ROLL_PREFS):
+            import json
+            with open(ROLL_PREFS) as f:
+                prefs = json.load(f)
+            lines = [f"[[{c} roll mode: {m}]]" for c, m in prefs.items()
+                     if m in ("auto", "players")]
+            return "\n".join(lines)
+    except Exception:
+        pass
+    return ""
+
+
 try:
     if os.path.exists(QUEUE_FILE):
         with open(QUEUE_FILE) as f:
             content = f.read().strip()
         os.remove(QUEUE_FILE)
         if content:
-            directive = _narration_directive()
-            if directive:
-                print(directive)
+            for d in (_roll_directives(), _narration_directive()):
+                if d:
+                    print(d)
             print(content)
 except Exception:
     pass

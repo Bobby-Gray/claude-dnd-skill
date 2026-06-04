@@ -1717,6 +1717,33 @@ def narration_pref():
     return {"target_words": n}, 200
 
 
+@app.route("/roll-pref", methods=["POST"])
+def roll_pref():
+    """Per-character roll preference. Body: {"character": str, "mode": "auto"|"players"}.
+
+    Persisted to runtime roll_prefs.json; check_input.py surfaces each override as a
+    [[<Char> roll mode: …]] directive so the DM honors it for that character,
+    overriding the campaign-wide roll_mode in state.md.
+    """
+    data = request.get_json(silent=True) or {}
+    char = (data.get("character") or "").strip()
+    mode = (data.get("mode") or "").strip().lower()
+    if not char or mode not in ("auto", "players"):
+        return {"ok": False}, 400
+    pref = rt("roll_prefs.json")
+    try:
+        prefs = {}
+        if os.path.exists(pref):
+            with open(pref) as f:
+                prefs = json.load(f)
+        prefs[char] = mode
+        with open(pref, "w") as f:
+            json.dump(prefs, f)
+    except (OSError, ValueError):
+        pass
+    return {"ok": True, "character": char, "mode": mode}, 200
+
+
 # ─── Narrator voice (Gemini Flash TTS) ────────────────────────────────────────
 # Voice selection persists per-campaign in state.md → ## Session Flags →
 # `tts_voice: <name>`. Read at /index render, written by POST /voice.
