@@ -1,6 +1,6 @@
 # Unofficial D&D Claude Dungeon Master
 ### *with Cinematic Display Companion — Couch Co-op Edition*
-> **Ruleset:** D&D 5e — **2014 (SRD 5.1)** by default; **2024 (SRD 5.2)** opt-in per campaign. Choose at `/dnd new` time; legacy campaigns are auto-prompted to migrate (with backup) on first load. See the [Ruleset section](#ruleset) for mechanic differences and dataset details.
+> **Ruleset:** D&D 5e — **2014 (SRD 5.1)** by default; **2024 (SRD 5.2)** opt-in per campaign. Choose at `/dm:dnd new` time; legacy campaigns are auto-prompted to migrate (with backup) on first load. See the [Ruleset section](#ruleset) for mechanic differences and dataset details.
 
 <div align="center">
   <img src="skills/dnd/display/icons/logo_primary_fullcolor.png" width="280" alt="D20 Neural Core">
@@ -18,13 +18,13 @@ Built for groups who want a real DM experience without needing one at the table.
 
 ## What This Is
 
-You run `/dnd load my-campaign` in Claude Code. Claude becomes your DM — rolling dice, voicing NPCs, tracking HP and XP, and running combat. If you have a TV or tablet nearby, the **cinematic display companion** puts the narration on screen in real time — typewriter effect, atmospheric backgrounds that shift with the scene, a dynamic sky canvas, and a live party stat sidebar. Open it on any device on your network and everyone at the table can follow along. Players submit their actions from their phones; Claude picks them up automatically and runs the next turn.
+You run `/dm:dnd load my-campaign` in Claude Code. Claude becomes your DM — rolling dice, voicing NPCs, tracking HP and XP, and running combat. If you have a TV or tablet nearby, the **cinematic display companion** puts the narration on screen in real time — typewriter effect, atmospheric backgrounds that shift with the scene, a dynamic sky canvas, and a live party stat sidebar. Open it on any device on your network and everyone at the table can follow along. Players submit their actions from their phones; Claude picks them up automatically and runs the next turn.
 
 There are two ways to play, and they serve different needs:
 
 **Improvised campaigns** — Claude generates the world from scratch and auto-creates a committed three-act narrative arc from the setting, factions, and threats it just built. The arc gives the story a defined shape without scripting what happens — beats are defined by consequence ("what changes") not by event, so Claude stays flexible on how each beat lands while committing to the fact that it must. The arc advances across sessions, can be revised when players redirect the story, and continues into a new arc when all six beats resolve. This is Claude as a full creative collaborator: world-builder, improv partner, and story architect in one.
 
-**Structured campaigns** — Use `/dnd import` to drop in a pre-written source (official WotC modules, published third-party campaigns, or a custom DM-written document in PDF, markdown, DOCX, or plain text format). Claude reads and chunks the source, extracts the structure type (linear, hub-and-spoke, or faction-web), and builds all campaign files automatically — acts, chapters, key story beats, telegraph scenes, NPCs, factions, locations, and quest hooks. The campaign runs with enforced deterministic structure: required beats must land in each chapter, Claude telegraphs before delivering them, and steers with world pressure rather than walls when players drift. Drop in the Lost Mine of Phandelver and Claude will run it chapter by chapter with the same twelve DM standards applied to every scene.
+**Structured campaigns** — Use `/dm:dnd import` to drop in a pre-written source (official WotC modules, published third-party campaigns, or a custom DM-written document in PDF, markdown, DOCX, or plain text format). Claude reads and chunks the source, extracts the structure type (linear, hub-and-spoke, or faction-web), and builds all campaign files automatically — acts, chapters, key story beats, telegraph scenes, NPCs, factions, locations, and quest hooks. The campaign runs with enforced deterministic structure: required beats must land in each chapter, Claude telegraphs before delivering them, and steers with world pressure rather than walls when players drift. Drop in the Lost Mine of Phandelver and Claude will run it chapter by chapter with the same twelve DM standards applied to every scene.
 
 Both modes share the same DM engine. The [twelve applied behavioral standards](https://github.com/neuralinitiative/claude-dnd-skill/blob/main/SKILL.md#what-makes-a-great-dm--applied-standards) are enforced as hard constraints in every session regardless of which mode you're in — improvised or structured, the DM improvises within situations, lets choices matter, makes every NPC a person, and controls pace deliberately.
 
@@ -55,9 +55,9 @@ If you're on Claude Code, you're in the right place.
 
 - <img src="skills/dnd/display/icons/scroll.png" height="18"> **Persistent campaigns** — state, NPCs, quests, and characters survive across sessions in plain markdown files
 - <img src="skills/dnd/display/icons/dragon.png" height="18"> **Two campaign modes** — improvised (Claude generates world + dynamic arc) or structured (import pre-written material and enforce its beats)
-- <img src="skills/dnd/display/icons/crystal_ball.png" height="18"> **Dynamic narrative arc** — auto-generated at `/dnd new` from the world's threat, factions, and setting; three acts, six beats defined by consequence not event; arc tracked across sessions, revised when players redirect the story, continued into a new arc when complete
-- <img src="skills/dnd/display/icons/spellbook.png" height="18"> **Campaign relationship graph** — typed-edge graph alongside the markdown campaign files, with verbatim source-anchors on every edge; `scene-context` query auto-pulled at `/dnd load` to surface who-knows-whom in the current scene without re-reading full NPC files; designed to hold long-session continuity when context compaction strips files out of scope. Background research and the A/B replay study that motivated it: [`docs/research/graph/`](docs/research/graph/)
-- <img src="skills/dnd/display/icons/pack.png" height="18"> **Campaign import** — `/dnd import` accepts PDF, markdown, DOCX, or plain text; extracts structure type, acts, chapters, key beats, telegraph scenes, NPCs, factions, and quest hooks; builds all campaign files automatically
+- <img src="skills/dnd/display/icons/crystal_ball.png" height="18"> **Dynamic narrative arc** — auto-generated at `/dm:dnd new` from the world's threat, factions, and setting; three acts, six beats defined by consequence not event; arc tracked across sessions, revised when players redirect the story, continued into a new arc when complete
+- <img src="skills/dnd/display/icons/spellbook.png" height="18"> **Campaign relationship graph** — typed-edge graph alongside the markdown campaign files, with verbatim source-anchors on every edge; `scene-context` query auto-pulled at `/dm:dnd load` to surface who-knows-whom in the current scene without re-reading full NPC files; designed to hold long-session continuity when context compaction strips files out of scope. Background research and the A/B replay study that motivated it: [`docs/research/graph/`](docs/research/graph/)
+- <img src="skills/dnd/display/icons/pack.png" height="18"> **Campaign import** — `/dm:dnd import` accepts PDF, markdown, DOCX, or plain text; extracts structure type, acts, chapters, key beats, telegraph scenes, NPCs, factions, and quest hooks; builds all campaign files automatically
 - <img src="skills/dnd/display/icons/helmet.png" height="18"> **Portable characters** — bring your character into any campaign; level up, grow your stat tree, and carry your inventory and loot — or start fresh each time
 - <img src="skills/dnd/display/icons/attack.png" height="18"> **Full D&D 5e mechanics** — initiative, attacks, saving throws, spell slots, XP, levelling up, short/long rests
 - <img src="skills/dnd/display/icons/chat.png" height="18"> **Atmospheric DM** — dark fantasy tone, distinct NPC voices, hidden rolls, a world that reacts to choices
@@ -84,7 +84,7 @@ If you're on Claude Code, you're in the right place.
 ## How It Works
 
 ```
-Claude Code CLI  ──→  /dnd commands  ──→  campaign files (~/.claude/dnd/)
+Claude Code CLI  ──→  /dm:dnd commands  ──→  campaign files (~/.claude/dnd/)
                                               state.md · world.md · npcs.md
                                               session-log.md · characters/
 
@@ -145,11 +145,11 @@ The skill tracks releases via a top-level `VERSION` file and per-release notes i
 **To check for updates:**
 
 ```bash
-/dnd update --check    # shows local vs. remote version + commit diff, no pull
-/dnd update            # pulls if you're behind (fast-forward only; refuses on dirty tree)
+/dm:dnd update --check    # shows local vs. remote version + commit diff, no pull
+/dm:dnd update            # pulls if you're behind (fast-forward only; refuses on dirty tree)
 ```
 
-**Plugin installs update through the plugin manager** — run `/plugin update dm` instead. `/dnd update` detects a plugin install and points you there rather than git-pulling under the manager's tracked state.
+**Plugin installs update through the plugin manager** — run `/plugin update dm` instead. `/dm:dnd update` detects a plugin install and points you there rather than git-pulling under the manager's tracked state.
 
 The `--check` output includes both sides' version strings so you can see at a glance whether you've fallen behind. After updating, restart Claude Code so the new `SKILL.md` and command procedures load.
 
@@ -162,19 +162,19 @@ The skill follows [semantic versioning](https://semver.org/): `MAJOR.MINOR.PATCH
 **Improvised campaign** — Claude builds the world and generates a narrative arc:
 
 ```
-/dnd new my-campaign         # generates world seed, factions, NPCs, dynamic story arc
-/dnd character new           # create a character
-/dnd load my-campaign        # start a session
+/dm:dnd new my-campaign         # generates world seed, factions, NPCs, dynamic story arc
+/dm:dnd character new           # create a character
+/dm:dnd load my-campaign        # start a session
 ```
 
 **Structured campaign** — import a pre-written or published module:
 
 ```
-/dnd import my-campaign path/to/module.pdf   # extract structure and build campaign files
-/dnd load my-campaign                        # start a session — Claude enforces the arc
+/dm:dnd import my-campaign path/to/module.pdf   # extract structure and build campaign files
+/dm:dnd load my-campaign                        # start a session — Claude enforces the arc
 ```
 
-Once loaded, type naturally — no `/dnd` prefix needed. The DM interprets everything as in-game action.
+Once loaded, type naturally — no `/dm:dnd` prefix needed. The DM interprets everything as in-game action.
 
 ---
 
@@ -182,34 +182,34 @@ Once loaded, type naturally — no `/dnd` prefix needed. The DM interprets every
 
 | Command | Description |
 |---------|-------------|
-| `/dnd new <name>` | Create a new campaign — generates world seed, NPCs, starting location, and dynamic narrative arc |
-| `/dnd import <name> <source>` | Import a pre-written campaign from PDF, markdown, DOCX, or plain text; extracts structure and builds all campaign files |
-| `/dnd load <name>` | Load an existing campaign and enter DM mode |
-| `/dnd save` | Write session events to log, update state and character files |
-| `/dnd end` | Save session, append recap, stop display companion |
-| `/dnd abandon` | Exit without saving — discards all unsaved changes from this session |
-| `/dnd list` | List all campaigns with last session date and count |
-| `/dnd recap` | In-character 3–5 sentence recap of the last session |
-| `/dnd world` | Display world lore |
-| `/dnd quests` | Show active quests and open threads |
-| `/dnd arc status` | Show the current narrative arc, completed beats, and steering notes |
-| `/dnd arc advance <beat>` | Mark a beat complete and update arc tracking (dynamic arcs only) |
-| `/dnd arc revise` | Revise outstanding beats when a player choice significantly redirects the story |
-| `/dnd arc new` | Generate a new arc from the consequences of a completed one |
-| `/dnd autorun on [seconds]` | Enable autorun mode — Claude drives the turn loop automatically |
-| `/dnd autorun off` | Return to manual mode |
-| `/dnd tutor on` | Enable tutor / learning mode for this session |
-| `/dnd tutor off` | Disable tutor / learning mode |
-| `/dnd data sync` | Rebuild bundled SRD dataset from upstream sources (only needed for new upstream content) |
-| `/dnd data status` | Show current dataset record counts and upstream SHA |
-| `/dnd update` | Pull latest skill changes from `origin/main` (refuses on dirty tree, fast-forward only) |
-| `/dnd update --check` | Show local-vs-remote version and commit-diff without pulling |
-| `/dnd path [<new>\|reset]` | View or relocate campaign storage via `DND_CAMPAIGN_ROOT` |
-| `/dnd graph init` | Initialize the campaign relationship graph (proposes seed nodes + edges; asks for approval) |
-| `/dnd graph scene-context --place <id> [--present id1,id2]` | Focused subgraph for the current scene; primary in-session query |
-| `/dnd graph add-edge --from <id> --to <id> --type T --since N` | Record a relationship shift mid-session |
-| `/dnd graph close-edge --id <id> --at-session N` | Mark an edge as ended (alliance broke, NPC moved away, etc.) |
-| `/dnd graph extract [--last-session-only]` | Run a Haiku pass over session-log to propose new edges (review-then-apply) |
+| `/dm:dnd new <name>` | Create a new campaign — generates world seed, NPCs, starting location, and dynamic narrative arc |
+| `/dm:dnd import <name> <source>` | Import a pre-written campaign from PDF, markdown, DOCX, or plain text; extracts structure and builds all campaign files |
+| `/dm:dnd load <name>` | Load an existing campaign and enter DM mode |
+| `/dm:dnd save` | Write session events to log, update state and character files |
+| `/dm:dnd end` | Save session, append recap, stop display companion |
+| `/dm:dnd abandon` | Exit without saving — discards all unsaved changes from this session |
+| `/dm:dnd list` | List all campaigns with last session date and count |
+| `/dm:dnd recap` | In-character 3–5 sentence recap of the last session |
+| `/dm:dnd world` | Display world lore |
+| `/dm:dnd quests` | Show active quests and open threads |
+| `/dm:dnd arc status` | Show the current narrative arc, completed beats, and steering notes |
+| `/dm:dnd arc advance <beat>` | Mark a beat complete and update arc tracking (dynamic arcs only) |
+| `/dm:dnd arc revise` | Revise outstanding beats when a player choice significantly redirects the story |
+| `/dm:dnd arc new` | Generate a new arc from the consequences of a completed one |
+| `/dm:dnd autorun on [seconds]` | Enable autorun mode — Claude drives the turn loop automatically |
+| `/dm:dnd autorun off` | Return to manual mode |
+| `/dm:dnd tutor on` | Enable tutor / learning mode for this session |
+| `/dm:dnd tutor off` | Disable tutor / learning mode |
+| `/dm:dnd data sync` | Rebuild bundled SRD dataset from upstream sources (only needed for new upstream content) |
+| `/dm:dnd data status` | Show current dataset record counts and upstream SHA |
+| `/dm:dnd update` | Pull latest skill changes from `origin/main` (refuses on dirty tree, fast-forward only) |
+| `/dm:dnd update --check` | Show local-vs-remote version and commit-diff without pulling |
+| `/dm:dnd path [<new>\|reset]` | View or relocate campaign storage via `DND_CAMPAIGN_ROOT` |
+| `/dm:dnd graph init` | Initialize the campaign relationship graph (proposes seed nodes + edges; asks for approval) |
+| `/dm:dnd graph scene-context --place <id> [--present id1,id2]` | Focused subgraph for the current scene; primary in-session query |
+| `/dm:dnd graph add-edge --from <id> --to <id> --type T --since N` | Record a relationship shift mid-session |
+| `/dm:dnd graph close-edge --id <id> --at-session N` | Mark an edge as ended (alliance broke, NPC moved away, etc.) |
+| `/dm:dnd graph extract [--last-session-only]` | Run a Haiku pass over session-log to propose new edges (review-then-apply) |
 
 ---
 
@@ -228,7 +228,7 @@ The dynamic arc draws from several overlapping frameworks in story structure and
 
 ### Improvised (type: dynamic)
 
-Generated automatically at `/dnd new` from the world's threat, factions, and Three Truths. Beats are defined by `what_changes` — the narrative consequence that must land — not by a specific event. This gives the DM flexibility on *how* each beat arrives while committing to *that* it must.
+Generated automatically at `/dm:dnd new` from the world's threat, factions, and Three Truths. Beats are defined by `what_changes` — the narrative consequence that must land — not by a specific event. This gives the DM flexibility on *how* each beat arrives while committing to *that* it must.
 
 | Act | Beat | What it marks |
 |-----|------|---------------|
@@ -239,11 +239,11 @@ Generated automatically at `/dnd new` from the world's threat, factions, and Thr
 | 3 | Final Confrontation | The decisive moment the campaign turns on |
 | 3 | Resolution | What's different about the world and characters after |
 
-Arc beats are tracked at `/dnd end` and marked complete via `/dnd arc advance`. When a major player choice redirects the story, `/dnd arc revise` updates outstanding beats to fit the new direction. When all six beats resolve, `/dnd arc new` generates a new arc from the consequences of the first — same world, new story question.
+Arc beats are tracked at `/dm:dnd end` and marked complete via `/dm:dnd arc advance`. When a major player choice redirects the story, `/dm:dnd arc revise` updates outstanding beats to fit the new direction. When all six beats resolve, `/dm:dnd arc new` generates a new arc from the consequences of the first — same world, new story question.
 
 ### Structured (type: structured)
 
-Populated by `/dnd import` from the source material. Acts contain chapter-level key beats, telegraph scenes (setup scenes that naturally constrain choices toward each beat), and branching notes. Claude telegraphs before delivering any required beat, steers with world pressure rather than hard walls when players drift, and marks beats complete as each chapter resolves.
+Populated by `/dm:dnd import` from the source material. Acts contain chapter-level key beats, telegraph scenes (setup scenes that naturally constrain choices toward each beat), and branching notes. Claude telegraphs before delivering any required beat, steers with world pressure rather than hard walls when players drift, and marks beats complete as each chapter resolves.
 
 The two arc types are mutually exclusive per campaign and fully compatible with all other systems — combat, XP, NPC attitudes, and display all behave identically regardless of arc type.
 
@@ -253,9 +253,9 @@ The two arc types are mutually exclusive per campaign and fully compatible with 
 
 | Command | Description |
 |---------|-------------|
-| `/dnd character new` | Create a character — guided point buy or rolled stats |
-| `/dnd character sheet [name]` | Display a character sheet |
-| `/dnd level up [name]` | Level up a character — applies class features, HP roll |
+| `/dm:dnd character new` | Create a character — guided point buy or rolled stats |
+| `/dm:dnd character sheet [name]` | Display a character sheet |
+| `/dm:dnd level up [name]` | Level up a character — applies class features, HP roll |
 
 ### Character Creation
 
@@ -272,7 +272,7 @@ The creation flow walks through:
 ## Combat System
 
 ```
-/dnd combat start
+/dm:dnd combat start
 ```
 
 1. Identifies all combatants, collects DEX mods, HP, AC
@@ -301,7 +301,7 @@ The pointer advances after each turn. HP bars update in real time when damage is
 
 ## Dice & Roll Handling
 
-How a player's own d20s (attacks, checks, saves, death saves) get rolled is chosen **at game start** and stored as `roll_mode` in `state.md → ## Session Flags`. Both `/dnd new` and `/dnd load` ask **"Dice rolls?"** so you confirm it each session.
+How a player's own d20s (attacks, checks, saves, death saves) get rolled is chosen **at game start** and stored as `roll_mode` in `state.md → ## Session Flags`. Both `/dm:dnd new` and `/dm:dnd load` ask **"Dice rolls?"** so you confirm it each session.
 
 | Mode | Behavior |
 |------|----------|
@@ -319,8 +319,8 @@ How a player's own d20s (attacks, checks, saves, death saves) get rolled is chos
 ## NPC System
 
 ```
-/dnd npc Osk             # portray an existing NPC or generate a new one
-/dnd npc attitude Osk friendly   # shift attitude on the 5-step scale
+/dm:dnd npc Osk             # portray an existing NPC or generate a new one
+/dm:dnd npc attitude Osk friendly   # shift attitude on the 5-step scale
 ```
 
 Every NPC gets: role, stat block, demeanor, motivation, secret, and a speech quirk. Attitudes shift on a 5-step scale: `hostile → unfriendly → neutral → friendly → allied`. Changes are logged with reason and date in `npcs.md`.
@@ -330,8 +330,8 @@ Every NPC gets: role, stat block, demeanor, motivation, secret, and a speech qui
 ## Resting
 
 ```
-/dnd rest short    # 1 hour — spend Hit Dice, recharge some features
-/dnd rest long     # 8 hours — full HP, half Hit Dice back, all spell slots
+/dm:dnd rest short    # 1 hour — spend Hit Dice, recharge some features
+/dm:dnd rest long     # 8 hours — full HP, half Hit Dice back, all spell slots
 ```
 
 Long rests advance the in-world clock in `state.md`.
@@ -350,7 +350,7 @@ pip3 install flask flask-cors numpy cryptography
 
 ### Starting the Display
 
-The display starts automatically when you answer **y** at the `/dnd load` prompt. Or start it manually:
+The display starts automatically when you answer **y** at the `/dm:dnd load` prompt. Or start it manually:
 
 ```bash
 # Local only (Mac/same machine) — HTTP, no cert setup
@@ -418,9 +418,9 @@ Each device has a **Settings** view with controls that tune the experience for t
 Autorun is the primary way to run sessions with the companion UI. Once enabled, Claude drives the turn loop without requiring the DM to press Enter between each turn.
 
 ```
-/dnd autorun on          # enable — 60s default countdown
-/dnd autorun on 45       # enable with 45-second countdown
-/dnd autorun off         # return to manual mode
+/dm:dnd autorun on          # enable — 60s default countdown
+/dm:dnd autorun on 45       # enable with 45-second countdown
+/dm:dnd autorun off         # return to manual mode
 ```
 
 The countdown is configurable per-campaign by setting `autorun_interval: N` in `state.md → ## Session Flags`. To interrupt autorun from the Claude Code CLI, press **Ctrl+C** during the wait.
@@ -456,11 +456,11 @@ Warnings use an amber border to distinguish high-stakes choices:
 **Tutor mode (per-session)** — for new players who want continuous guidance, enable automatic hint blocks after every scene, decision point, and roll — no button needed. Adds ~10–20% token overhead per turn. Use the DM Help button instead for on-demand hints without the ongoing cost.
 
 ```
-/dnd tutor on    # enable for this session
-/dnd tutor off   # disable
+/dm:dnd tutor on    # enable for this session
+/dm:dnd tutor off   # disable
 ```
 
-Tutor mode is session-scoped — does not persist to the next `/dnd load` unless set again.
+Tutor mode is session-scoped — does not persist to the next `/dm:dnd load` unless set again.
 
 The two are independent — the ◈ button is always available regardless of whether tutor mode is on.
 
@@ -590,7 +590,7 @@ Click or tap any character card in the sidebar to open a full character sheet mo
 
 ![Character sheet modal](screenshots/character-sheet-modal.png)
 
-Include the `sheet` field when pushing stats on `/dnd load` to populate the full sheet:
+Include the `sheet` field when pushing stats on `/dm:dnd load` to populate the full sheet:
 
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --replace-players --json '{
@@ -628,7 +628,7 @@ The sidebar:
 - Spell slot pips track remaining charges
 - Fades in automatically on first stats push
 - Persists across Flask restarts (`stats.json`)
-- Cleared automatically on `/dnd new` (fresh campaign)
+- Cleared automatically on `/dm:dnd new` (fresh campaign)
 
 ### Replay Buffer
 
@@ -729,7 +729,7 @@ python3 scripts/character.py xp --level 2 --gained 150
 ${CLAUDE_SKILL_DIR}/
 ├── SKILL.md                  # Skill definition and DM instructions
 ├── SKILL-scripts.md          # Script and tool syntax reference
-├── SKILL-commands.md         # /dnd command procedures
+├── SKILL-commands.md         # /dm:dnd command procedures
 ├── README.md                 # This file
 ├── data/
 │   ├── dnd5e_srd.json        # Bundled 5e SRD dataset (1453 records — spells, features, equipment, monsters)
@@ -797,7 +797,7 @@ The skill is designed around a set of hard constraints, not aspirational notes:
 
 ## Ruleset
 
-Each campaign declares its ruleset on the `state.md` header line: `**Ruleset:** 2014` (SRD 5.1) or `**Ruleset:** 2024` (SRD 5.2). `/dnd new` asks for the ruleset at creation time; `/dnd load` reads the field on every session. Legacy campaigns (predating the field) default to **2014** and are offered a one-time migration with a timestamped backup.
+Each campaign declares its ruleset on the `state.md` header line: `**Ruleset:** 2014` (SRD 5.1) or `**Ruleset:** 2024` (SRD 5.2). `/dm:dnd new` asks for the ruleset at creation time; `/dm:dnd load` reads the field on every session. Legacy campaigns (predating the field) default to **2014** and are offered a one-time migration with a timestamped backup.
 
 ### 2014 dataset (default)
 
@@ -828,7 +828,7 @@ Existing campaigns continue to load unchanged. The first time a legacy campaign 
 - Backs up `state.md` to `state.md.backup-pre-ruleset-<timestamp>` before any write
 - Injects the chosen ruleset into the header line
 - Is idempotent — re-running on a migrated campaign is a clean no-op
-- Has a `--check` mode for non-mutating detection (used by `/dnd load`)
+- Has a `--check` mode for non-mutating detection (used by `/dm:dnd load`)
 
 Character files inherit ruleset from their campaign at runtime via `paths.campaign_ruleset()`; no per-character migration is required. The display companion auto-detects the campaign's ruleset and surfaces it as a small badge in the world-clock cluster.
 
