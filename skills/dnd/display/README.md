@@ -86,7 +86,8 @@ to the sidebar on load.
 
 | Component | Role |
 |---|---|
-| `app.py` | Flask server — receives `send.py` POSTs, strips ANSI/TUI chrome, detects scene from keywords, pushes via SSE |
+| `dnd-display-app.py` | Flask server — receives `send.py` POSTs, strips ANSI/TUI chrome, detects scene from keywords, pushes via SSE |
+| `autorun_wait.py` | Blocking wait for autorun mode — pure-python (TCC-safe), drives the turn loop between responses |
 | `send.py` | Single pipeline for all display updates — narration, dice, NPC dialogue, stat changes, timed effects |
 | `push_stats.py` | Bulk stat pushes (party load, turn order, world time, factions) |
 | `check_input.py` | Drains the player input queue (autorun mode) — called at turn start |
@@ -182,12 +183,16 @@ When a round-based effect expires naturally (reaches 0 on turn advance), the dis
 
 ### Player input panel (autorun mode)
 
-When autorun is enabled, a collapsible input panel appears at the bottom of the display. Players on any device can submit their action before their turn. A pie-clock countdown shows the remaining wait window. When the timer fires or enough players are ready, the queued action is picked up automatically by `check_input.py` at turn start.
+When autorun is enabled, a collapsible input panel appears at the bottom of the display. Players on any device can submit their action before their turn with a **one-tap send** (no separate stage/ready step), and a status strip tracks the turn — *Your move → Sending… → Sent → ✓ The DM has your move → narrating*. The `✓ The DM has your move` toast fires when `check_input.py` actually drains the action off the queue (POST `/queue/consumed`), not just when it's staged. A pie-clock countdown shows the remaining wait window; the queued action is picked up automatically by `check_input.py` at turn start.
+
+Device approval defaults to trusting any LAN device; set `DND_REQUIRE_APPROVAL=1` to restore the approve/deny gate.
 
 Enable autorun:
 ```
 /dnd autorun on
 ```
+
+**Player Settings (phone):** each device has a Settings view with a **Text Size** stepper (per-browser font scaling, anti-FOUC), a **Narration** length slider (250–2500 words → `POST /narration-pref`, surfaced to the DM as a `[[Narration length…]]` directive), and — when the device is bound to a PC — a **Rolls** toggle that flips that character between players-roll and DM-auto-roll (`POST /roll-pref`, surfaced as a `[[<Char> roll mode: …]]` directive). See the main README's [Dice & Roll Handling](../../../README.md#dice--roll-handling).
 
 ### DM Help button
 
