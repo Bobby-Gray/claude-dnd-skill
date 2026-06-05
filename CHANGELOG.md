@@ -2,7 +2,7 @@
 
 All notable changes to the D&D 5e DM skill are documented here. The skill follows [semantic versioning](https://semver.org/) — `MAJOR.MINOR.PATCH` where MAJOR breaks an existing campaign or workflow, MINOR adds significant new capability, and PATCH fixes bugs without changing behavior.
 
-The current installed version is recorded in the `VERSION` file at the repo root. Run `/dnd update --check` to compare your local copy against `origin/main`.
+The current installed version is recorded in the `VERSION` file at the repo root. Run `/dm:dnd update --check` to compare your local copy against `origin/main`.
 
 Versions before **1.6.0** are reconstructed retroactively from git history; the dates reflect the commit each version is anchored on. Going forward, every release lands in the same commit as a `VERSION` bump and a CHANGELOG entry.
 
@@ -29,6 +29,11 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 - **Reading text size control.** A `Text Size` stepper in Settings (`A−` / `A+`, click the % to reset) scales the reading column via a font-size multiplier — *font size, not page zoom* — so narration stays legible across the room from a Chromecast. Persists per-browser (`localStorage["dnd-text-scale"]`), applied anti-FOUC.
 - **Narration length slider.** A `Narration` slider in Settings (250–2500 words) sets the target the DM aims for each turn. The value POSTs to `/narration-pref`; `check_input.py` prepends a `[[Narration length…]]` directive to queued player input so the DM honors it as a hard budget that turn (SKILL.md instructs it). Quick "keep turns short" control for time-pressed tables.
 - **Phone turn-flow redesign.** The phone input view now shows a plain status strip — *Your move → Sending… → Sent to the DM* (accent banner) → back — so a player can always tell whether their turn is in. Staging is **one tap** (auto-ready: the action sends immediately). And device approval now defaults to trusting any LAN device (`DND_REQUIRE_APPROVAL=1` restores the approve/deny gate), removing the "Awaiting approval" button-clip and the approval-card overlap on a casual home network.
+## [2.0.1] — 2026-06-05 — Doc fixes — README images, /dnd → /dm:dnd command refs
+
+- **README image paths fixed.** Top-level README references to `display/icons/*.png` now correctly point at `skills/dnd/display/icons/*.png` (the restructure in v2.0.0 moved the assets but didn't update the README). The repo page on GitHub now renders the logo and feature-bullet icons correctly.
+- **Stale `/dnd` command references swept to `/dm:dnd`.** `SKILL.md`, `SKILL-commands.md`, and `SKILL-scripts.md` had ~148 internal references to the retired `/dnd` slash command (e.g. `/dnd load`, `/dnd save`). The model loads these as its operating playbook; an instruction to "type `/dnd save`" no longer resolves under the plugin. All command references swept to `/dm:dnd`; path references like `~/.claude/dnd/` and `skills/dnd/` are unaffected.
+- **`update_skill.py` plugin-mode heuristic narrowed.** The path-substring fallback for `CLAUDE_PLUGIN_ROOT`-less subprocesses now matches `.claude/plugins/` specifically, not any path containing `/plugins/`. Prevents a dev tree with a `plugins` directory in the path from false-positively reporting plugin-managed mode.
 
 ## [2.0.0] — 2026-06-04 — Plugin-only · Neural Initiative org · v1→v2 migration
 

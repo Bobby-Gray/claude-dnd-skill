@@ -1,6 +1,6 @@
 # D&D Skill — Scripts Reference
 
-Full syntax for all Python helper scripts. Load this file once at `/dnd load`, then it stays in context for the session.
+Full syntax for all Python helper scripts. Load this file once at `/dm:dnd load`, then it stays in context for the session.
 
 > **Path note:** commands below use `${CLAUDE_SKILL_DIR}` for the skill directory. This file is read verbatim, so that token is **not** auto-expanded here — substitute the absolute skill-dir path (from `SKILL.md`) before running any command, or it will fail with a broken `/scripts/…` path.
 
@@ -125,7 +125,7 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/character.py xp --level 1 --gained 150
 Pushes character and combat stats to the sidebar. Players merged by name; partial updates work.
 
 ```bash
-# Full stats push (on /dnd load — use --replace-players to clear stale characters):
+# Full stats push (on /dm:dnd load — use --replace-players to clear stale characters):
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --replace-players --json '{
   "players": [{
     "name": "Flerb", "race": "Tiefling", "class": "Fighter", "level": 1, "background": "Soldier",
@@ -183,7 +183,7 @@ python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --player Flerb --conditions-re
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --player Flerb --concentrate "Bless"
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --player Flerb --concentrate ""        # clear
 
-# Spell slots — full replace (on /dnd load):
+# Spell slots — full replace (on /dm:dnd load):
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --player Flerb \
   --spell-slots '{"1":{"used":1,"max":4},"2":{"used":0,"max":2}}'
 
@@ -195,12 +195,12 @@ python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --player Flerb --slot-restore 
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --player Flerb --inventory-add "Iron key"
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --player Flerb --inventory-remove "Folded paper"
 
-# Faction standings (party-wide — REQUIRED at /dnd load to show faction panel):
+# Faction standings (party-wide — REQUIRED at /dm:dnd load to show faction panel):
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py \
   --factions '[{"name":"Pale Court","standing":"Allied"},{"name":"Watch","standing":"Neutral"}]'
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --factions '[]'   # clear all
 
-# Combat turn order (on /dnd combat start):
+# Combat turn order (on /dm:dnd combat start):
 python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --turn-order \
   '{"order":["Goblin 1","Flerb","Goblin 2"],"current":"Goblin 1","round":1}'
 
@@ -245,7 +245,7 @@ If `check_input.py` returns output, prepend it to the player's terminal input wh
 ---
 
 **When to push stats:**
-- `/dnd load` → `--replace-players --json` (full stats) + `--spell-slots` + `--world-time` + `--factions`
+- `/dm:dnd load` → `--replace-players --json` (full stats) + `--spell-slots` + `--world-time` + `--factions`
 - HP change → `--player NAME --hp <current> <max>`
 - Temp HP gained/lost → `--player NAME --temp-hp N` (0 to clear)
 - XP awarded → `--player NAME --xp <current> <next>`
@@ -307,7 +307,7 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/tracker.py -c $CAMP clear --all     # also c
 
 ## Calendar Script — `scripts/calendar.py`
 ```bash
-# One-time setup (run during /dnd new):
+# One-time setup (run during /dm:dnd new):
 python3 ${CLAUDE_SKILL_DIR}/scripts/calendar.py -c $CAMP init \
     --date "15 Harvestmoon 1247" \
     --time "morning" \
@@ -406,19 +406,19 @@ Browser tab → Chromecast → TV
 ```bash
 bash ${CLAUDE_SKILL_DIR}/display/start-display.sh          # localhost
 bash ${CLAUDE_SKILL_DIR}/display/start-display.sh --lan    # LAN mode (phones, tablets)
-open https://localhost:5001                                  # open browser before /dnd load
+open https://localhost:5001                                  # open browser before /dm:dnd load
 ```
 
 `start-display.sh` always force-kills any previous instance before starting — no manual pre-kill needed.
 
 **Load a campaign:**
 ```
-/dnd load <campaign-name>   # skill auto-detects running display, pushes party stats
+/dm:dnd load <campaign-name>   # skill auto-detects running display, pushes party stats
 ```
 
 The DM skill sends each narration block, dice result, and stat update via `send.py` calls (see Active DM Mode in SKILL.md for full send sequence and stat flag reference).
 
-Open the browser tab and Chromecast it *before* running `/dnd load` so the browser is connected when the opening narration streams in. The display buffers the last 60 chunks and replays them to reconnecting browsers.
+Open the browser tab and Chromecast it *before* running `/dm:dnd load` so the browser is connected when the opening narration streams in. The display buffers the last 60 chunks and replays them to reconnecting browsers.
 
 **Scene detection:** server scans narration for keywords and shifts background gradient + particle type (17 scenes: tavern, dungeon, forest, crypt, arcane, ocean, etc.). Crossfades over ~2.5 s.
 
