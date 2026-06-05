@@ -46,10 +46,13 @@ def _find_git_root(start: pathlib.Path) -> pathlib.Path | None:
 
 GIT_ROOT = _find_git_root(SKILL_DIR)
 
-# Heuristic: a Claude-Code-managed plugin install lives under a `plugins/` tree
-# or exposes CLAUDE_PLUGIN_ROOT. Such installs update via `/plugin update`.
+# Heuristic: a Claude-Code-managed plugin install exposes CLAUDE_PLUGIN_ROOT,
+# or lives under `.claude/plugins/` (the canonical Claude Code install path).
+# The path check is the fallback when CLAUDE_PLUGIN_ROOT isn't exported into
+# the subprocess; scoped to `.claude/plugins/` so a dev tree that happens to
+# contain a directory named `plugins` won't false-positive into plugin mode.
 PLUGIN_MODE = bool(os.environ.get("CLAUDE_PLUGIN_ROOT")) or (
-    os.sep + "plugins" + os.sep in str(SKILL_DIR)
+    ".claude" + os.sep + "plugins" + os.sep in str(SKILL_DIR)
 )
 
 

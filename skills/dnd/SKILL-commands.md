@@ -1,12 +1,12 @@
 # D&D Skill — Command Procedures
 
-Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/dnd load` or before executing any slash command.
+Full step-by-step procedures for all `/dm:dnd` slash commands. Load this file at `/dm:dnd load` or before executing any slash command.
 
 > **Path note:** commands below use `${CLAUDE_SKILL_DIR}` for the skill directory. This file is read verbatim, so that token is **not** auto-expanded here — substitute the absolute skill-dir path (from `SKILL.md`) before running any command, or it will fail with a broken `/scripts/…` path.
 
 ---
 
-## `/dnd new <campaign-name> [theme]`
+## `/dm:dnd new <campaign-name> [theme]`
 1. **Session setup — call `AskUserQuestion`** (one question): *"Display & input mode?"* with options:
    - `No display` → continue without display.
    - `Display (local)` → `bash ${CLAUDE_SKILL_DIR}/display/start-display.sh`, print URL, set `_display_running = true`, then `python3 ${CLAUDE_SKILL_DIR}/display/push_stats.py --clear`.
@@ -53,13 +53,13 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
    **If no:** Write `type: sandbox` to `## Campaign Arc`. The story remains open-ended with no arc tracking.
 
 14. Write state.md with session count 0, starting location.
-15. **Physical dice server check (only if installed).** Skip this step unless the optional dice server is set up: probe with `test -d ~/.dnd-dice || test "$DND_DICE_PHYSICAL" = "1"` and short-circuit out if the test fails. When it passes, run `curl -sf http://localhost:7777/health` (timeout 1s). If it returns OK, fetch the LAN IP with `python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0]); s.close()"` and announce: *"Dice server is up. Once each player has made a character via `/dnd character new`, they should open `http://<ip>:7777/?player=<pc-name>` on their phone (lowercase, hyphens for spaces) and tap **consecrate** before play starts. NPC/DM rolls auto-resolve on the host."* If unreachable, skip silently.
-16. Confirm creation, offer `/dnd character new`.
+15. **Physical dice server check (only if installed).** Skip this step unless the optional dice server is set up: probe with `test -d ~/.dnd-dice || test "$DND_DICE_PHYSICAL" = "1"` and short-circuit out if the test fails. When it passes, run `curl -sf http://localhost:7777/health` (timeout 1s). If it returns OK, fetch the LAN IP with `python3 -c "import socket; s=socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.connect(('8.8.8.8', 80)); print(s.getsockname()[0]); s.close()"` and announce: *"Dice server is up. Once each player has made a character via `/dm:dnd character new`, they should open `http://<ip>:7777/?player=<pc-name>` on their phone (lowercase, hyphens for spaces) and tap **consecrate** before play starts. NPC/DM rolls auto-resolve on the host."* If unreachable, skip silently.
+16. Confirm creation, offer `/dm:dnd character new`.
 
 ---
 
-## `/dnd load <campaign-name>`
-0. **Pick the campaign if none was named.** If `<campaign-name>` was supplied (or the player clearly named one), use it. Otherwise `ls` the campaigns dir (`~/.claude/dnd/campaigns/` or `$DND_CAMPAIGN_ROOT/campaigns/`) and **call `AskUserQuestion`**: *"Which campaign?"* with the existing campaign names as options (most-recently-played first — sort by `state.md` mtime). The player can pick "Other" to type a name. If there are no campaigns, tell them and offer `/dnd new`.
+## `/dm:dnd load <campaign-name>`
+0. **Pick the campaign if none was named.** If `<campaign-name>` was supplied (or the player clearly named one), use it. Otherwise `ls` the campaigns dir (`~/.claude/dnd/campaigns/` or `$DND_CAMPAIGN_ROOT/campaigns/`) and **call `AskUserQuestion`**: *"Which campaign?"* with the existing campaign names as options (most-recently-played first — sort by `state.md` mtime). The player can pick "Other" to type a name. If there are no campaigns, tell them and offer `/dm:dnd new`.
 1. **Session setup — call `AskUserQuestion`** (one question, not a typed y/n/n prompt): *"Display & input mode?"* with options:
    - `No display` → continue without display.
    - `Display (local)` → `bash ${CLAUDE_SKILL_DIR}/display/start-display.sh`, print URL, set `_display_running = true`.
@@ -97,7 +97,7 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
      ```
 
      Migrator is idempotent and creates a timestamped backup. On `skip`, do not migrate; `paths.campaign_ruleset()` will return `2014` as the safety default at read time, but the field stays unstamped (DM will be re-prompted next load).
-   - Exit code `2` (`missing`) → state.md not found; do not proceed with /dnd load. Surface error to DM.
+   - Exit code `2` (`missing`) → state.md not found; do not proceed with /dm:dnd load. Surface error to DM.
 
    Future migrations (e.g. when 2026 ruleset arrives) follow the same pattern: a small migrator script under `scripts/migrate_<topic>.py` invoked here as a `--check` then `--yes` pair.
 
@@ -107,7 +107,7 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 5. Read state.md, world.md, npcs.md (index only), and all characters/*.md
    - **state.md contains `## DM Style Notes`** — read and internalize before narrating anything. These are table-specific calibration patterns that override default DM instincts.
    - **world.md:** Load in full — World Foundations and active Adventure Nodes both inform narration and faction moves. Do NOT read `world-seeds.md` at load (generation artifact, not live reference).
-   - **npcs.md:** Index row only at load. **Before writing substantive dialogue or decisions for any named NPC, read their full entry in `npcs-full.md`.** Do not wait for an explicit `/dnd npc [name]` call — do it proactively when a scene centers on that character. Index rows carry surface traits only; personality axes, relationships, and hidden goals are in the full entry.
+   - **npcs.md:** Index row only at load. **Before writing substantive dialogue or decisions for any named NPC, read their full entry in `npcs-full.md`.** Do not wait for an explicit `/dm:dnd npc [name]` call — do it proactively when a scene centers on that character. Index rows carry surface traits only; personality axes, relationships, and hidden goals are in the full entry.
    - **Do NOT read session-log.md at load** — recent events are already in `state.md → ## Recent Events`. Only read session-log.md if the player explicitly requests a recap, or if DM Calibration from the last 1-2 sessions is needed and not already internalized.
 6. Push full party stats to display sidebar. **CRITICAL:** use `--json` with a complete player object — **never** the `--player` shorthand here. `--player` only updates existing fields; it cannot populate the card or sheet tabs. The display shows "Full sheet not loaded" when `sheet` is absent.
 
@@ -140,7 +140,7 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 
    For casters, add `"spells": {"cantrips":["..."],"level1":["..."]}` inside `sheet`. Omit for non-casters.
 
-   **Inspiration:** read from `state.md → ## Current Situation → Party status`. Set `"inspiration": 1` (or `true`) if the character has it, `0` if not. Inspiration is NOT reset by a long rest — it persists until spent. Must be explicitly tracked in the party status line at `/dnd save` (e.g., `Kat: Inspiration ✓`) and loaded at `/dnd load`. Use `push_stats.py --player <name> --inspiration true/false` for mid-session updates.
+   **Inspiration:** read from `state.md → ## Current Situation → Party status`. Set `"inspiration": 1` (or `true`) if the character has it, `0` if not. Inspiration is NOT reset by a long rest — it persists until spent. Must be explicitly tracked in the party status line at `/dm:dnd save` (e.g., `Kat: Inspiration ✓`) and loaded at `/dm:dnd load`. Use `push_stats.py --player <name> --inspiration true/false` for mid-session updates.
 
    `--replace-players` clears stale characters from previous campaigns. Build the JSON from the character file — every field above is required for the card and sheet tabs to render correctly.
 
@@ -184,9 +184,9 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
 
    Output is a focused subgraph (nodes by type + relationships block). **Internalize this subgraph before delivering the recap** — it is the authoritative source for who-relates-to-whom in the current scene. Do not re-read `npcs-full.md` for relationships you can answer from the subgraph.
 
-   If output reads `# graph not initialized` — graph hasn't been seeded for this campaign yet. **Graph init is a hard requirement, not deferrable.** The continuity-archive compression rule (step 6 below + `/dnd save`) assumes graph.json is present and canonical for relational state; deferring init creates state-archive drift that compounds session-over-session. Run the init flow before delivering the recap:
+   If output reads `# graph not initialized` — graph hasn't been seeded for this campaign yet. **Graph init is a hard requirement, not deferrable.** The continuity-archive compression rule (step 6 below + `/dm:dnd save`) assumes graph.json is present and canonical for relational state; deferring init creates state-archive drift that compounds session-over-session. Run the init flow before delivering the recap:
 
-   1. **Detect legacy.** A campaign is "legacy" if any of: `Session count > 1` in state.md header, OR `## Continuity Archive` has at least one `### Session N` entry, OR session-log.md is > 100 lines. A freshly-created campaign at `/dnd new` time fails all three signals — do NOT classify it as legacy.
+   1. **Detect legacy.** A campaign is "legacy" if any of: `Session count > 1` in state.md header, OR `## Continuity Archive` has at least one `### Session N` entry, OR session-log.md is > 100 lines. A freshly-created campaign at `/dm:dnd new` time fails all three signals — do NOT classify it as legacy.
 
    2. **Backup the campaign directory** (always — both fresh and legacy):
       ```bash
@@ -195,7 +195,7 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
       ```
       Tell the DM the backup path explicitly so they can revert if needed.
 
-   3. **Run `/dnd graph init <name>`** — propose seed nodes/edges from `npcs.md`, `world.md`, and `state.md` (Live State Flags + Active Quests + recent NPC dispositions). Show the DM a single approval block (counts by type + named entries) and ask for one go/no-go. After approval, batch-execute the `add-node` and `add-edge` calls. Use `--since N` matching when each node/edge first became canon (use `1` for foundational; the actual session number for newer NPCs/edges).
+   3. **Run `/dm:dnd graph init <name>`** — propose seed nodes/edges from `npcs.md`, `world.md`, and `state.md` (Live State Flags + Active Quests + recent NPC dispositions). Show the DM a single approval block (counts by type + named entries) and ask for one go/no-go. After approval, batch-execute the `add-node` and `add-edge` calls. Use `--since N` matching when each node/edge first became canon (use `1` for foundational; the actual session number for newer NPCs/edges).
 
    4. **Validate** with a `scene-context` query at the current location to confirm the subgraph is reachable.
 
@@ -204,18 +204,18 @@ Full step-by-step procedures for all `/dnd` slash commands. Load this file at `/
       > "This campaign is legacy ({session_count} sessions, {archive_count} archive entries). Now that `graph.json` is the canonical source for faction memberships, NPC dispositions, and typed-edge relationships, I can do a one-time pass to trim the existing `## Continuity Archive` entries of relational restatements that the graph now answers. Mechanical changes, plot beats, atmospheric/decision moments, and disclosed information stay in full. Estimated reduction: 5–30% of archive bytes (varies by how relational vs. content-heavy your existing entries are). Backup is already at `<backup-path>`. Proceed? [y/n]"
 
       - `y` → trim each archive entry surgically; keep the bullet structure; remove ONLY pure-relational restatements (e.g. "X is allied with Y", "Z saw the party's faces", "W is a member of faction F") that have a corresponding edge in the just-initialized graph. Preserve: XP/level/items/HP, plot beats ("Beat 2a sealed"), atmospheric moments, disclosed content, calibration material, off-screen world events. Add a one-line note at the top of `## Continuity Archive`: *"Compressed YYYY-MM-DD (graph init pass). Relational state is canonical in graph.json — entries below preserve mechanical changes, plot beats, disclosed content, atmospheric/decision moments, and calibration material."*
-      - `n` → leave the archive untouched. The going-forward compression rule (per `/dnd save`) still applies to NEW entries from this session forward.
+      - `n` → leave the archive untouched. The going-forward compression rule (per `/dm:dnd save`) still applies to NEW entries from this session forward.
 
       For fresh (non-legacy) campaigns: skip the offer entirely — there's nothing to compress yet, and the going-forward rule covers all future entries.
 
    6. Re-run scene-context (now populated). Then proceed to step 6 (recap).
 
 8. Deliver one in-character paragraph recapping current situation — where the party is, what's at stake, what was last happening.
-9. Enter active DM mode — no `/dnd` prefix needed from this point.
+9. Enter active DM mode — no `/dm:dnd` prefix needed from this point.
 
 ---
 
-## `/dnd import <filepath> [campaign-name]`
+## `/dm:dnd import <filepath> [campaign-name]`
 
 Import a pre-written campaign from a source file (PDF, MD, TXT, DOCX) and create a playable campaign from it.
 
@@ -312,13 +312,13 @@ After writing files, identify anything the source left ambiguous:
 Print summary of files written. Offer:
 ```
 Campaign "<name>" created from <source title>.
-→ /dnd character new      — create your character
-→ /dnd load <name>        — start playing immediately
+→ /dm:dnd character new      — create your character
+→ /dm:dnd load <name>        — start playing immediately
 ```
 
 ---
 
-## `/dnd save`
+## `/dm:dnd save`
 Write session events to session-log.md, update state.md (location, active quests, party HP/resources, recent events), update any characters/*.md that changed. Mirror each updated character to global roster (`~/.claude/dnd/characters/<name>.md`).
 
 **Inspiration tracking:** On every save, record each PC's Inspiration state in `state.md → ## Current Situation → Party status`. Use explicit text: `Inspiration ✓` if held, omit or `No Inspiration` if not. Inspiration persists across sessions and is NOT cleared by long rests. Example: `Kat: HP 24/24. Inspiration ✓. Ben: HP 24/24.`
@@ -339,7 +339,7 @@ Then update `## Faction Moves` in state.md: for each active faction, answer *"wh
    bash ${CLAUDE_SKILL_DIR}/display/verify_tail.sh <campaign-name>
    ```
    The script returns 0 if the tail is healthy (non-empty + valid JSON list), 1 if missing/empty/corrupt. If it returns 1, the tail is unsafe to rely on for next session's replay — **write a canonical replacement directly to the campaign path** with this session's 5–8 most important narrative beats as a JSON list of `{"text": "...", "_camp": "<name>"}` entries (no display call needed; the display may already be dead). Use the `tools/write_canonical_tail.py` helper.
-2. Also write `~/.claude/dnd/campaigns/<name>/session-tail.md` (human-readable snapshot — companion to the JSON, used as fallback during /dnd load if JSON read fails).
+2. Also write `~/.claude/dnd/campaigns/<name>/session-tail.md` (human-readable snapshot — companion to the JSON, used as fallback during /dm:dnd load if JSON read fails).
 
 **Session log archival (run on every save after session count > 3):**
 session-log.md keeps only the **2 most recent full session entries**. Older entries move to `session-log-archive.md` (append, never delete). Before archiving each entry, extract a 3–5 bullet continuity summary and write it to `## Continuity Archive` in state.md. Format:
@@ -368,11 +368,11 @@ session-log.md keeps only the **2 most recent full session entries**. Older entr
 - Calibration / DM Notes
 - Cliffhangers and pause-points
 
-Treat each bullet as one sentence with one job. If the only job is "restate a graph edge", drop it. If it carries content + edge, keep the content half. The graph is queried at `/dnd load` step 5; the archive is queried for chronological narrative + mechanical state — they should not overlap.
+Treat each bullet as one sentence with one job. If the only job is "restate a graph edge", drop it. If it carries content + edge, keep the content half. The graph is queried at `/dm:dnd load` step 5; the archive is queried for chronological narrative + mechanical state — they should not overlap.
 
-The continuity summary is what stays hot in context. The full verbose log is in the archive, readable on `/dnd recap` or explicit request. When a past detail surfaces mid-scene, check `## Continuity Archive` first, then `/dnd graph scene-context` for relational context, then read session-log-archive.md if more depth is needed.
+The continuity summary is what stays hot in context. The full verbose log is in the archive, readable on `/dm:dnd recap` or explicit request. When a past detail surfaces mid-scene, check `## Continuity Archive` first, then `/dm:dnd graph scene-context` for relational context, then read session-log-archive.md if more depth is needed.
 
-**Campaign-graph relationship-shift sweep:** before completing the save, scan this session's narration for relationship shifts that weren't captured live via `/dnd graph add-edge` / `close-edge`. Look for moments matching these patterns:
+**Campaign-graph relationship-shift sweep:** before completing the save, scan this session's narration for relationship shifts that weren't captured live via `/dm:dnd graph add-edge` / `close-edge`. Look for moments matching these patterns:
 
 - New alliance, betrayal, or rivalry between named NPCs / factions ("Velkyn now serves the Pale Court")
 - An NPC moving into / out of a location ("Mira fled the Citadel for the Lowmarket")
@@ -392,8 +392,8 @@ If `graph.json` doesn't exist yet for this campaign, skip the sweep entirely (no
 
 ---
 
-## `/dnd end`
-1. Run `/dnd save`, then:
+## `/dm:dnd end`
+1. Run `/dm:dnd save`, then:
    a. Append **Session Recap** block to session-log.md with key events and open threads.
    b. Ask: *"Quick calibration — what worked this session, and what would you adjust next time?"* Write answers to `### DM Calibration`. If skipped, leave blank.
    c. Update `## World State` in state.md: check whether events advanced the threat arc stage, shifted faction states, or changed the in-world date. Update all three.
@@ -401,10 +401,10 @@ If `graph.json` doesn't exist yet for this campaign, skip the sweep entirely (no
    e. **Arc check** (dynamic arcs only — skip for sandbox/structured): If `## Campaign Arc` has `type: dynamic`, do all of:
 
       i. Ask: *"Did any arc beats land this session? [beat id(s) like '1b 2a', or 'none']"*
-      ii. If beats landed: run `/dnd arc advance <beat-id>` for each.
+      ii. If beats landed: run `/dm:dnd arc advance <beat-id>` for each.
       iii. **Pre-emption check (critical — added 2026-05-01):** for each remaining outstanding beat whose `world_pressure` was visibly delivered this session (the world event named in the beat actually appeared in narration or Faction Moves), evaluate whether the beat's `what_changes` consequence ALSO landed. Three possible states:
         - **Landed cleanly** → mark beat complete (step ii).
-        - **Did not land — pressure absorbed without consequence** → the beat is overdue and its current shape no longer fits. **Run `/dnd arc revise` immediately**; do not just update `steering_notes`. The beat's `what_changes` was event-shaped (something specific happens) when it should be consequence-shaped (something fundamentally different is true) — revise both `what_changes` and `world_pressure` to fit a path that DOES land. The committed shape bends; it does not break.
+        - **Did not land — pressure absorbed without consequence** → the beat is overdue and its current shape no longer fits. **Run `/dm:dnd arc revise` immediately**; do not just update `steering_notes`. The beat's `what_changes` was event-shaped (something specific happens) when it should be consequence-shaped (something fundamentally different is true) — revise both `what_changes` and `world_pressure` to fit a path that DOES land. The committed shape bends; it does not break.
         - **Pressure not yet delivered** → leave beat alone; expected to deliver next session.
       iv. Update `steering_notes` for the next outstanding beat with the *consequence shape* expected, not the specific event.
    f. **Tail verification (added 2026-05-01):** before killing the display, verify the campaign-side `session_tail.json` is healthy:
@@ -421,9 +421,9 @@ If `graph.json` doesn't exist yet for this campaign, skip the sweep entirely (no
 
 ---
 
-## `/dnd abandon`
+## `/dm:dnd abandon`
 
-Exit the current session **without saving any state changes**. Use this when an error occurred and you want to discard everything since the last `/dnd save` (or since load, if the session was never saved).
+Exit the current session **without saving any state changes**. Use this when an error occurred and you want to discard everything since the last `/dm:dnd save` (or since load, if the session was never saved).
 
 1. Confirm: *"Abandon session? All unsaved state changes will be lost. Type 'yes' to confirm."* — do not proceed until confirmed.
 2. Do **NOT** write to state.md, world.md, npcs.md, session-log.md, or any character files.
@@ -433,11 +433,11 @@ Exit the current session **without saving any state changes**. Use this when an 
    kill $(cat ${CLAUDE_SKILL_DIR}/display/app.pid 2>/dev/null) 2>/dev/null
    rm -f ${CLAUDE_SKILL_DIR}/display/app.pid
    ```
-5. Confirm: *"Session abandoned. No files were written. Run `/dnd load <campaign>` to reload from the last saved state."*
+5. Confirm: *"Session abandoned. No files were written. Run `/dm:dnd load <campaign>` to reload from the last saved state."*
 
 ---
 
-## `/dnd data [sync|status]`
+## `/dm:dnd data [sync|status]`
 - `sync` → `python3 ${CLAUDE_SKILL_DIR}/scripts/sync_srd.py` — checks upstream SHAs (5e-bits + FoundryVTT) and rebuilds `dnd5e_srd.json` only if either source has new commits
 - `sync --force` → `python3 ${CLAUDE_SKILL_DIR}/scripts/sync_srd.py --force` — rebuild regardless
 - `sync --check` → check upstream without rebuilding
@@ -447,7 +447,7 @@ Dataset is bundled at `${CLAUDE_SKILL_DIR}/data/dnd5e_srd.json` (1453 records: s
 
 ---
 
-## `/dnd path [<new-path> | reset]`
+## `/dm:dnd path [<new-path> | reset]`
 
 View or configure where campaign and character data is stored. Wraps the
 `DND_CAMPAIGN_ROOT` env var.
@@ -460,7 +460,7 @@ Persistence is via shell rc on macOS/Linux and via `setx` on Windows. Existing c
 
 ---
 
-## `/dnd update [--check]`
+## `/dm:dnd update [--check]`
 
 Pull the latest skill changes from `origin/main`.
 
@@ -471,7 +471,7 @@ Pull the latest skill changes from `origin/main`.
 
 ---
 
-## `/dnd display [start|stop|status]`
+## `/dm:dnd display [start|stop|status]`
 - `start` → ask LAN mode [y/n]; run `bash ${CLAUDE_SKILL_DIR}/display/start-display.sh [--lan]`; print URL(s)
 - `stop` → `kill $(cat ${CLAUDE_SKILL_DIR}/display/app.pid) 2>/dev/null && rm -f ${CLAUDE_SKILL_DIR}/display/app.pid`
 - `status` → `curl -sk $(cat ${CLAUDE_SKILL_DIR}/display/.scheme 2>/dev/null || echo http)://localhost:5001/ping` — reachable or unreachable
@@ -479,12 +479,12 @@ Pull the latest skill changes from `origin/main`.
 
 ---
 
-## `/dnd list`
+## `/dm:dnd list`
 Read `~/.claude/dnd/campaigns/*/state.md`, print summary table: campaign name | last session date | session count.
 
 ---
 
-## `/dnd character new [campaign-name]`
+## `/dm:dnd character new [campaign-name]`
 
 **Read the campaign's ruleset first** — `python3 ${CLAUDE_SKILL_DIR}/scripts/paths.py` is not a CLI; instead inline-read with:
 
@@ -520,15 +520,15 @@ The result drives branching at steps 1 (ASI source), 4 (origin feat), and 5 (sub
 
 ---
 
-## `/dnd character sheet [name]`
+## `/dm:dnd character sheet [name]`
 Read `characters/<name>.md`, display cleanly. If name omitted and one character exists, show that one.
 
 ---
 
-## `/dnd character import <name> [from:<campaign>]`
+## `/dm:dnd character import <name> [from:<campaign>]`
 1. Find character sheet: `from:<campaign>` specified → that campaign's characters/; otherwise check global roster `~/.claude/dnd/characters/<name>.md`; if neither → search all campaigns, list matches, ask.
 2. Show summary (level, XP, HP, key inventory) and ask: *"Import at current level [X], or level up before starting?"*
-   - As-is → copy directly; Level up first → run `/dnd level up` on source sheet
+   - As-is → copy directly; Level up first → run `/dm:dnd level up` on source sheet
 3. Copy to current campaign's `characters/<name>.md`. Update: Campaign, Last Updated, Previous campaigns, Death Saves (reset).
 4. Optionally ask about equipment adjustment for new setting.
 5. Add to `state.md` party line. Update global roster.
@@ -540,7 +540,7 @@ Read `characters/<name>.md`, display cleanly. If name omitted and one character 
 
 ---
 
-## `/dnd level up [name]`
+## `/dm:dnd level up [name]`
 1. **XP gate — check first:**
 
    | Level | XP required | Level | XP required |
@@ -567,18 +567,18 @@ Read `characters/<name>.md`, display cleanly. If name omitted and one character 
 
 ---
 
-## `/dnd npc [name]`
+## `/dm:dnd npc [name]`
 - Existing → read full entry from npcs-full.md (search by name), portray in character with voice/quirk
 - New → generate full entry: role, CR-appropriate stats, demeanor, motivation, secret, speech quirk, faction (or "independent"), current goal, schedule, all four personality axes, ≥2 relationships to existing NPCs. Default attitude neutral. Append full entry to npcs-full.md; add one-line summary row to npcs.md index.
 
   **Name uniqueness check (added 2026-05-07):** before generating, run `python3 ${CLAUDE_SKILL_DIR}/scripts/name_registry.py check "<proposed-name>"`. If duplicate (exit 1), surface the prior use to the DM and offer either: (a) proceed with the duplicate (some scenarios want recurring names — a Voss reference can be deliberate); or (b) regenerate with a different name. Whichever path is chosen, after the NPC is added to npcs.md / npcs-full.md, call `name_registry.py add --name "<name>" --type npc --campaign <name> --session <current>` to record the entry.
 
-  When **/dnd new** generates a batch of NPCs during world-gen, run the check on each generated name in the same loop: if duplicate, regenerate that name (re-prompt the LLM with the prior name added to a "do-not-pick" exclusion list). After world-gen completes, batch-call `name_registry.py add` for every accepted NPC.
+  When **/dm:dnd new** generates a batch of NPCs during world-gen, run the check on each generated name in the same loop: if duplicate, regenerate that name (re-prompt the LLM with the prior name added to a "do-not-pick" exclusion list). After world-gen completes, batch-call `name_registry.py add` for every accepted NPC.
 
-## `/dnd npc attitude <name> <shift>`
+## `/dm:dnd npc attitude <name> <shift>`
 Find NPC in npcs.md, shift attitude one step (hostile → unfriendly → neutral → friendly → allied), log reason and date.
 
-## `/dnd npc rename "Old Name" <"New Name" | random> [flags]`
+## `/dm:dnd npc rename "Old Name" <"New Name" | random> [flags]`
 Rename a character across an entire campaign — `npcs.md`, `npcs-full.md`, `state.md` (every section), `session-log.md`, `graph.json` (node + edges preserved), and `characters/<slug>.md` if `--type pc`. Backs up the campaign first.
 
 Maps to: `python3 ${CLAUDE_SKILL_DIR}/scripts/npc_rename.py --campaign <current> --old "..." --new "..." [flags]`. Use the currently loaded campaign by default; for explicit-campaign use, pass `--campaign <name>` directly.
@@ -594,20 +594,20 @@ The script always backs up the campaign to `<name>.backup-rename-<old-slug>-YYYY
 
 After rename, the name registry is updated: old name marked `retired_from` this campaign with `replaced_by` pointing at the new slug; new name added with this campaign's current session as `first_session`.
 
-## `/dnd registry <subcommand>`
-View and manage the cross-campaign name registry at `~/.claude/dnd/.name_registry.json`. Used by `/dnd npc rename --random` to never reuse a name and (in a follow-up) by `/dnd new` / `/dnd character new` / `/dnd npc <new>` to flag duplicates at creation time.
+## `/dm:dnd registry <subcommand>`
+View and manage the cross-campaign name registry at `~/.claude/dnd/.name_registry.json`. Used by `/dm:dnd npc rename --random` to never reuse a name and (in a follow-up) by `/dm:dnd new` / `/dm:dnd character new` / `/dm:dnd npc <new>` to flag duplicates at creation time.
 
 Maps to: `python3 ${CLAUDE_SKILL_DIR}/scripts/name_registry.py <subcommand> [args]`.
 
-- `/dnd registry rebuild [--include-prose]` — scan every campaign's `npcs.md`, `npcs-full.md`, `characters/*.md`, and `graph.json` (node names); rebuild the registry from canonical sources. Preserves any existing `retired_from` history. Run once on install, then ad hoc when desired.
+- `/dm:dnd registry rebuild [--include-prose]` — scan every campaign's `npcs.md`, `npcs-full.md`, `characters/*.md`, and `graph.json` (node names); rebuild the registry from canonical sources. Preserves any existing `retired_from` history. Run once on install, then ad hoc when desired.
 
-  **`--include-prose` (added 2026-05-07, opt-in):** also scan `session-log.md` and `session-log-archive.md` for capitalized 2–3-word sequences (likely-name patterns). Filtered against a stopword list (places, factions, mechanic words like "Ben Stealth", sentence starts) but **regex-based extraction is inherently noisy** — typically 5–15× more entries than canonical, with maybe 10–20% real catches. Tagged `source: prose` to distinguish; query with `/dnd registry list --source prose` to manually review and prune. For high-quality prose extraction, the future move is LLM-backed (similar to `/dnd graph extract`).
+  **`--include-prose` (added 2026-05-07, opt-in):** also scan `session-log.md` and `session-log-archive.md` for capitalized 2–3-word sequences (likely-name patterns). Filtered against a stopword list (places, factions, mechanic words like "Ben Stealth", sentence starts) but **regex-based extraction is inherently noisy** — typically 5–15× more entries than canonical, with maybe 10–20% real catches. Tagged `source: prose` to distinguish; query with `/dm:dnd registry list --source prose` to manually review and prune. For high-quality prose extraction, the future move is LLM-backed (similar to `/dm:dnd graph extract`).
 
-- `/dnd registry list [--campaign C] [--type npc|pc] [--source canonical|prose]` — print all registry entries; filter by campaign-currently-active, type, or source.
-- `/dnd registry lookup <name>` — case-insensitive lookup; prints the full entry as JSON.
-- `/dnd registry check <name> [--json]` — check whether a proposed name collides with the registry. Exit 0 if unique, 1 if duplicate. Severity (`warn` default, `strict` opt-in via `<DND_CAMPAIGN_ROOT>/.name_registry_config.json`) controls whether duplicates are reported as warnings or hard refusals. Used by `/dnd new`, `/dnd character new`, `/dnd npc <new>` procedures.
-- `/dnd registry add --name N --type npc|pc --campaign C --session N` — record a new entry manually (auto-called by `/dnd npc rename` and the creation-time uniqueness hooks).
-- `/dnd registry retire --name N --campaign C [--replaced-by NEW]` — mark a name as no longer active in a campaign (auto-called by `/dnd npc rename`).
+- `/dm:dnd registry list [--campaign C] [--type npc|pc] [--source canonical|prose]` — print all registry entries; filter by campaign-currently-active, type, or source.
+- `/dm:dnd registry lookup <name>` — case-insensitive lookup; prints the full entry as JSON.
+- `/dm:dnd registry check <name> [--json]` — check whether a proposed name collides with the registry. Exit 0 if unique, 1 if duplicate. Severity (`warn` default, `strict` opt-in via `<DND_CAMPAIGN_ROOT>/.name_registry_config.json`) controls whether duplicates are reported as warnings or hard refusals. Used by `/dm:dnd new`, `/dm:dnd character new`, `/dm:dnd npc <new>` procedures.
+- `/dm:dnd registry add --name N --type npc|pc --campaign C --session N` — record a new entry manually (auto-called by `/dm:dnd npc rename` and the creation-time uniqueness hooks).
+- `/dm:dnd registry retire --name N --campaign C [--replaced-by NEW]` — mark a name as no longer active in a campaign (auto-called by `/dm:dnd npc rename`).
 
 The registry by default captures **canonical** characters (those in `npcs.md` / `npcs-full.md` / `characters/` / graph.json node names). Names that appear only in session-log prose (one-off mentions, throwaway NPCs, skill-check labels) are NOT registered by default — that's deliberate, to avoid banning common names because of incidental use. The `--include-prose` flag is opt-in for users who want the broader (noisier) view.
 
@@ -615,17 +615,17 @@ The registry by default captures **canonical** characters (those in `npcs.md` / 
 
 ---
 
-## `/dnd characters`
+## `/dm:dnd characters`
 List all characters in global roster (`~/.claude/dnd/characters/`). Display: name, race/class/level, origin campaign, previous campaigns, last updated.
 
 ---
 
-## `/dnd roll <notation>`
+## `/dm:dnd roll <notation>`
 Run `scripts/dice.py <notation>`. Display output verbatim. Examples: `d20`, `2d6+3`, `d20 adv`, `4d6kh3`.
 
 ---
 
-## `/dnd combat start`
+## `/dm:dnd combat start`
 1. Identify combatants; collect name, DEX mod, HP, AC, type (pc/npc) for each.
 2. Run `combat.py init '<JSON>'` — auto-roll initiative for every combatant including PCs. Display tracker and per-combatant roll breakdown.
 3. Send initiative to display:
@@ -659,7 +659,7 @@ DNDEND
 
 ---
 
-## `/dnd rest <short|long>`
+## `/dm:dnd rest <short|long>`
 **Short (1 hour):**
 1. Ask how many Hit Dice the player spends. Roll `d[hit-die] + CON mod` per die via `dice.py`. Update HP, push `push_stats.py --player NAME --hp`.
 2. Note class features that recharge (e.g. Second Wind → `push_stats.py --player NAME --second-wind true`).
@@ -675,30 +675,30 @@ DNDEND
 
 ---
 
-## `/dnd recap`
+## `/dm:dnd recap`
 Read session-log.md. Deliver 3–5 sentence in-character narrator recap of the most recent session entry.
 
-## `/dnd world`
+## `/dm:dnd world`
 Read and display world.md.
 
-## `/dnd quests`
+## `/dm:dnd quests`
 Read `state.md` → display Active Quests and Open Threads sections.
 
 ---
 
-## `/dnd arc [status|advance|revise|view]`
+## `/dm:dnd arc [status|advance|revise|view]`
 
 Manage the dynamic campaign arc. Active only when `state.md → ## Campaign Arc` has `type: dynamic` — no-op for sandbox and structured campaigns.
 
-- **`/dnd arc`** or **`/dnd arc status`** — print current act, current beat label, `what_changes` for the current beat, and `steering_notes`. Quick reference, one screen.
-- **`/dnd arc advance [beat-id]`** — mark the named beat complete (current beat if omitted). Remove from `outstanding_beats`. Advance `current_beat` to the next pending beat. If all beats in an act are complete, advance `current_act`. Update `steering_notes` to describe how to reach the newly current beat without forcing it.
+- **`/dm:dnd arc`** or **`/dm:dnd arc status`** — print current act, current beat label, `what_changes` for the current beat, and `steering_notes`. Quick reference, one screen.
+- **`/dm:dnd arc advance [beat-id]`** — mark the named beat complete (current beat if omitted). Remove from `outstanding_beats`. Advance `current_beat` to the next pending beat. If all beats in an act are complete, advance `current_act`. Update `steering_notes` to describe how to reach the newly current beat without forcing it.
 
   **When the final beat (3b) is marked complete — arc continuation:**
   `outstanding_beats` is now empty. Ask: *"The arc is complete. Continue the campaign with a new arc? [y/n]"*
-  - **Yes** → run `/dnd arc new` (see below).
+  - **Yes** → run `/dm:dnd arc new` (see below).
   - **No** → set `type: sandbox` and clear `outstanding_beats`. The campaign continues open-ended from the resolution state.
 
-- **`/dnd arc new`** — generate a new arc for a campaign that has completed its previous arc. Use Opus for this step.
+- **`/dm:dnd arc new`** — generate a new arc for a campaign that has completed its previous arc. Use Opus for this step.
 
   The new arc must be **intentionally distinct** — not a continuation of the same conflict, but a new chapter that grows from the changed world. The resolution of arc N is the status quo of arc N+1.
 
@@ -712,78 +712,78 @@ Manage the dynamic campaign arc. Active only when `state.md → ## Campaign Arc`
   7. Append to `revision_log`: `"<date>: Arc N complete. New arc N+1 generated. [one-line premise of the new arc]"`
   8. Deliver a one-paragraph summary of the new arc's premise and how it differs from the previous one.
 
-- **`/dnd arc view`** — show full arc: theme, resolution, all acts and beats with completion status (current / complete / pending). If `## Arc History` exists, show a one-line summary of each completed arc above the current one.
-- **`/dnd arc revise`** — open revision flow for when the story has taken a major unexpected turn OR when the auto-trigger from /dnd end's pre-emption check fires (most common case):
+- **`/dm:dnd arc view`** — show full arc: theme, resolution, all acts and beats with completion status (current / complete / pending). If `## Arc History` exists, show a one-line summary of each completed arc above the current one.
+- **`/dm:dnd arc revise`** — open revision flow for when the story has taken a major unexpected turn OR when the auto-trigger from /dm:dnd end's pre-emption check fires (most common case):
   1. Show all outstanding beats with their current `what_changes` and `world_pressure`.
   2. Ask: *"What's changed in the story that the arc doesn't reflect?"* — or, when auto-triggered by pre-emption, name the pre-empted beat directly: *"Beat 2b's pressure delivered but the consequence didn't land. Picking a revision path…"*
   3. **Apply one of three landing-path templates** (per SKILL.md rule 8) to the affected outstanding beat:
      - **Cost path** — `what_changes` becomes "the party paid a concrete cost for moving fast"; `world_pressure` becomes the specific cost (cover blown, ally compromised, position lost). Best when the party pre-empted cleanly.
      - **Secondary consequence path** — `what_changes` becomes "the world responded to being pre-empted in a way the party didn't anticipate"; `world_pressure` becomes the new escalation (the antagonist reads the disruption as a signal and does something WORSE). Best when the antagonist is intelligent and adaptive.
      - **Deferred path** — keep the original `what_changes` shape; rewrite `world_pressure` to a NEW pressure pointing at the same consequence, scheduled for the next 1–2 sessions. Best when the original consequence is still narratively essential and only the timing slipped.
-  4. Rewrite `what_changes` (consequence-shaped per the rule in /dnd new step 12) and `world_pressure` (event-shaped is fine) for the affected beat. Do NOT modify completed beats.
+  4. Rewrite `what_changes` (consequence-shaped per the rule in /dm:dnd new step 12) and `world_pressure` (event-shaped is fine) for the affected beat. Do NOT modify completed beats.
   5. Append to `revision_log`: `"<date>: <beat-id> — <path: cost/secondary/deferred> — <what changed and why — one sentence>"`
   6. Update `steering_notes` to describe the next session's expected delivery.
   7. Confirm what was revised. Show before/after for `what_changes` and `world_pressure`.
 
 ---
 
-## `/dnd graph <subcommand>` — campaign relationship graph
+## `/dm:dnd graph <subcommand>` — campaign relationship graph
 
 Local-only typed-edge relationship graph supplementing markdown. Stored at `~/.claude/dnd/campaigns/<name>/graph.json`. Supplements `npcs-full.md` / `session-log.md` — does not replace them. Edges are time-stamped (`since_session` / `until_session`), so historical state is recoverable.
 
-**Auto-pulled at `/dnd load` step 5** (scene-context) and **swept at `/dnd save`** (relationship-shift extraction). The DM also uses `/dnd graph scene-context` on demand mid-session, especially before heavy social or political scenes.
+**Auto-pulled at `/dm:dnd load` step 5** (scene-context) and **swept at `/dm:dnd save`** (relationship-shift extraction). The DM also uses `/dm:dnd graph scene-context` on demand mid-session, especially before heavy social or political scenes.
 
 For background reading on the design and the A/B replay study that motivated it, see `docs/research/graph/`.
 
 All subcommands invoke `python3 ${CLAUDE_SKILL_DIR}/scripts/campaign_graph.py <subcommand> --campaign <name> [args]`.
 
-### `/dnd graph init [campaign-name]`
+### `/dm:dnd graph init [campaign-name]`
 First-time bootstrap. Read existing `npcs.md` / `world.md` / `state.md` for the campaign. Propose a node list (NPCs as `npc_*`, factions as `faction_*`, key locations as `place_*`) and a starter edge list (faction membership from npcs.md tables, NPC location from "Lives in / Based at" fields, faction relationships from world.md). Display the proposed list to the DM and **ask for approval** before writing — do not silently extract. After approval, run `add-node` and `add-edge` for each. Use `--since` matching state.md's current session count.
 
-For existing campaigns being initialized for the first time, the `/dnd load` flow offers to back the campaign directory up first; honour that flow rather than running init from a cold prompt.
+For existing campaigns being initialized for the first time, the `/dm:dnd load` flow offers to back the campaign directory up first; honour that flow rather than running init from a cold prompt.
 
-### `/dnd graph add-node --type T --name N [--tags ...] [--summary ...]`
+### `/dm:dnd graph add-node --type T --name N [--tags ...] [--summary ...]`
 Add a single node. Type is open vocab; suggested: `npc`, `faction`, `place`, `item`, `thread`. Default id is `<type>_<name-slug>`.
 
-### `/dnd graph add-edge --from <id> --to <id> --type T [--since N] [--note ...]`
+### `/dm:dnd graph add-edge --from <id> --to <id> --type T [--since N] [--note ...]`
 Add a typed edge between two existing nodes. Edge type is open vocab; common: `loyal_to`, `opposes`, `allied_with`, `member_of`, `lives_in`, `controls`, `knows_about`, `friends_with`, `lover_of`, `owes`, `rules`, `related_by_blood`, `advances_thread`, `blocks_thread`. Always supply `--since` (the current session number from state.md) so historical replay works.
 
-### `/dnd graph close-edge --id <edge-id> --at-session N`
+### `/dm:dnd graph close-edge --id <edge-id> --at-session N`
 Mark an edge as ended at session N (e.g. when an alliance breaks). Original edge is preserved with `until_session` set; it remains visible in historical queries but is excluded from "active at session ≥ N" results.
 
-### `/dnd graph list [--type T] [--at-session N]`
+### `/dm:dnd graph list [--type T] [--at-session N]`
 Print a compact node table grouped by type. With `--at-session`, also reports active edge count at that session.
 
-### `/dnd graph show --id <node-id>`
+### `/dm:dnd graph show --id <node-id>`
 Print one node with all incoming and outgoing edges.
 
-### `/dnd graph scene-context --place <id> [--present id1,id2] [--threads id1,id2] [--hops H] [--at-session N]`
+### `/dm:dnd graph scene-context --place <id> [--present id1,id2] [--threads id1,id2] [--hops H] [--at-session N]`
 **Primary query for in-session use.** Returns a focused subgraph from the current scene (place + present NPCs + active threads) bounded by hop count, optionally filtered to edges active at a given session. Output is grouped: nodes by type, then a relationships block. Default `--hops 2`. Use this when you need to recall who-relates-to-whom in the current scene without re-reading `npcs-full.md` or session-log archives.
 
-### `/dnd graph subgraph --seed <id> [--seed <id>] [--hops H] [--at-session N]`
+### `/dm:dnd graph subgraph --seed <id> [--seed <id>] [--hops H] [--at-session N]`
 Lower-level traversal — same as `scene-context` but with arbitrary seed nodes. Use when the scene framing doesn't fit (e.g. tracing faction politics independent of any specific place).
 
-### `/dnd graph extract [campaign-name] [--last-session-only]`
+### `/dm:dnd graph extract [campaign-name] [--last-session-only]`
 Run a Haiku pass over the campaign's session-log to propose new edges with verbatim source-anchors. Outputs a proposal JSON to `~/.claude/dnd/campaigns/<name>/graph-proposals-<date>.json` for human review. Does **not** write to graph.json — that's the apply step.
 
-### `/dnd graph extract-apply --proposals <file> [--pick N1,N2,...]`
+### `/dm:dnd graph extract-apply --proposals <file> [--pick N1,N2,...]`
 Apply previously-extracted proposals. Without `--pick`, prompts interactively. With `--pick`, applies only the listed proposal indices.
 
 ### Suggested DM workflow
 
-1. **First session after install:** `/dnd load` will offer to initialize the graph (with a backup-first prompt). Accept; review the proposed seed; approve.
-2. **During session:** when a relationship shifts in narration, run `/dnd graph add-edge` (or `close-edge`) with `--since` set to the current session number. Don't batch this — record at the moment of the narrative change so you don't forget.
-3. **Before a heavy social/political scene:** run `/dnd graph scene-context --place <current-place> --present <key-NPCs>` to refresh which relationships matter right now.
-4. **At `/dnd save`:** review the session log and add any edges you missed during play (the save flow runs an automatic sweep and presents proposals for approval).
+1. **First session after install:** `/dm:dnd load` will offer to initialize the graph (with a backup-first prompt). Accept; review the proposed seed; approve.
+2. **During session:** when a relationship shifts in narration, run `/dm:dnd graph add-edge` (or `close-edge`) with `--since` set to the current session number. Don't batch this — record at the moment of the narrative change so you don't forget.
+3. **Before a heavy social/political scene:** run `/dm:dnd graph scene-context --place <current-place> --present <key-NPCs>` to refresh which relationships matter right now.
+4. **At `/dm:dnd save`:** review the session log and add any edges you missed during play (the save flow runs an automatic sweep and presents proposals for approval).
 
 ---
 
-## `/dnd tutor on` / `/dnd tutor off`
-Toggle tutor/learning mode. Write `tutor_mode: true/false` to `state.md` under `## Session Flags`. Session-scoped — does not persist to next `/dnd load` unless explicitly set again. (Full tutor mode behavior is in SKILL.md.)
+## `/dm:dnd tutor on` / `/dm:dnd tutor off`
+Toggle tutor/learning mode. Write `tutor_mode: true/false` to `state.md` under `## Session Flags`. Session-scoped — does not persist to next `/dm:dnd load` unless explicitly set again. (Full tutor mode behavior is in SKILL.md.)
 
 ---
 
-## `/dnd autorun on` / `/dnd autorun off`
+## `/dm:dnd autorun on` / `/dm:dnd autorun off`
 
 Toggle autorun (taxi) mode — Claude drives the turn loop automatically when players submit via the display companion. No PTY wrapper required.
 
@@ -794,7 +794,7 @@ Toggle autorun (taxi) mode — Claude drives the turn loop automatically when pl
    - Tell the DM: *"Added Bash to permissions.allow in ~/.claude/settings.json — autorun won't prompt for each wait. Restart this session for it to take effect if it doesn't immediately."*
    - If it was already present, skip silently.
 3. Confirm to the DM: *"Autorun enabled. Players submit via the display; I'll pick up each action automatically. Send me a message at any time to take control of a turn."*
-4. If the user specified an interval (e.g. `/dnd autorun on 45`), write `autorun_interval: 45` to `state.md → ## Session Flags`. Default is 60 if omitted.
+4. If the user specified an interval (e.g. `/dm:dnd autorun on 45`), write `autorun_interval: 45` to `state.md → ## Session Flags`. Default is 60 if omitted.
 5. Immediately enter the autorun wait (see SKILL.md for the Bash block). If there's already something in `.input_queue`, pick it up as the current turn's player action.
 
 The display shows a pie-clock countdown draining from full to empty over the interval. Green pulse = actively waiting. Configurable via `autorun_interval: N` in state.md (default 60 seconds).
@@ -804,10 +804,10 @@ The display shows a pie-clock countdown draining from full to empty over the int
 2. Confirm: *"Autorun disabled. Back to manual mode — press Enter or tell me to submit when players are ready."*
 3. Do NOT start the autorun wait after this response.
 
-**Check on `/dnd load`:** If `autorun: true` is present in state.md, tell the DM autorun is active and begin the wait loop after the recap paragraph.
+**Check on `/dm:dnd load`:** If `autorun: true` is present in state.md, tell the DM autorun is active and begin the wait loop after the recap paragraph.
 
 **When NOT to run the autorun wait (even if flag is set):**
 - Mid-combat, resolving a specific combatant's turn
 - Waiting on a player dice roll result
 - The DM just sent a message (they're driving this turn)
-- During `/dnd save`, `/dnd end`, or any command response
+- During `/dm:dnd save`, `/dm:dnd end`, or any command response

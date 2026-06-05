@@ -3,7 +3,7 @@
 > **Ruleset:** D&D 5e — **2014 (SRD 5.1)** by default; **2024 (SRD 5.2)** opt-in per campaign. Choose at `/dnd new` time; legacy campaigns are auto-prompted to migrate (with backup) on first load. See the [Ruleset section](#ruleset) for mechanic differences and dataset details.
 
 <div align="center">
-  <img src="display/icons/logo_primary_fullcolor.png" width="280" alt="D20 Neural Core">
+  <img src="skills/dnd/display/icons/logo_primary_fullcolor.png" width="280" alt="D20 Neural Core">
 </div>
 
 > Claude runs the game. You play. The TV shows the story. Your phone is your controller.
@@ -53,29 +53,29 @@ If you're on Claude Code, you're in the right place.
 
 ## Features
 
-- <img src="display/icons/scroll.png" height="18"> **Persistent campaigns** — state, NPCs, quests, and characters survive across sessions in plain markdown files
-- <img src="display/icons/dragon.png" height="18"> **Two campaign modes** — improvised (Claude generates world + dynamic arc) or structured (import pre-written material and enforce its beats)
-- <img src="display/icons/crystal_ball.png" height="18"> **Dynamic narrative arc** — auto-generated at `/dnd new` from the world's threat, factions, and setting; three acts, six beats defined by consequence not event; arc tracked across sessions, revised when players redirect the story, continued into a new arc when complete
-- <img src="display/icons/spellbook.png" height="18"> **Campaign relationship graph** — typed-edge graph alongside the markdown campaign files, with verbatim source-anchors on every edge; `scene-context` query auto-pulled at `/dnd load` to surface who-knows-whom in the current scene without re-reading full NPC files; designed to hold long-session continuity when context compaction strips files out of scope. Background research and the A/B replay study that motivated it: [`docs/research/graph/`](docs/research/graph/)
-- <img src="display/icons/pack.png" height="18"> **Campaign import** — `/dnd import` accepts PDF, markdown, DOCX, or plain text; extracts structure type, acts, chapters, key beats, telegraph scenes, NPCs, factions, and quest hooks; builds all campaign files automatically
-- <img src="display/icons/helmet.png" height="18"> **Portable characters** — bring your character into any campaign; level up, grow your stat tree, and carry your inventory and loot — or start fresh each time
-- <img src="display/icons/attack.png" height="18"> **Full D&D 5e mechanics** — initiative, attacks, saving throws, spell slots, XP, levelling up, short/long rests
-- <img src="display/icons/chat.png" height="18"> **Atmospheric DM** — dark fantasy tone, distinct NPC voices, hidden rolls, a world that reacts to choices
-- <img src="display/icons/crystal_ball.png" height="18"> **Cinematic display companion** — typewriter narration on your TV, scene-reactive backgrounds, dynamic sky canvas, live party sidebar; cast, mirror, or open on any screen on your network
-- <img src="display/icons/location.png" height="18"> **Dynamic sky canvas** — sun arc, moon, twinkling stars, and cloud density rendered in real time from world time data; transitions with time of day and weather
-- <img src="display/icons/focus.png" height="18"> **Player input from the companion UI** — players submit actions from phone/tablet; Claude picks them up automatically in autorun mode
-- <img src="display/icons/timer.png" height="18"> **Autorun / taxi mode** — Claude drives the turn loop without DM input; a pie countdown shows the next auto-fire window
-- <img src="display/icons/shield.png" height="18"> **LAN party support** — serve the companion over your local network; every device in the room sees the same display
-- <img src="display/icons/shield.png" height="18"> **TLS / HTTPS** — self-signed cert generation included; required for full browser feature support over LAN
-- <img src="display/icons/location.png" height="18"> **17 scene types** — auto-detected from narration keywords — tavern, dungeon, ocean, crypt, arcane, glacier, and more
-- <img src="display/icons/spellbook.png" height="18"> **Clickable character sheets** — tap any sidebar card to open a full character sheet modal (attacks, features, inventory); works on phones and tablets via LAN
-- <img src="display/icons/spellbook.png" height="18"> **SRD spell/feature lookup** — click any spell or feature name in a character sheet to view its full description; bundled 5e dataset with supplemental entries for non-SRD content (Xanathar's, Tasha's, subclass features); wikidot fallback link shown for anything not in the local data
-- <img src="display/icons/crystal_ball.png" height="18"> **DM Help button** — click the ◈ button on the display for an on-demand contextual hint or warning; generated from the current scene without per-turn token overhead
-- <img src="display/icons/potion.png" height="18"> **Tutor / learning mode** — enable per-session for automatic hint blocks after every scene, decision point, and roll; ideal for players new to D&D
-- <img src="display/icons/focus.png" height="18"> **Browser-side sound effects** — 12 SFX types synthesized on demand via numpy and played through Web Audio API; works on any device with the tab open, including phones over LAN
-- <img src="display/icons/dragon.png" height="18"> **Couch co-op** — multiple characters, shared display, turn order visible to everyone in the room
-- <img src="display/icons/attack.png" height="18"> **Combat tracker** — auto-rolled initiative, `▶` turn pointer, HP bars, inline dice math sent to display
-- <img src="display/icons/dagger.png" height="18"> **Helper scripts** — dice rolling, ability scores, combat, character stat derivation, conditions/tracker, calendar, SRD data sync, SRD lookup, supplemental data builder
+- <img src="skills/dnd/display/icons/scroll.png" height="18"> **Persistent campaigns** — state, NPCs, quests, and characters survive across sessions in plain markdown files
+- <img src="skills/dnd/display/icons/dragon.png" height="18"> **Two campaign modes** — improvised (Claude generates world + dynamic arc) or structured (import pre-written material and enforce its beats)
+- <img src="skills/dnd/display/icons/crystal_ball.png" height="18"> **Dynamic narrative arc** — auto-generated at `/dnd new` from the world's threat, factions, and setting; three acts, six beats defined by consequence not event; arc tracked across sessions, revised when players redirect the story, continued into a new arc when complete
+- <img src="skills/dnd/display/icons/spellbook.png" height="18"> **Campaign relationship graph** — typed-edge graph alongside the markdown campaign files, with verbatim source-anchors on every edge; `scene-context` query auto-pulled at `/dnd load` to surface who-knows-whom in the current scene without re-reading full NPC files; designed to hold long-session continuity when context compaction strips files out of scope. Background research and the A/B replay study that motivated it: [`docs/research/graph/`](docs/research/graph/)
+- <img src="skills/dnd/display/icons/pack.png" height="18"> **Campaign import** — `/dnd import` accepts PDF, markdown, DOCX, or plain text; extracts structure type, acts, chapters, key beats, telegraph scenes, NPCs, factions, and quest hooks; builds all campaign files automatically
+- <img src="skills/dnd/display/icons/helmet.png" height="18"> **Portable characters** — bring your character into any campaign; level up, grow your stat tree, and carry your inventory and loot — or start fresh each time
+- <img src="skills/dnd/display/icons/attack.png" height="18"> **Full D&D 5e mechanics** — initiative, attacks, saving throws, spell slots, XP, levelling up, short/long rests
+- <img src="skills/dnd/display/icons/chat.png" height="18"> **Atmospheric DM** — dark fantasy tone, distinct NPC voices, hidden rolls, a world that reacts to choices
+- <img src="skills/dnd/display/icons/crystal_ball.png" height="18"> **Cinematic display companion** — typewriter narration on your TV, scene-reactive backgrounds, dynamic sky canvas, live party sidebar; cast, mirror, or open on any screen on your network
+- <img src="skills/dnd/display/icons/location.png" height="18"> **Dynamic sky canvas** — sun arc, moon, twinkling stars, and cloud density rendered in real time from world time data; transitions with time of day and weather
+- <img src="skills/dnd/display/icons/focus.png" height="18"> **Player input from the companion UI** — players submit actions from phone/tablet; Claude picks them up automatically in autorun mode
+- <img src="skills/dnd/display/icons/timer.png" height="18"> **Autorun / taxi mode** — Claude drives the turn loop without DM input; a pie countdown shows the next auto-fire window
+- <img src="skills/dnd/display/icons/shield.png" height="18"> **LAN party support** — serve the companion over your local network; every device in the room sees the same display
+- <img src="skills/dnd/display/icons/shield.png" height="18"> **TLS / HTTPS** — self-signed cert generation included; required for full browser feature support over LAN
+- <img src="skills/dnd/display/icons/location.png" height="18"> **17 scene types** — auto-detected from narration keywords — tavern, dungeon, ocean, crypt, arcane, glacier, and more
+- <img src="skills/dnd/display/icons/spellbook.png" height="18"> **Clickable character sheets** — tap any sidebar card to open a full character sheet modal (attacks, features, inventory); works on phones and tablets via LAN
+- <img src="skills/dnd/display/icons/spellbook.png" height="18"> **SRD spell/feature lookup** — click any spell or feature name in a character sheet to view its full description; bundled 5e dataset with supplemental entries for non-SRD content (Xanathar's, Tasha's, subclass features); wikidot fallback link shown for anything not in the local data
+- <img src="skills/dnd/display/icons/crystal_ball.png" height="18"> **DM Help button** — click the ◈ button on the display for an on-demand contextual hint or warning; generated from the current scene without per-turn token overhead
+- <img src="skills/dnd/display/icons/potion.png" height="18"> **Tutor / learning mode** — enable per-session for automatic hint blocks after every scene, decision point, and roll; ideal for players new to D&D
+- <img src="skills/dnd/display/icons/focus.png" height="18"> **Browser-side sound effects** — 12 SFX types synthesized on demand via numpy and played through Web Audio API; works on any device with the tab open, including phones over LAN
+- <img src="skills/dnd/display/icons/dragon.png" height="18"> **Couch co-op** — multiple characters, shared display, turn order visible to everyone in the room
+- <img src="skills/dnd/display/icons/attack.png" height="18"> **Combat tracker** — auto-rolled initiative, `▶` turn pointer, HP bars, inline dice math sent to display
+- <img src="skills/dnd/display/icons/dagger.png" height="18"> **Helper scripts** — dice rolling, ability scores, combat, character stat derivation, conditions/tracker, calendar, SRD data sync, SRD lookup, supplemental data builder
 
 ---
 

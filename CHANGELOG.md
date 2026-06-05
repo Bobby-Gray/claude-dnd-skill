@@ -2,13 +2,19 @@
 
 All notable changes to the D&D 5e DM skill are documented here. The skill follows [semantic versioning](https://semver.org/) — `MAJOR.MINOR.PATCH` where MAJOR breaks an existing campaign or workflow, MINOR adds significant new capability, and PATCH fixes bugs without changing behavior.
 
-The current installed version is recorded in the `VERSION` file at the repo root. Run `/dnd update --check` to compare your local copy against `origin/main`.
+The current installed version is recorded in the `VERSION` file at the repo root. Run `/dm:dnd update --check` to compare your local copy against `origin/main`.
 
 Versions before **1.6.0** are reconstructed retroactively from git history; the dates reflect the commit each version is anchored on. Going forward, every release lands in the same commit as a `VERSION` bump and a CHANGELOG entry.
 
 ---
 
 ## [Unreleased]
+
+## [2.0.1] — 2026-06-05 — Doc fixes — README images, /dnd → /dm:dnd command refs
+
+- **README image paths fixed.** Top-level README references to `display/icons/*.png` now correctly point at `skills/dnd/display/icons/*.png` (the restructure in v2.0.0 moved the assets but didn't update the README). The repo page on GitHub now renders the logo and feature-bullet icons correctly.
+- **Stale `/dnd` command references swept to `/dm:dnd`.** `SKILL.md`, `SKILL-commands.md`, and `SKILL-scripts.md` had ~148 internal references to the retired `/dnd` slash command (e.g. `/dnd load`, `/dnd save`). The model loads these as its operating playbook; an instruction to "type `/dnd save`" no longer resolves under the plugin. All command references swept to `/dm:dnd`; path references like `~/.claude/dnd/` and `skills/dnd/` are unaffected.
+- **`update_skill.py` plugin-mode heuristic narrowed.** The path-substring fallback for `CLAUDE_PLUGIN_ROOT`-less subprocesses now matches `.claude/plugins/` specifically, not any path containing `/plugins/`. Prevents a dev tree with a `plugins` directory in the path from false-positively reporting plugin-managed mode.
 
 ## [2.0.0] — 2026-06-04 — Plugin-only · Neural Initiative org · v1→v2 migration
 
