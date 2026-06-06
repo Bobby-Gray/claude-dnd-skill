@@ -3477,6 +3477,10 @@
     <span class="audio-label">Style</span>
     <span id="skin-label" class="theme-label">Vellum</span>
   </div>
+  <div class="audio-row" id="onscreen-dice-row" title="Open the dice roller on this screen when the DM calls for a roll (for games without phones)">
+    <span class="audio-label">Roll on screen</span>
+    <div class="toggle-track" id="osd-track"><div class="toggle-thumb"></div></div>
+  </div>
   <div class="audio-row" id="textsize-row" title="Reading text size — font size, not page zoom">
     <span class="audio-label">Text Size</span>
     <span class="ts-stepper">
@@ -6015,6 +6019,23 @@ async function _playSfx(name) {
   } catch (_) {}
 }
 
+// "Roll on screen" toggle — when on, a DM-prescribed roll auto-opens the Dice
+// drawer on this display (for games with no phones). Persisted per-browser;
+// _onscreenDiceOn() reads the same flag.
+(function _initOnscreenDiceToggle() {
+  const row = document.getElementById('onscreen-dice-row');
+  const track = document.getElementById('osd-track');
+  if (!row || !track) return;
+  let on = false;
+  try { on = localStorage.getItem('dnd-onscreen-dice') === '1'; } catch (_) {}
+  _setTrack(track, on);
+  row.addEventListener('click', () => {
+    on = !on;
+    _setTrack(track, on);
+    try { localStorage.setItem('dnd-onscreen-dice', on ? '1' : '0'); } catch (_) {}
+  });
+})();
+
 document.getElementById('sfx-row').addEventListener('click', () => {
   _sfxOn = !_sfxOn;
   _setTrack(_sfxTrack, _sfxOn);
@@ -6972,7 +6993,12 @@ let evtSource = null;
 let reconnectDelay = 1000;
 
 function connect() {
-  evtSource = new EventSource('/stream');
+  // Announce this client's bound character (phones only) so the server can tell
+  // whether a prescribed roll's target has a live phone (→ route there) or not
+  // (→ open the on-screen roller). The main display passes no character.
+  const _sp = new URLSearchParams(location.search);
+  const _streamChar = (_sp.get('char') || _sp.get('character') || '').trim();
+  evtSource = new EventSource('/stream' + (_streamChar ? ('?character=' + encodeURIComponent(_streamChar)) : ''));
 
   evtSource.onopen = () => {
     reconnectDelay = 1000;
@@ -7160,7 +7186,11 @@ connect();
         const tgt = (req && req.characters && req.characters[0]) || (req && req.character) || '';
         if (_nameEl && tgt && tgt.toLowerCase() !== 'any') _nameEl.value = tgt;
         if (typeof _prefill === 'function') _prefill(req);
-        if (_onscreenDiceOn() && typeof window._edOpenDrawer === 'function') window._edOpenDrawer('dice-drawer');
+        // Open when on-screen rolling is forced on (Settings), OR auto-detected:
+        // the server marks targets with no live phone in onscreen_targets.
+        const noPhone = Array.isArray(req && req.onscreen_targets)
+          && req.onscreen_targets.some(c => String(c).toLowerCase() === String(tgt).toLowerCase());
+        if ((_onscreenDiceOn() || noPhone) && typeof window._edOpenDrawer === 'function') window._edOpenDrawer('dice-drawer');
       };
     }
   }

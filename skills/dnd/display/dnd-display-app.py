@@ -841,6 +841,20 @@ def _detect_scene(text: str) -> Optional[dict]:
 
 _clients: list[queue.Queue] = []
 _clients_lock = threading.Lock()
+# Maps a connected SSE client (queue) → the character it's bound to, if any.
+# Phones connect to /stream?character=<name>; the main display has no character.
+# Lets a dice-request know whether a target PC has a live phone (→ route there)
+# or not (→ open the on-screen roller). Guarded by _clients_lock.
+_client_chars: "dict[queue.Queue, str]" = {}
+
+
+def _phone_present(char: str) -> bool:
+    """True if some connected phone is bound to this character (case-insensitive)."""
+    c = (char or "").strip().lower()
+    if not c:
+        return False
+    with _clients_lock:
+        return c in _client_chars.values()
 
 # ─── Text replay log ──────────────────────────────────────────────────────────
 # Stores the last N cleaned text chunks so late-connecting browsers can catch up.
@@ -1101,6 +1115,7 @@ def _broadcast(payload: dict) -> None:
                 dead.append(q)
         for q in dead:
             _clients.remove(q)
+            _client_chars.pop(q, None)
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -2144,11 +2159,14 @@ def dice_request():
             }
         _broadcast({"dice_pending": _dice_pending_snapshot()})
 
+    # Targets with no live phone bound → the main display should roll on-screen.
+    onscreen_targets = [c for c in chars if c.lower() != "any" and not _phone_present(c)]
     payload = {
         "dice_request": {
             "request_id": request_id,
             "characters": chars,
             "character": chars[0] if len(chars) == 1 else "any",   # legacy single-target field
+            "onscreen_targets": onscreen_targets,
             "spec": spec,
             "modifier": modifier,
             "advantage": adv,
@@ -2489,6 +2507,11 @@ def stream():
     q: queue.Queue = queue.Queue(maxsize=256)
     with _clients_lock:
         _clients.append(q)
+        # Register this client's bound character (phones pass ?character=/?char=);
+        # the main display passes neither. Drives dice-request phone-vs-screen routing.
+        _ch = (request.args.get("character") or request.args.get("char") or "").strip().lower()[:48]
+        if _ch:
+            _client_chars[q] = _ch
 
     # Send the current scene immediately on connect so the browser
     # starts with the right background even mid-session.
@@ -2538,6 +2561,7 @@ def stream():
             "request_id": rid,
             "characters": chars,
             "character": chars[0] if len(chars) == 1 else "any",
+            "onscreen_targets": [c for c in chars if c.lower() != "any" and not _phone_present(c)],
             "spec": meta.get("spec", "1d20"),
             "modifier": meta.get("modifier", 0),
             "advantage": meta.get("advantage", "normal"),
@@ -2573,6 +2597,7 @@ def stream():
                     _clients.remove(q)
                 except ValueError:
                     pass
+                _client_chars.pop(q, None)
 
     resp = Response(
         generate(),
