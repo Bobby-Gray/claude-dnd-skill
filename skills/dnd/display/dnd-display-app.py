@@ -1699,6 +1699,10 @@ def narration_pref():
     directive to queued player input so the DM honors it that turn — no
     separate file read required on the DM side.
     """
+    if not _token_ok():
+        return "Forbidden", 403
+    if not _rate_ok(request.remote_addr or "?"):
+        return "Rate limited", 429
     data = request.get_json(silent=True) or {}
     try:
         n = int(data.get("target_words", 0))
@@ -1724,12 +1728,24 @@ def roll_pref():
     Persisted to runtime roll_prefs.json; check_input.py surfaces each override as a
     [[<Char> roll mode: …]] directive so the DM honors it for that character,
     overriding the campaign-wide roll_mode in state.md.
+
+    The character name is validated against the active party via _char_ok before
+    persistence — otherwise a crafted value could smuggle prompt text into the DM
+    through the [[<Char> roll mode: …]] template that check_input.py emits.
     """
+    if not _token_ok():
+        return "Forbidden", 403
+    if not _rate_ok(request.remote_addr or "?"):
+        return "Rate limited", 429
     data = request.get_json(silent=True) or {}
     char = (data.get("character") or "").strip()
     mode = (data.get("mode") or "").strip().lower()
     if not char or mode not in ("auto", "players"):
         return {"ok": False}, 400
+    with _stats_lock:
+        known = {p["name"] for p in _current_stats.get("players", [])}
+    if not _char_ok(char, known):
+        return "Forbidden", 403
     pref = rt("roll_prefs.json")
     try:
         prefs = {}
