@@ -37,3 +37,6 @@ venv/
 
 # macOS
 .DS_Store
+
+# Playwright MCP scratch output
+.playwright-mcp/

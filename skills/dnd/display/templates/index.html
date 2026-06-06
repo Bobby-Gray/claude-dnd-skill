@@ -24,10 +24,14 @@
         document.documentElement.setAttribute('data-theme', v);
       }
       // 'auto' or missing → leave the attribute off; CSS @media handles it.
-      // Skin axis: "vellum" (default, attr absent) or "editorial" (Colossal redesign).
+      // Skin axis: "vellum" (default, attr absent), "editorial" (Colossal redesign),
+      // or "gaslamp" (editorial structure + a charcoal/amber token/type overlay).
       var sk = window.localStorage.getItem('dnd-skin');
-      if (sk === 'editorial') {
+      if (sk === 'editorial' || sk === 'gaslamp') {
         document.documentElement.setAttribute('data-skin', 'editorial');
+      }
+      if (sk === 'gaslamp') {
+        document.documentElement.setAttribute('data-variant', 'gaslamp');
       }
       // Reading text size — a font-size multiplier (not page zoom). Applied here
       // to avoid a flash at the default size before the picker JS runs.
@@ -45,6 +49,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
 <!-- Editorial skin fonts (Colossal redesign) — loaded always, used only under data-skin="editorial" -->
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+<!-- Gaslamp variant fonts — used only under data-variant="gaslamp" (DM Mono caps + Source Serif body) -->
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="icon" type="image/x-icon"  href="/favicon.ico">
 <link rel="icon" type="image/png" sizes="32x32"  href="/icons/app_icon_32.png">
 <link rel="apple-touch-icon" sizes="180x180"      href="/icons/app_icon_180.png">
@@ -2918,6 +2924,75 @@
       --e-block:#FBF8F0; --e-on-block:#14110C; --e-hair:rgba(20,17,12,.16); --e-track:rgba(20,17,12,.14);
       --e-strong:#14110C; --e-on-strong:#F3EFE4; --e-hair-strong:rgba(243,239,228,.22); --e-track-strong:rgba(243,239,228,.22);
     }
+  }
+
+  /* ════════════════════════════════════════════════════════════════════
+     GASLAMP VARIANT · data-skin="editorial" + data-variant="gaslamp"  (issue #45)
+     A token + type/shape overlay on the editorial bones — it inherits all
+     editorial structure and only swaps palette, type, and corner shape.
+     Monochrome charcoal paper, a single incandescent / sodium-streetlight
+     amber accent, DM Mono caps + Source Serif body, squared corners. Every
+     selector is qualified with [data-variant="gaslamp"] so it outranks the
+     matching editorial rule by specificity (placement-independent — no
+     reliance on source order).
+     ════════════════════════════════════════════════════════════════════ */
+  :root[data-skin="editorial"][data-variant="gaslamp"]{
+    --e-canvas:#161616; --e-ink:#EDEDEB; --e-mut:rgba(237,237,235,.5);
+    --e-accent:#E6D58E; --e-accent-ink:#EEE0A2; --e-dice-text:#1A1206;
+    --e-block:#1E1E1E; --e-on-block:#EDEDEB; --e-hair:rgba(237,237,235,.13); --e-track:rgba(237,237,235,.12);
+    --e-strong:#0E0E0E; --e-on-strong:#EDEDEB; --e-hair-strong:rgba(237,237,235,.12); --e-track-strong:rgba(237,237,235,.12);
+  }
+  :root[data-skin="editorial"][data-variant="gaslamp"][data-theme="light"]{
+    --e-canvas:#F2F2F0; --e-ink:#161616; --e-mut:rgba(22,22,22,.55);
+    --e-accent:#6B560F; --e-accent-ink:#4A3B09; --e-dice-text:#F4EFEC;
+    --e-block:#FAFAF8; --e-on-block:#161616; --e-hair:rgba(22,22,22,.14); --e-track:rgba(22,22,22,.12);
+    --e-strong:#E9E9E7; --e-on-strong:#1A1A1A; --e-hair-strong:rgba(22,22,22,.14); --e-track-strong:rgba(22,22,22,.12);
+  }
+  @media (prefers-color-scheme: light){
+    :root[data-skin="editorial"][data-variant="gaslamp"]:not([data-theme]){
+      --e-canvas:#F2F2F0; --e-ink:#161616; --e-mut:rgba(22,22,22,.55);
+      --e-accent:#6B560F; --e-accent-ink:#4A3B09; --e-dice-text:#F4EFEC;
+      --e-block:#FAFAF8; --e-on-block:#161616; --e-hair:rgba(22,22,22,.14); --e-track:rgba(22,22,22,.12);
+      --e-strong:#E9E9E7; --e-on-strong:#1A1A1A; --e-hair-strong:rgba(22,22,22,.14); --e-track-strong:rgba(22,22,22,.12);
+    }
+  }
+  /* Gaslamp type — DM Mono caps for kickers / names / labels, Source Serif body */
+  :root[data-skin="editorial"][data-variant="gaslamp"] body,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .dm-block p,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .npc-block p,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .player-block p{ font-family:'Source Serif 4',Georgia,serif; }
+  :root[data-skin="editorial"][data-variant="gaslamp"] #scene-indicator,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .npc-name,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .player-name,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .action-tag,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .sb-name,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .sb-label,
+  :root[data-skin="editorial"][data-variant="gaslamp"] #world-clock,
+  :root[data-skin="editorial"][data-variant="gaslamp"] #wc-date,
+  :root[data-skin="editorial"][data-variant="gaslamp"] #wc-sub,
+  :root[data-skin="editorial"][data-variant="gaslamp"] #ruleset-badge{
+    font-family:'DM Mono','SF Mono',ui-monospace,monospace !important; }
+  /* DM Mono is wider than Syne — tighten the editorial kicker's .34em tracking */
+  :root[data-skin="editorial"][data-variant="gaslamp"] #scene-indicator{ letter-spacing:.18em; }
+  :root[data-skin="editorial"][data-variant="gaslamp"] .sb-name{ letter-spacing:.02em; }
+  /* Gaslamp shape — squared corners on editorial's rounded surfaces */
+  :root[data-skin="editorial"][data-variant="gaslamp"] .dice-result,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .sb-bar-track,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .sb-bar-fill,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .npc-block,
+  :root[data-skin="editorial"][data-variant="gaslamp"] .player-block{ border-radius:0 !important; }
+  /* Gaslamp dice — a lamp-lit outline, not a solid slab, so the glow stays sparing */
+  :root[data-skin="editorial"][data-variant="gaslamp"] .dice-result{
+    background:transparent; color:var(--e-accent); border:1px solid var(--e-accent); }
+  /* Gaslamp light — soften the accent rail buttons: parchment fill + bronze label
+     (the solid bronze-olive button reads heavy on light paper; invert fg/bg). */
+  :root[data-skin="editorial"][data-variant="gaslamp"][data-theme="light"] body:not(.input-only) #ed-rail #phone-mode-btn,
+  :root[data-skin="editorial"][data-variant="gaslamp"][data-theme="light"] body:not(.input-only) #ed-rail .ed-launch.active{
+    background:#D6CAA7; color:#68571F; border-color:#68571F; }
+  @media (prefers-color-scheme: light){
+    :root[data-skin="editorial"][data-variant="gaslamp"]:not([data-theme]) body:not(.input-only) #ed-rail #phone-mode-btn,
+    :root[data-skin="editorial"][data-variant="gaslamp"]:not([data-theme]) body:not(.input-only) #ed-rail .ed-launch.active{
+      background:#D6CAA7; color:#68571F; border-color:#68571F; }
   }
 
   /* canvas + retire the vellum chrome */
@@ -6327,22 +6402,27 @@ function _effectiveTheme(theme) {
     refresh();
   });
 
-  // ── Skin picker (Vellum ↔ Editorial) — parallel axis to theme ──
+  // ── Skin picker (Vellum → Editorial → Gaslamp) — parallel axis to theme ──
   (function _initSkinPicker() {
     const srow = document.getElementById('skin-row');
     const slabel = document.getElementById('skin-label');
     if (!srow || !slabel) return;
+    const SKINS = ['vellum', 'editorial', 'gaslamp'];
+    const LABELS = { vellum: 'Vellum', editorial: 'Editorial', gaslamp: 'Gaslamp' };
     let skin = 'vellum';
-    try { if (localStorage.getItem('dnd-skin') === 'editorial') skin = 'editorial'; } catch (_) {}
+    try { const s = localStorage.getItem('dnd-skin'); if (SKINS.includes(s)) skin = s; } catch (_) {}
     function applySkin() {
-      if (skin === 'editorial') document.documentElement.setAttribute('data-skin', 'editorial');
+      // Gaslamp reuses the editorial structure, layering a token/type overlay via data-variant.
+      if (skin === 'editorial' || skin === 'gaslamp') document.documentElement.setAttribute('data-skin', 'editorial');
       else document.documentElement.removeAttribute('data-skin');
-      slabel.textContent = skin === 'editorial' ? 'Editorial' : 'Vellum';
-      slabel.classList.toggle('on', skin === 'editorial');
+      if (skin === 'gaslamp') document.documentElement.setAttribute('data-variant', 'gaslamp');
+      else document.documentElement.removeAttribute('data-variant');
+      slabel.textContent = LABELS[skin];
+      slabel.classList.toggle('on', skin !== 'vellum');
     }
     applySkin();
     srow.addEventListener('click', () => {
-      skin = (skin === 'editorial') ? 'vellum' : 'editorial';
+      skin = SKINS[(SKINS.indexOf(skin) + 1) % SKINS.length];
       try { localStorage.setItem('dnd-skin', skin); } catch (_) {}
       applySkin();
     });
