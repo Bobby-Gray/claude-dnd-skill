@@ -3153,6 +3153,25 @@
     border-left:1px solid var(--e-hair-strong); box-shadow:-2px 0 50px rgba(0,0,0,.4);
     transition:transform .32s cubic-bezier(.4,0,.1,1); }
   :root[data-skin="editorial"] body:not(.input-only) #audio-controls.ed-open{ transform:translateX(0); }
+
+  /* DICE drawer — hosts the relocated phone #dice-pad on the TV view, slides in
+     from the right like the other drawers. Editorial-only (the rail is too). */
+  #dice-drawer{ display:none; }
+  :root[data-skin="editorial"] body:not(.input-only) #dice-drawer{
+    display:flex; position:fixed; top:0; bottom:0; right:0; left:auto; transform:translateX(102%);
+    width:var(--ed-drawer-w); height:100vh; z-index:32; flex-direction:column;
+    background:var(--e-strong); color:var(--e-on-strong);
+    border-left:1px solid var(--e-hair-strong); box-shadow:-2px 0 50px rgba(0,0,0,.4);
+    transition:transform .32s cubic-bezier(.4,0,.1,1); }
+  :root[data-skin="editorial"] body:not(.input-only) #dice-drawer.ed-open{ transform:translateX(0); }
+  :root[data-skin="editorial"] body:not(.input-only) #dice-drawer::before{
+    content:"Dice"; display:block; padding:18px 18px 13px;
+    font-family:'Syne',sans-serif; font-weight:800; font-size:11px; letter-spacing:.28em;
+    text-transform:uppercase; color:var(--e-accent); border-bottom:1px solid var(--e-hair-strong); }
+  /* Show the relocated pad inside the drawer (overrides the base #dice-pad{display:none}). */
+  :root[data-skin="editorial"] body:not(.input-only) #dice-drawer #dice-pad{
+    display:flex !important; flex-direction:column; gap:12px; padding:18px 18px 22px;
+    border-top:0; background:transparent; flex:1 1 auto; overflow-y:auto; }
   :root[data-skin="editorial"] body:not(.input-only) #audio-controls::before{
     content:"Settings"; display:block; padding:18px 18px 13px;
     font-family:'Syne',sans-serif; font-weight:800; font-size:11px; letter-spacing:.28em; color:var(--e-accent);
@@ -3479,10 +3498,18 @@
   <button class="ed-launch" id="ed-launch-input" type="button" data-drawer="input-panel" title="Party input">
     <span class="ed-ic">✎</span><span>Party</span>
   </button>
+  <button class="ed-launch" id="ed-launch-dice" type="button" data-drawer="dice-drawer" title="Dice roller">
+    <span class="ed-ic">⚄</span><span>Dice</span>
+  </button>
   <button class="ed-launch" id="ed-launch-settings" type="button" data-drawer="audio-controls" title="Display settings">
     <span class="ed-ic">⚙</span><span>Settings</span>
   </button>
 </div>
+
+<!-- On-screen dice drawer (no-phones / internal games). The phone #dice-pad is
+     relocated into this drawer on the TV view, so the roller is the same component
+     players use on their phones. Slides in from the right like the other drawers. -->
+<div id="dice-drawer"></div>
 
 <!-- Phone first-screen: pick which character this device controls (shown when input
      view is opened without a ?char= binding, e.g. via the Phone Mode button). -->
@@ -7114,9 +7141,34 @@ connect();
     _refreshPhoneStatus();   // seed the turn-status strip
     // No character bound yet → show the first-screen picker (Phone Mode flow).
     if (!_qp.has('char') && !_qp.has('character')) _initCharSelect();
+  } else {
+    // Main / TV view — host the same phone dice pad in the slide-out "Dice" drawer.
+    // Relocate the real #dice-pad node into the drawer, then init it so the roller
+    // (reel, adv, modifier, prescribed-roll prefill) is identical to the phone.
+    const _dd = document.getElementById('dice-drawer');
+    const _pad = document.getElementById('dice-pad');
+    if (_dd && _pad) {
+      _dd.appendChild(_pad);
+      _initDicePad();   // binds handlers + sets window._onDiceRequest = _applyDiceRequest
+      // Auto-slide the drawer open when the DM prescribes a roll (when enabled).
+      // The shared screen has no character binding, so adopt whoever the DM
+      // prescribed into the name field — that satisfies the pad's target match
+      // and labels the roll correctly.
+      const _prefill = window._onDiceRequest;
+      const _nameEl = _pad.querySelector('#dp-name');
+      window._onDiceRequest = (req) => {
+        const tgt = (req && req.characters && req.characters[0]) || (req && req.character) || '';
+        if (_nameEl && tgt && tgt.toLowerCase() !== 'any') _nameEl.value = tgt;
+        if (typeof _prefill === 'function') _prefill(req);
+        if (_onscreenDiceOn() && typeof window._edOpenDrawer === 'function') window._edOpenDrawer('dice-drawer');
+      };
+    }
   }
   _initModeSwitcher(_inputMode);
 }
+// Should a prescribed roll auto-open the Dice drawer? Settings override flag;
+// no-phone auto-detect is layered on in a follow-up step.
+function _onscreenDiceOn() { try { return localStorage.getItem('dnd-onscreen-dice') === '1'; } catch (_) { return false; } }
 
 // ── Editorial right-rail drawers (TV view) + phone settings popover ──────────
 (function _initEditorialChrome() {
@@ -7140,7 +7192,7 @@ connect();
       '</svg>' +
       '</span> <span class="ed-lbl">Phone</span>';
     const launchers = Array.from(rail.querySelectorAll('.ed-launch'));
-    const drawerIds = ['input-panel', 'audio-controls'];
+    const drawerIds = ['input-panel', 'audio-controls', 'dice-drawer'];
 
     function closeAll() {
       drawerIds.forEach(id => {
@@ -7171,6 +7223,11 @@ connect();
     }));
     scrim.addEventListener('click', closeAll);
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
+    // Let other code (e.g. an incoming DM dice-request) slide a drawer open.
+    window._edOpenDrawer = (id) => {
+      const el = document.getElementById(id);
+      if (el && !el.classList.contains('ed-open')) toggle(id);
+    };
   }
 
   // Phone-only display settings — reuse the hidden Theme / Style pickers so each
