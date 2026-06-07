@@ -10,6 +10,13 @@ Versions before **1.6.0** are reconstructed retroactively from git history; the 
 
 ## [Unreleased]
 
+## [2.1.4] — 2026-06-06 — On-screen dice roller for no-phones games
+
+- **On-screen dice roller for games without phones.** A fifth **Dice** launcher on the editorial rail slides out a drawer hosting the same `#dice-pad` players use on their phones (reel, die grid, advantage, modifier, label, prescribed-roll prefill) — reused 1:1, costs zero screen space when closed. Under `roll_mode: players`, the DM prescribes a roll via `send.py --dice-request … --wait`; the server now tracks which characters have a live phone bound (`/stream?character=`) and routes the roll there if so, or **auto-opens the on-screen drawer** if the target has no phone. A Settings **"Roll on screen"** toggle forces on-screen rolling regardless. Rolls go through the existing `POST /player-input/dice` (server-authoritative, resolves the request, releases the DM's `--wait`). Editorial-skin only; opt-in.
+- **Hardened the v2.1.x preference endpoints.** `/narration-pref` and `/roll-pref` now sit behind the same `_token_ok()` + rate-limit gate as every other write endpoint (they previously accepted any LAN request). `/roll-pref` additionally validates the `character` field with `_char_ok()` — it's templated into a `[[<Char> roll mode: …]]` directive in the DM's prompt, so an unsanitized value was a prompt-injection surface.
+- **Editorial NPC dialogue size reduced.** NPC pull-quotes dropped from `1.5em` to `1.2em` (line-height `1.42`) — the previous 1.5× jump over body text was overlarge and overflowed the reading column. Applies across all editorial-family skins.
+- **Internal hardening.** Defensive `_prefill` guard + dev `console.warn` around the TV-view dice-routing wrap, and unit tests for `_phone_present()` (routing-presence semantics).
+
 ## [2.1.3] — 2026-06-04 — TCC-safe autorun wait
 
 - **Autorun mode no longer breaks under macOS TCC.** The blocking autorun wait was a shell script (`autorun-wait.sh`) whose `echo > .autorun-session` redirect is silently blocked by macOS TCC when the data root lives under `~/Documents` — so autorun/taxi mode failed to drive the turn loop. Replaced with `autorun_wait.py`, a pure-python implementation doing the identical job (session invalidation, `autorun_interval` from `state.md`, waiting-indicator broadcast, 9-minute input-queue poll, `/queue/consumed` POST) using python file I/O, which TCC permits. Output contract is unchanged, so the DM turn loop is identical. The old shell script is retired.
