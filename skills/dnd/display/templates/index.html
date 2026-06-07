@@ -1355,6 +1355,29 @@
     border-color: rgba(220,185,100,0.6);
   }
 
+  /* Style picker — native <select> styled to match the chip aesthetic.
+     Native gives us free accessibility + the iOS picker wheel on phones.
+     Caret is drawn via background-image so it's consistent across browsers
+     (Firefox / Safari / Chrome all hide the default arrow differently). */
+  .theme-select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding-right: 16px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%23dcb964'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    background-size: 7px 5px;
+  }
+  .theme-select::-ms-expand { display: none; }
+  /* Option list — falls back to OS native styling on most browsers but
+     these rules apply where they take (Firefox, some Chromium versions). */
+  .theme-select option {
+    background: rgba(20, 14, 8, 0.95);
+    color: rgba(220, 185, 100, 0.92);
+    font-family: 'Cinzel', serif;
+  }
+
   /* ── TTS per-block bar ──
      Hidden until block is fully flushed (set by flushNewBlock).
      Dim at rest; bright on parent-block hover or focus-within. */
@@ -3341,6 +3364,20 @@
   .ph-set-opt:last-child{ border-bottom:0; }
   .ph-set-opt strong{ color:#FF7A2D; font-weight:800; font-size:12px; }
   .ph-set-opt:active{ background:rgba(255,255,255,.06); }
+  /* Phone-side <select> chip — matches the strong-text color of the cycle
+     buttons it replaces, surfaces the native iOS picker wheel on tap. */
+  .ph-set-row{ cursor:default; }
+  .ph-set-select{
+    -webkit-appearance:none; -moz-appearance:none; appearance:none;
+    background:transparent; border:0;
+    color:#FF7A2D; font-family:'Syne',sans-serif; font-weight:800; font-size:12px;
+    letter-spacing:.06em; text-transform:uppercase;
+    padding:2px 14px 2px 4px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%23FF7A2D'/></svg>");
+    background-repeat:no-repeat; background-position:right 0 center; background-size:7px 5px;
+  }
+  .ph-set-select::-ms-expand{ display:none; }
+  .ph-set-select option{ background:rgba(20,18,18,.98); color:#CFC7B5; font-family:'Syne',sans-serif; }
 
   /* ══ Phone character-select first screen (#char-select) — theme-aware via
         editorial vars with dark fallbacks (works in Vellum too) ══ */
@@ -3473,9 +3510,12 @@
     <span class="audio-label">Theme</span>
     <span id="theme-label" class="theme-label">Dark</span>
   </div>
-  <div class="audio-row" id="skin-row" title="Display style — Vellum (classic) / Editorial (new)">
+  <div class="audio-row" id="skin-row" title="Display style">
     <span class="audio-label">Style</span>
-    <span id="skin-label" class="theme-label">Vellum</span>
+    <select id="skin-select" class="theme-label theme-select" aria-label="Display style">
+      <option value="vellum">Vellum</option>
+      <option value="editorial">Editorial</option>
+    </select>
   </div>
   <div class="audio-row" id="onscreen-dice-row" title="Open the dice roller on this screen when the DM calls for a roll (for games without phones)">
     <span class="audio-label">Roll on screen</span>
@@ -3536,7 +3576,7 @@
   <button id="ph-set-toggle" type="button" title="Display settings" aria-label="Display settings">⚙</button>
   <div id="ph-set-menu" role="menu">
     <button class="ph-set-opt" id="ph-theme-opt" type="button"><span>Theme</span><strong id="ph-theme-val">Dark</strong></button>
-    <button class="ph-set-opt" id="ph-skin-opt" type="button"><span>Style</span><strong id="ph-skin-val">Vellum</strong></button>
+    <label class="ph-set-opt ph-set-row" id="ph-skin-opt"><span>Style</span><select id="ph-skin-select" class="ph-set-select" aria-label="Display style"><option value="vellum">Vellum</option><option value="editorial">Editorial</option></select></label>
     <button class="ph-set-opt" id="ph-roll-opt" type="button" hidden><span>Rolls</span><strong id="ph-roll-val">Players</strong></button>
   </div>
 </div>
@@ -6375,25 +6415,54 @@ function _effectiveTheme(theme) {
     refresh();
   });
 
-  // ── Skin picker (Vellum ↔ Editorial) — parallel axis to theme ──
+  // ── Skin picker — native <select> on both desktop and phone surfaces ──
+  // _SKINS is the source of truth; extend here when a new skin lands (#45) and
+  // both selects re-populate. Vellum has no data-skin attribute (default canvas).
   (function _initSkinPicker() {
-    const srow = document.getElementById('skin-row');
-    const slabel = document.getElementById('skin-label');
-    if (!srow || !slabel) return;
-    let skin = 'vellum';
-    try { if (localStorage.getItem('dnd-skin') === 'editorial') skin = 'editorial'; } catch (_) {}
-    function applySkin() {
-      if (skin === 'editorial') document.documentElement.setAttribute('data-skin', 'editorial');
-      else document.documentElement.removeAttribute('data-skin');
-      slabel.textContent = skin === 'editorial' ? 'Editorial' : 'Vellum';
-      slabel.classList.toggle('on', skin === 'editorial');
+    const _SKINS = [
+      { id: 'vellum',    label: 'Vellum'    },
+      { id: 'editorial', label: 'Editorial' },
+    ];
+
+    function _read() {
+      let v = null; try { v = localStorage.getItem('dnd-skin'); } catch (_) {}
+      return _SKINS.some(s => s.id === v) ? v : 'vellum';
     }
-    applySkin();
-    srow.addEventListener('click', () => {
-      skin = (skin === 'editorial') ? 'vellum' : 'editorial';
+
+    function _apply(skin) {
+      if (skin === 'vellum') document.documentElement.removeAttribute('data-skin');
+      else document.documentElement.setAttribute('data-skin', skin);
       try { localStorage.setItem('dnd-skin', skin); } catch (_) {}
-      applySkin();
-    });
+    }
+
+    function _populate(select, current) {
+      if (!select) return;
+      // Idempotent — overwrite contents from _SKINS so any future skin addition
+      // shows up in both selects without DOM surgery elsewhere.
+      select.innerHTML = _SKINS.map(s =>
+        `<option value="${s.id}"${s.id === current ? ' selected' : ''}>${s.label}</option>`
+      ).join('');
+      select.value = current;
+    }
+
+    const desktop = document.getElementById('skin-select');
+    const phone   = document.getElementById('ph-skin-select');
+    let skin = _read();
+    _populate(desktop, skin);
+    _populate(phone, skin);
+    _apply(skin);
+
+    function _onChange(e) {
+      skin = e.target.value;
+      _apply(skin);
+      // Keep both surfaces in sync if the user has the desktop dev-tools open
+      // while changing on phone, or vice versa.
+      if (desktop && desktop !== e.target) desktop.value = skin;
+      if (phone   && phone   !== e.target) phone.value   = skin;
+    }
+
+    if (desktop) desktop.addEventListener('change', _onChange);
+    if (phone)   phone.addEventListener('change', _onChange);
   })();
 
   // Track system-pref changes so auto mode stays accurate without reload
@@ -7274,22 +7343,22 @@ function _onscreenDiceOn() { try { return localStorage.getItem('dnd-onscreen-dic
     if (!wrap || !document.body.classList.contains('input-only')) return;
     const tog    = document.getElementById('ph-set-toggle');
     const menu   = document.getElementById('ph-set-menu');
+    // Theme stays click-to-cycle (3 values: dark/light/auto — cycle's fine at 3).
+    // Style is its own <select id="ph-skin-select"> wired in _initSkinPicker.
     const tVal   = document.getElementById('ph-theme-val');
-    const sVal   = document.getElementById('ph-skin-val');
     const tRow   = document.getElementById('theme-row');
-    const sRow   = document.getElementById('skin-row');
     const tLabel = document.getElementById('theme-label');
-    const sLabel = document.getElementById('skin-label');
-    function refresh() {
+    function refreshTheme() {
       if (tLabel && tVal) tVal.textContent = tLabel.textContent;
-      if (sLabel && sVal) sVal.textContent = sLabel.textContent;
     }
-    refresh();
+    refreshTheme();
     if (tog) tog.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('open'); });
     const tOpt = document.getElementById('ph-theme-opt');
+    if (tOpt) tOpt.addEventListener('click', e => { e.stopPropagation(); if (tRow) tRow.click(); refreshTheme(); });
+    // Phone Style select lives inside the menu — stop click bubbling so opening
+    // the native picker doesn't close the menu via the document-click listener.
     const sOpt = document.getElementById('ph-skin-opt');
-    if (tOpt) tOpt.addEventListener('click', e => { e.stopPropagation(); if (tRow) tRow.click(); refresh(); });
-    if (sOpt) sOpt.addEventListener('click', e => { e.stopPropagation(); if (sRow) sRow.click(); refresh(); });
+    if (sOpt) sOpt.addEventListener('click', e => e.stopPropagation());
 
     // Per-player roll override — only meaningful when this phone is bound to a PC.
     const boundChar = new URLSearchParams(location.search).get('char')
