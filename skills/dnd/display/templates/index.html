@@ -7181,6 +7181,13 @@ connect();
       // prescribed into the name field — that satisfies the pad's target match
       // and labels the roll correctly.
       const _prefill = window._onDiceRequest;
+      // Defensive: _initDicePad() should have set window._onDiceRequest = _applyDiceRequest
+      // by this point. If a future refactor changes that init order, the wrap below
+      // would silently drop the prefill (handler still runs, but stops dispatching to
+      // the pad's own routing). Warn at dev time so it's obvious before reaching prod.
+      if (typeof _prefill !== 'function') {
+        console.warn('[DnD] dice-drawer wrap: window._onDiceRequest not set by _initDicePad — prescribed-roll prefill will be skipped');
+      }
       const _nameEl = _pad.querySelector('#dp-name');
       window._onDiceRequest = (req) => {
         const tgt = (req && req.characters && req.characters[0]) || (req && req.character) || '';
