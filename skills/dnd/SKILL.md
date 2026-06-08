@@ -37,7 +37,6 @@ The differences that affect Claude's narration and resolution at the table:
 | Exhaustion | 6 levels with discrete effects | Cumulative -2 to all d20 rolls per level (max 10) |
 | Inspiration label | "Inspiration" | "Heroic Inspiration" (same mechanic) |
 | Crit damage (PCs) | Nat 20 → double dice | Nat 20 → double dice (unchanged) |
-| Crit damage (NPCs/monsters) | Same as PCs | Monsters cannot crit on PCs |
 | Cantrip damage scaling tiers | Levels 5/11/17 | Same |
 | Extra Attack progression | Fighter at 5/11/20 | Same |
 
