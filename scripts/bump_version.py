@@ -7,7 +7,7 @@ drift-prone. This updates them all (and optionally commits + tags):
   1. VERSION                          — source of truth
   2. .claude-plugin/plugin.json       — top-level "version"
   3. .claude-plugin/marketplace.json  — the `dm` plugin entry's "version"
-  4. skills/dnd/SKILL.md              — the "vMAJOR.MINOR ·" slash-picker prefix
+  4. skills/dnd/SKILL.md              — the "vMAJOR.MINOR.PATCH ·" slash-picker prefix
   5. CHANGELOG.md                     — promote [Unreleased] → [X.Y.Z] — <date>
 
 Usage:
@@ -87,16 +87,16 @@ def bump_marketplace_json(root, old, new, dry):
 
 
 def bump_skill_description(root, old, new, dry):
-    # The picker prefix is "vMAJOR.MINOR ·" — patch releases keep the same prefix.
+    # The picker prefix is "vMAJOR.MINOR.PATCH ·" — the full release shows in the
+    # slash-command picker so the exact running version is visible at a glance.
     p = root / "skills" / "dnd" / "SKILL.md"
-    maj, minr, _ = new.split(".")
     out, n = re.subn(r'(description:\s*"?)v\d+\.\d+(?:\.\d+)?(\s*·)',
-                     rf'\g<1>v{maj}.{minr}\g<2>', _read(p))
+                     rf'\g<1>v{new}\g<2>', _read(p))
     if n != 1:
-        raise BumpError(f"SKILL.md: expected 1 'vX.Y ·' prefix, found {n}")
+        raise BumpError(f"SKILL.md: expected 1 'vX.Y[.Z] ·' prefix, found {n}")
     if not dry:
         p.write_text(out)
-    return f"skills/dnd/SKILL.md (picker prefix → v{maj}.{minr})"
+    return f"skills/dnd/SKILL.md (picker prefix → v{new})"
 
 
 def bump_changelog(root, old, new, date, title, dry):
