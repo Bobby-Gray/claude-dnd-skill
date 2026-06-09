@@ -17,6 +17,19 @@
        "auto"  → defer to prefers-color-scheme (no data-theme attribute set)
      Persisted to localStorage["dnd-theme"]; matches the picker logic below. -->
 <script>
+  // Skin registry — shared by the anti-FOUC below and the picker logic in body.
+  // Adding a new skin (incl. an editorial overlay) is one entry here. Flat skins
+  // need only {id, label}. Overlay skins (token variants on the editorial bones,
+  // per #46) carry base:'editorial' so structural CSS resolves, and variant:'<id>'
+  // so token blocks scoped to data-variant apply on top.
+  //   { id:'vellum',    label:'Vellum'    }                                                   // flat
+  //   { id:'editorial', label:'Editorial' }                                                   // flat
+  //   { id:'gaslamp',   label:'Gaslamp',  base:'editorial', variant:'gaslamp' }   // overlay (future)
+  window._SKINS = [
+    { id: 'vellum',    label: 'Vellum'    },
+    { id: 'editorial', label: 'Editorial' },
+  ];
+
   (function () {
     try {
       var v = window.localStorage.getItem('dnd-theme');
@@ -24,11 +37,23 @@
         document.documentElement.setAttribute('data-theme', v);
       }
       // 'auto' or missing → leave the attribute off; CSS @media handles it.
-      // Skin axis: "vellum" (default, attr absent) or "editorial" (Colossal redesign).
-      var sk = window.localStorage.getItem('dnd-skin');
-      if (sk === 'editorial') {
-        document.documentElement.setAttribute('data-skin', 'editorial');
+
+      // Resolve the stored skin id to its (base, variant) attribute pair.
+      // Vellum is the structural default (no data-skin attr). Flat skins set
+      // data-skin to their own id. Overlays set data-skin to base AND
+      // data-variant to variant — mirrored in _apply() so the anti-FOUC and
+      // the picker stay in lockstep.
+      var skId = window.localStorage.getItem('dnd-skin');
+      var sk = null;
+      for (var i = 0; i < window._SKINS.length; i++) {
+        if (window._SKINS[i].id === skId) { sk = window._SKINS[i]; break; }
       }
+      if (sk) {
+        var base = sk.base || sk.id;
+        if (base !== 'vellum') document.documentElement.setAttribute('data-skin', base);
+        if (sk.variant) document.documentElement.setAttribute('data-variant', sk.variant);
+      }
+
       // Reading text size — a font-size multiplier (not page zoom). Applied here
       // to avoid a flash at the default size before the picker JS runs.
       var ts = parseFloat(window.localStorage.getItem('dnd-text-scale'));
@@ -1364,7 +1389,9 @@
     -moz-appearance: none;
     appearance: none;
     padding-right: 16px;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%23dcb964'/></svg>");
+    /* Caret tracks the active theme via `fill='currentColor'` — Vellum gold,
+       Editorial orange, dark/light variants of both, without per-skin overrides. */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='currentColor'/></svg>");
     background-repeat: no-repeat;
     background-position: right 4px center;
     background-size: 7px 5px;
@@ -3373,7 +3400,9 @@
     color:#FF7A2D; font-family:'Syne',sans-serif; font-weight:800; font-size:12px;
     letter-spacing:.06em; text-transform:uppercase;
     padding:2px 14px 2px 4px;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%23FF7A2D'/></svg>");
+    /* Caret tracks the chip's text color (`currentColor`) — orange in the
+       editorial popover today; future variants flow without per-skin overrides. */
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='currentColor'/></svg>");
     background-repeat:no-repeat; background-position:right 0 center; background-size:7px 5px;
   }
   .ph-set-select::-ms-expand{ display:none; }
@@ -6416,13 +6445,14 @@ function _effectiveTheme(theme) {
   });
 
   // ── Skin picker — native <select> on both desktop and phone surfaces ──
-  // _SKINS is the source of truth; extend here when a new skin lands (#45) and
-  // both selects re-populate. Vellum has no data-skin attribute (default canvas).
+  // window._SKINS is defined in the anti-FOUC <script> at the top of <head> so
+  // both contexts share one source of truth (extending the registry is a single
+  // edit there). Flat skins set data-skin to their own id; overlays set
+  // data-skin to base AND data-variant to variant — kept in lockstep with the
+  // anti-FOUC resolution above.
   (function _initSkinPicker() {
-    const _SKINS = [
-      { id: 'vellum',    label: 'Vellum'    },
-      { id: 'editorial', label: 'Editorial' },
-    ];
+    const _SKINS = window._SKINS;
+    const root = document.documentElement;
 
     function _read() {
       let v = null; try { v = localStorage.getItem('dnd-skin'); } catch (_) {}
@@ -6430,9 +6460,13 @@ function _effectiveTheme(theme) {
     }
 
     function _apply(skin) {
-      if (skin === 'vellum') document.documentElement.removeAttribute('data-skin');
-      else document.documentElement.setAttribute('data-skin', skin);
-      try { localStorage.setItem('dnd-skin', skin); } catch (_) {}
+      const s = _SKINS.find(x => x.id === skin) || _SKINS[0];
+      const base = s.base || s.id;
+      if (base === 'vellum') root.removeAttribute('data-skin');
+      else root.setAttribute('data-skin', base);
+      if (s.variant) root.setAttribute('data-variant', s.variant);
+      else root.removeAttribute('data-variant');
+      try { localStorage.setItem('dnd-skin', s.id); } catch (_) {}
     }
 
     function _populate(select, current) {
